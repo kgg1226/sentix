@@ -1,0 +1,23 @@
+# .sentix/providers/openai.toml — OpenAI API 어댑터
+#
+# OpenAI 모델을 에이전트로 사용할 때 설정.
+# 실험적 지원 — Claude 대비 파이프라인 호환성 제한될 수 있음.
+
+[provider]
+name = "openai"
+type = "api"
+
+[api]
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"  # 환경변수명
+model = "gpt-4o"                # 모델명
+# max_tokens = 16384
+
+[limits]
+max_parallel_agents = 4
+timeout_seconds = 600
+max_retries = 3
+
+[compatibility]
+# OpenAI 모델의 tool use 방식이 다르므로 일부 에이전트 동작이 다를 수 있음
+notes = "pr-review, security 에이전트에서 코드 분석 정확도가 Claude 대비 낮을 수 있음"

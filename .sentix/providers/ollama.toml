@@ -1,0 +1,25 @@
+# .sentix/providers/ollama.toml — Ollama Local First 어댑터
+#
+# 로컬 LLM을 통한 에이전트 실행 설정.
+# 네트워크 없이 동작. 폐쇄망/오프라인 환경용.
+
+[provider]
+name = "ollama"
+type = "api"
+
+[api]
+base_url = "http://localhost:11434/api"
+api_key_env = ""                # Ollama는 API 키 불필요
+model = "qwen2.5-coder:32b"    # 로컬 모델명 (ollama pull로 사전 설치)
+# model = "codellama:34b"
+# model = "deepseek-coder-v2:16b"
+
+[limits]
+max_parallel_agents = 2         # 로컬 GPU 메모리 제한 고려
+timeout_seconds = 1200          # 로컬 모델은 느리므로 타임아웃 확장
+max_retries = 2
+
+[compatibility]
+notes = "로컬 모델은 코드 분석/생성 정확도가 제한적. planner, roadmap 위주 사용 권장."
+recommended_agents = ["planner", "roadmap"]
+limited_agents = ["dev", "pr-review", "security"]
