@@ -1,0 +1,31 @@
+{
+  "name": "sentix",
+  "version": "2.0.0",
+  "description": "Autonomous multi-agent DevSecOps pipeline CLI",
+  "type": "module",
+  "bin": {
+    "sentix": "./bin/sentix.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/"
+  ],
+  "keywords": [
+    "devops",
+    "devsecops",
+    "pipeline",
+    "autonomous",
+    "multi-agent",
+    "claude",
+    "ai"
+  ],
+  "author": "JANUS",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kgg1226/sentix.git"
+  }
+}

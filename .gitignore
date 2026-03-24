@@ -10,3 +10,10 @@ build/
 .DS_Store
 env-profiles/active.toml
 agent-profiles/active.toml
+
+# Sentix runtime files
+tasks/.pre-fix-test-results.json
+tasks/pattern-log.jsonl
+tasks/agent-metrics.jsonl
+tasks/strategies.jsonl
+tasks/governor-state.json

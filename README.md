@@ -14,200 +14,183 @@ One request in. Deployed, secured, and improved — out.
 ```
 "사용자 인증에 세션 만료 기능 추가해줘"
   │
+  ▼
+┌─────────────────────────────────────────────────────┐
+│  Layer 5 — Self-Evolution Engine                     │
+│  Layer 4 — Visual Perception                         │
+│  Layer 3 — Pattern Engine                            │
+│  Layer 2 — Learning Pipeline                         │
+│  Layer 1 — Governor + Agents (Core)                  │
+└─────────────────────────────────────────────────────┘
+  │
   └─ planner       티켓 생성 (scope, complexity, deploy 판단)
   └─ dev / swarm   구현 (복잡하면 병렬, 단순하면 단독)
   └─ pr-review     scope 검증 + 자동 머지
-  └─ devops        환경에 맞게 배포 (또는 건너뜀)
+  └─ devops        환경에 맞게 배포
   └─ security      취약점 스캔 + severity 분류
   └─ roadmap       고도화 계획 + 다음 티켓 초안
 ```
 
 인간이 하는 것: **요청 입력. 끝.**
-이슈가 생기면 자동 수정하고, 반복 패턴은 자동 학습하고, 다음 작업까지 자동 제안한다.
 
 ---
 
-## Why Sentix
+## Governor Architecture
 
-| | claude-squad | ClawTeam | **Sentix** |
-|---|---|---|---|
-| 인간 역할 | 세션 생성, 감시, 판단 | 목표 설정, 방향 조정 | **요청 입력, 결과 확인** |
-| 에이전트 관계 | 독립 (통신 없음) | 리더-워커 (메시징) | **직렬 핸드오프 + 조건부 분기** |
-| 품질 게이트 | 없음 | 없음 | **security, pr-review, health check** |
-| 배포 | 범위 밖 | 범위 밖 | **환경 어댑터 (SSM/SSH/manual/local)** |
-| 학습 | 없음 | 없음 | **lessons.md 자동 축적** |
-| 재시도 | 없음 | 없음 | **severity 기반 자동 (critical 3회, warning 10회)** |
+```
+사람: "요청"
+  │
+  ▼
+┌─────────────────────────────────────┐
+│            GOVERNOR                  │
+│  전체 상태 보유. 동적 판단.            │
+│  에이전트 소환 → 결과 수거 → 분기.     │
+└──────────┬──────────────────────────┘
+           │
+     ┌─────┼─────┬─────────┬──────────┐
+     ▼     ▼     ▼         ▼          ▼
+  planner  dev  pr-review  security  roadmap
+     │     │     │         │          │
+     └─────┴─────┴─────────┴──────────┘
+           │
+           ▼
+        에이전트 간 직접 통신 없음
+        전부 Governor를 경유
+```
 
-Sentix는 자율 주행 차량이다. 목적지를 말하면 차가 알아서 간다.
+Governor는 모든 것을 안다. 에이전트는 Governor가 준 것만 안다.
 
 ---
 
 ## Quick Start
 
-### 1. 프로젝트에 Sentix 구조 추가
+### Option A: Install into existing project
 
 ```bash
-git clone https://github.com/kgg1226/sentix-template.git .sentix-config
-cp -r .sentix-config/{AGENTS.md,env-profiles,agent-profiles,scripts} ./
-mkdir -p tasks/{tickets,messages} && touch tasks/lessons.md
+bash install-sentix.sh /path/to/your-project
 ```
 
-### 2. 환경 프로필 설정
+### Option B: Manual setup
 
 ```bash
-cd env-profiles
+# 1. 문서 복사
+cp FRAMEWORK.md CLAUDE.md /path/to/your-project/
 
-# 당신의 환경에 맞는 프로필 선택
-ln -sf local-dev.toml active.toml       # 로컬 Docker
-# ln -sf open-cloud.toml active.toml    # 오픈 EC2 (SSM)
-# ln -sf nas-onprem.toml active.toml    # NAS (SSH)
-# ln -sf my-custom.toml active.toml     # 직접 작성
+# 2. .sentix 구조 복사
+cp -r .sentix/ /path/to/your-project/.sentix/
 
-cd ..
+# 3. tasks 디렉토리 생성
+mkdir -p /path/to/your-project/tasks/tickets
+
+# 4. 환경 프로필 설정 (배포 필요 시)
+cp -r env-profiles/ /path/to/your-project/env-profiles/
+cd /path/to/your-project/env-profiles
+ln -sf local-dev.toml active.toml
+
+# 5. CLAUDE.md 기술 스택 수정
+# 프로젝트에 맞게 runtime, framework, database 등 편집
 ```
 
-### 3. 실행
+### Option C: CLI (sentix init)
 
-**CI 환경 (GitHub Actions):**
 ```bash
-# .github/workflows/deploy.yml, security-scan.yml 복사
-# push to master → 자동 실행
-```
-
-**CI 불가 환경 (VPN, 폐쇄망):**
-```bash
-sentix daemon --profile active
-# 로컬에서 파이프라인 자율 실행
+npm install -g sentix
+cd /path/to/your-project
+sentix init
 ```
 
 ---
 
-## 핵심 파일 구조
+## Document Structure
 
 ```
 project/
-├── AGENTS.md                    # 에이전트 라우팅 규칙 (SSoT)
-├── env-profiles/
-│   ├── active.toml → local.toml # 현재 활성 배포 환경
-│   ├── template.toml            # 빈 템플릿 (주석 가이드)
-│   └── *.toml                   # 환경별 프로필
-├── agent-profiles/
-│   └── default.toml             # 에이전트별 프로그램/설정
-├── scripts/
-│   └── deploy.sh                # 범용 배포 스크립트 (프로필 기반)
+├── FRAMEWORK.md              # 설계 문서 (인간이 읽음) — 5 Layer Architecture
+├── CLAUDE.md                 # 실행 문서 (Claude Code가 읽음) — Governor 지침
+├── .sentix/
+│   ├── config.toml           # Layer 활성화 설정
+│   ├── providers/
+│   │   ├── claude.toml       # Claude API 어댑터 (기본)
+│   │   ├── openai.toml       # OpenAI API 어댑터
+│   │   └── ollama.toml       # Local First 어댑터
+│   └── rules/
+│       └── hard-rules.md     # 불변 규칙 6개 격리
 ├── tasks/
-│   ├── tickets/                 # planner가 생성하는 티켓
-│   ├── messages/                # 에이전트 간 비동기 질의
-│   ├── lessons.md               # 자동 축적되는 실패 패턴
-│   ├── security-report.md       # 최신 보안 스캔 결과
-│   ├── deploy-output.md         # 배포 결과 또는 manual 스크립트
-│   └── roadmap.md               # 고도화 계획 + 다음 티켓
-├── .github/workflows/
-│   ├── deploy.yml               # CI 배포 파이프라인
-│   └── security-scan.yml        # CI 보안 스캔
-└── DESIGN.md                    # 설계 원칙
+│   ├── lessons.md            # 실패 패턴 자동 축적
+│   ├── roadmap.md            # 고도화 계획
+│   ├── security-report.md    # 보안 스캔 결과
+│   └── tickets/              # planner 생성 티켓
+├── env-profiles/             # 배포 환경 프로필 (선택)
+├── agent-profiles/           # 에이전트 설정 (선택)
+└── scripts/
+    └── deploy.sh             # 범용 배포 스크립트 (선택)
+```
+
+**2개 문서만 유지:**
+- `FRAMEWORK.md` — 설계 (인간이 읽음)
+- `CLAUDE.md` — 실행 (Claude Code가 읽음)
+
+---
+
+## CLI
+
+```bash
+sentix init              # 프로젝트에 Sentix 설치 (기술 스택 자동 감지)
+sentix run "요청"         # Governor 파이프라인 실행
+sentix status            # Governor 상태 + Memory Layer 요약
+sentix doctor            # 설치 상태 진단
+sentix metrics           # 에이전트 성공률/재시도율 분석
+sentix plugin list       # 플러그인 목록
+sentix plugin create     # 커스텀 플러그인 생성
 ```
 
 ---
 
-## 에이전트 파이프라인
+## 6 Hard Rules (파괴 방지)
 
-### 기본 플로우 (직렬)
-```
-요청 → planner → dev → pr-review → devops → security → roadmap
-                                      ↑                    │
-                                      └── dev-fix ←────────┘
-```
+Governor도 우회할 수 없는 불변 규칙:
 
-### 복잡한 작업 (dev-swarm)
-```
-요청 → planner (COMPLEXITY: high)
-         └→ dev-lead
-              ├→ worker-db   ──┐
-              ├→ worker-ui   ──┤──→ merge → pr-review → ...
-              └→ worker-api ←─┘ (blocked-by db)
-```
-
-### 조건부 분기
-```
-DEPLOY_FLAG: false  → devops 건너뜀 → security 직행
-access.method: manual → 스크립트 생성 → [MANUAL_PENDING] → security
-severity: critical → dev-fix 3회 → 실패 시 roadmap 에스컬레이션
-severity: suggestion → 로깅만 → 파이프라인 계속
-```
+1. **작업 전 테스트 스냅샷 필수**
+2. **티켓 SCOPE 밖 파일 수정 금지**
+3. **기존 export/API 삭제 금지**
+4. **기존 테스트 삭제/약화 금지**
+5. **순삭제 50줄 제한**
+6. **기존 기능/핸들러 삭제 금지** — "버그가 있는 기능은 고치는 것이지, 없애는 것이 아니다."
 
 ---
 
-## 환경 프로필
+## Environment Profiles
 
 한 번 설정하면 배포 방식이 자동으로 결정된다.
 
-| access.method | 동작 | 대상 환경 |
+| method | 동작 | 대상 |
 |---|---|---|
 | `ssm` | AWS SSM 자동 실행 | 오픈 EC2 |
 | `ssh` | SSH 자동 실행 | NAS, 온프레미스 |
-| `manual` | 스크립트 생성 → 알림 | VPN 내부, 폐쇄망 |
+| `manual` | 스크립트 생성 → 알림 | VPN, 폐쇄망 |
 | `local` | 로컬 Docker 실행 | 개발 환경 |
 
-```bash
-# 프로필 간 전환
-cd env-profiles && ln -sf nas-onprem.toml active.toml
-
-# dry-run으로 확인
-./scripts/deploy.sh --dry-run
-
-# 실행
-./scripts/deploy.sh
-```
-
 ---
 
-## 학습 루프
+## Learning Loops
 
-Sentix는 실패에서 배운다. 인간이 가르칠 필요 없다.
+Sentix는 세 가지를 자동으로 학습한다:
 
-```
-1. dev-fix 실행 → LESSON_LEARNED 자동 기록
-2. lessons.md에 패턴 축적
-3. 다음 planner 실행 시 lessons.md가 컨텍스트로 주입
-4. 동일 패턴 3회 반복 → roadmap에 구조적 개선 항목 자동 승격
-```
-
-예시 (`tasks/lessons.md`):
-```
-- [dev-fix] Docker build OOM on t4g.small → swap 2GB 필수 확인 후 빌드
-- [dev-fix] Prisma 7 breaking change: findFirst → findFirstOrThrow 자동 교체 금지
-- [dev-fix] SQLite foreign key 에러 → PRAGMA foreign_keys=ON 누락 패턴
-```
-
----
-
-## 인간 개입 지점
-
-| 상황 | 개입 여부 | 이유 |
+| Layer | 파일 | 학습 대상 |
 |---|---|---|
-| 기능 요청/버그 리포트 | ✅ 입력 | 파이프라인 시작점 |
-| 티켓 생성 | ❌ | planner 자동 |
-| 코드 구현 | ❌ | dev/dev-swarm 자동 |
-| 코드 리뷰 | ❌ | pr-review 자동 검증 |
-| 배포 (SSM/SSH) | ❌ | scripts/deploy.sh 자동 |
-| 배포 (VPN) | ✅ 스크립트 실행 | 네트워크 제한 |
-| 보안 스캔 | ❌ | security 자동 |
-| 보안 critical 판단 | ✅ 확인 | dev-fix 3회 실패 시만 |
-| 재시도 | ❌ | severity 기반 자동 |
-| 고도화 계획 | ❌ | roadmap 자동 |
-| 다음 티켓 실행 | ❌ (선택적 ✅) | 자동 실행 가능, 방향 조정 원하면 개입 |
+| Failure | `lessons.md` | 실패 패턴 → 같은 실수 방지 |
+| Behavior | `patterns.md` | 사용자 행동 → 선제 준비 |
+| Visual | `visual-preferences.md` | 시각 선호 → 맞춤 생성 |
+
+인간이 "이거 기억해"라고 지시할 필요 없다.
 
 ---
 
 ## Contributing
 
-Sentix는 JANUS 팀이 개발하고 오픈소스로 공개한다.
-
-기여 방법:
 - **env-profiles**: 새 환경 프로필 추가 (AWS ECS, GCP, k8s 등)
-- **agent-profiles**: 새 에이전트 조합 (Codex, Aider 등)
-- **security checks**: 보안 스캔 항목 추가
+- **providers**: 새 AI 어댑터 추가 (Gemini, Mistral 등)
+- **plugins**: CLI 플러그인 (sentix plugin create로 시작)
 - **lessons patterns**: 공통 실패 패턴 공유
 
 ---
