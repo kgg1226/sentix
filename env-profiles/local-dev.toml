@@ -1,0 +1,31 @@
+# 로컬 개발 환경 — Docker Desktop 기반
+
+[environment]
+name = "local-dev"
+type = "local"
+description = "로컬 개발 환경 (Docker Desktop)"
+
+[access]
+method = "local"
+vpn_required = false
+
+[project]
+name = "license-manager"
+remote_path = "."
+git_remote = "origin"
+git_branch = "master"
+
+[deploy]
+strategy = "docker-compose"
+compose_file = "docker-compose.yml"
+
+[health]
+enabled = true
+check_url = "http://localhost:3000"
+expected_status = 200
+timeout_seconds = 10
+retry_count = 3
+retry_interval = 3
+
+[prerequisites]
+swap_required = false

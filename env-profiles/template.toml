@@ -1,0 +1,98 @@
+# env-profile.toml — 환경 프로필 템플릿
+#
+# 이 파일을 복사해서 env-profiles/ 에 배치한다.
+# 활성 프로필: env-profiles/active.toml (심볼릭 링크 또는 직접 복사)
+#
+# 사용법:
+#   cp env-profiles/template.toml env-profiles/my-env.toml
+#   # 편집 후
+#   ln -sf my-env.toml env-profiles/active.toml
+#
+# devops 에이전트는 active.toml을 읽고 access.method에 따라 행동을 결정한다.
+
+# ──────────────────────────────────────────────
+# [environment] — 환경 식별
+# ──────────────────────────────────────────────
+[environment]
+name = ""                       # 환경 이름 (예: "triplecomma-ec2", "home-nas", "local-dev")
+type = "remote"                 # remote | local
+description = ""                # 사람이 읽는 설명
+
+# ──────────────────────────────────────────────
+# [access] — 접근 방식
+# ──────────────────────────────────────────────
+[access]
+method = "manual"               # ssm | ssh | manual | local
+                                #   ssm    → AWS SSM 자동 실행 (CI 호환)
+                                #   ssh    → SSH 자동 실행 (키 설정 필요)
+                                #   manual → 스크립트 생성만 (VPN 등 제한 환경)
+                                #   local  → 로컬 Docker 직접 실행
+
+vpn_required = false            # true면 manual 모드에서 VPN 연결 안내 포함
+
+# SSM 전용
+instance_id = ""                # AWS EC2 인스턴스 ID
+region = ""                     # AWS 리전
+
+# SSH 전용
+host = ""                       # SSH 호스트 (IP 또는 도메인)
+user = ""                       # SSH 사용자
+port = 22                       # SSH 포트
+key_path = ""                   # SSH 키 경로 (비어있으면 기본 키 사용)
+
+# ──────────────────────────────────────────────
+# [project] — 프로젝트 정보
+# ──────────────────────────────────────────────
+[project]
+name = ""                       # 프로젝트 이름 (예: "license-manager")
+remote_path = ""                # 원격 서버의 프로젝트 경로
+git_remote = "origin"           # git remote 이름
+git_branch = "master"           # 배포 대상 브랜치
+
+# ──────────────────────────────────────────────
+# [deploy] — 배포 전략
+# ──────────────────────────────────────────────
+[deploy]
+strategy = "docker"             # docker | docker-compose | systemd | pm2 | static
+
+# Docker 전용
+image_name = ""                 # Docker 이미지 이름
+container_name = ""             # Docker 컨테이너 이름
+port_mapping = ""               # 포트 매핑 (예: "8080:3000")
+volumes = []                    # 볼륨 마운트 (예: ["/data/db:/app/db"])
+env_vars = []                   # 환경변수 (예: ["NODE_ENV=production", "DATABASE_URL=file:/app/dev.db"])
+
+# docker-compose 전용
+compose_file = "docker-compose.yml"
+compose_service = ""            # 특정 서비스만 배포 시
+
+# 커스텀 명령 (strategy에 무관하게 override 가능)
+pre_deploy_commands = []        # 배포 전 실행 (예: ["npm run migrate"])
+post_deploy_commands = []       # 배포 후 실행 (예: ["npm run seed"])
+
+# ──────────────────────────────────────────────
+# [health] — 헬스체크
+# ──────────────────────────────────────────────
+[health]
+enabled = true
+check_url = ""                  # 헬스체크 URL (예: "http://localhost:8080")
+expected_status = 200           # 예상 HTTP 상태 코드
+timeout_seconds = 15            # 타임아웃
+retry_count = 3                 # 헬스체크 재시도 횟수
+retry_interval = 5              # 재시도 간격 (초)
+
+# ──────────────────────────────────────────────
+# [prerequisites] — 사전 조건
+# ──────────────────────────────────────────────
+[prerequisites]
+swap_required = false           # swap 필요 여부 (메모리 부족 환경)
+swap_size_mb = 2048             # swap 크기
+min_disk_gb = 5                 # 최소 디스크 여유 공간
+min_memory_mb = 512             # 최소 메모리
+
+# ──────────────────────────────────────────────
+# [notifications] — 알림 (선택)
+# ──────────────────────────────────────────────
+[notifications]
+on_success = ""                 # 성공 시 알림 (예: "slack://webhook-url", "none")
+on_failure = ""                 # 실패 시 알림

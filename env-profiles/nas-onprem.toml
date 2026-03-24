@@ -1,0 +1,37 @@
+# NAS / 온프레미스 환경 — SSH 접근
+
+[environment]
+name = "nas-onprem"
+type = "remote"
+description = "온프레미스 NAS (SSH 접근, 내부망)"
+
+[access]
+method = "ssh"
+vpn_required = false
+host = "192.168.1.100"
+user = "admin"
+port = 22
+key_path = "~/.ssh/nas_key"
+
+[project]
+name = "license-manager"
+remote_path = "/volume1/docker/license-manager"
+git_remote = "origin"
+git_branch = "master"
+
+[deploy]
+strategy = "docker-compose"
+compose_file = "docker-compose.yml"
+compose_service = "app"
+
+[health]
+enabled = true
+check_url = "http://192.168.1.100:8080"
+expected_status = 200
+timeout_seconds = 20
+retry_count = 5
+retry_interval = 5
+
+[prerequisites]
+swap_required = false
+min_disk_gb = 10

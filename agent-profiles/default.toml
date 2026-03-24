@@ -1,0 +1,50 @@
+# agent-profiles/default.toml
+#
+# 각 에이전트가 사용할 프로그램과 실행 설정을 정의한다.
+# Sentix 파이프라인의 모든 에이전트는 이 프로필을 참조한다.
+#
+# 활성 프로필: agent-profiles/active.toml (심볼릭 링크 또는 직접 복사)
+# 프로필이 없으면 아래 기본값이 적용된다.
+
+# ── 개발 에이전트 ──────────────────────────────────────────
+
+[dev]
+program = "claude"
+auto_accept = true              # ralph-loop 프롬프트 자동 수락
+max_parallel = 4                # dev-swarm 최대 동시 worker 수
+
+[dev-fix]
+program = "claude"
+auto_accept = true
+
+# ── 리뷰 에이전트 ──────────────────────────────────────────
+
+[pr-review]
+program = "claude"
+auto_accept = true              # APPROVED 시 자동 머지 허용
+
+# ── 보안 에이전트 ──────────────────────────────────────────
+
+[security]
+program = "claude"
+auto_accept = false             # 보안 스캔은 자동이나 코드 수정은 불허
+                                # (security는 코드를 읽기만 함)
+
+# ── 배포 에이전트 ──────────────────────────────────────────
+
+[devops]
+# devops는 에이전트가 아니라 스크립트 실행
+defer_to = "scripts/deploy.sh"  # 실행 위임 대상
+fallback = "generate-only"      # 스크립트 실행 실패 시 → 스크립트 생성만
+
+# ── 계획 에이전트 ──────────────────────────────────────────
+
+[planner]
+program = "claude"
+auto_accept = true
+
+[roadmap]
+program = "claude"
+auto_accept = true
+auto_execute_next = false       # true면 다음 티켓까지 자동 실행 (완전 자율)
+                                # false면 roadmap 출력 후 인간이 다음 실행 여부 결정

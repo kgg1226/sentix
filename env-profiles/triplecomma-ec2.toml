@@ -1,0 +1,45 @@
+# Triplecomma EC2 — VPN 내부 환경
+# access.method = "manual" → devops가 스크립트만 생성, VPN 연결 후 수동 실행
+
+[environment]
+name = "triplecomma-ec2"
+type = "remote"
+description = "Triplecomma 사내 EC2 (VPN 필수, SSM 접근 가능하나 CI에서 VPN 미지원)"
+
+[access]
+method = "manual"
+vpn_required = true
+instance_id = "i-0aeda7845a9634718"
+region = "ap-northeast-2"
+
+[project]
+name = "license-manager"
+remote_path = "/home/ssm-user/app/license-manager"
+git_remote = "origin"
+git_branch = "master"
+
+[deploy]
+strategy = "docker"
+image_name = "license-manager"
+container_name = "license-app"
+port_mapping = "8080:3000"
+volumes = ["/home/ssm-user/license-manager/data/dev.db:/app/dev.db"]
+env_vars = [
+  "DATABASE_URL=file:/app/dev.db",
+  "NODE_ENV=production",
+  "SECURE_COOKIE=false",
+]
+
+[health]
+enabled = true
+check_url = "http://localhost:8080"
+expected_status = 200
+timeout_seconds = 15
+retry_count = 3
+retry_interval = 5
+
+[prerequisites]
+swap_required = true
+swap_size_mb = 2048
+min_disk_gb = 5
+min_memory_mb = 512

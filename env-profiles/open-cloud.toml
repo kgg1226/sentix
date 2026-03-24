@@ -1,0 +1,42 @@
+# 오픈 클라우드 EC2 — CI에서 직접 SSM 자동 배포
+
+[environment]
+name = "open-cloud"
+type = "remote"
+description = "퍼블릭 서브넷 EC2 (VPN 불필요, SSM 자동 배포)"
+
+[access]
+method = "ssm"
+vpn_required = false
+instance_id = "i-0example1234567"
+region = "ap-northeast-2"
+
+[project]
+name = "license-manager"
+remote_path = "/home/ec2-user/app/license-manager"
+git_remote = "origin"
+git_branch = "master"
+
+[deploy]
+strategy = "docker"
+image_name = "license-manager"
+container_name = "license-app"
+port_mapping = "80:3000"
+volumes = ["/data/license-manager/dev.db:/app/dev.db"]
+env_vars = [
+  "DATABASE_URL=file:/app/dev.db",
+  "NODE_ENV=production",
+]
+
+[health]
+enabled = true
+check_url = "http://localhost:80"
+expected_status = 200
+timeout_seconds = 15
+retry_count = 3
+retry_interval = 5
+
+[prerequisites]
+swap_required = false
+min_disk_gb = 10
+min_memory_mb = 1024

@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+*.db
+*.sqlite
+.next/
+dist/
+build/
+*.log
+.DS_Store
+env-profiles/active.toml
+agent-profiles/active.toml
