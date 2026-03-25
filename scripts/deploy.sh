@@ -54,14 +54,15 @@ echo "📄 Loading profile: $(basename "$PROFILE")"
 # ── TOML 파서 (순수 bash — 외부 의존성 없음) ─────────────
 parse_toml() {
   local key="$1"
-  grep -E "^${key}\s*=" "$PROFILE" | head -1 | sed 's/.*=\s*//; s/^"//; s/"$//'
+  grep -E "^${key}\s*=" "$PROFILE" | head -1 | \
+    sed 's/.*=\s*//; s/\s*#.*$//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
 parse_toml_array() {
   local key="$1"
   # 한 줄짜리 배열만 지원: key = ["a", "b"]
   grep -E "^${key}\s*=" "$PROFILE" | head -1 | \
-    sed 's/.*\[//; s/\]//; s/"//g; s/,/\n/g' | \
+    sed 's/.*\[//; s/\]//; s/\s*#.*$//; s/"//g; s/,/\n/g' | \
     sed 's/^ *//; s/ *$//' | grep -v '^$'
 }
 

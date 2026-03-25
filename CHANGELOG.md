@@ -1,5 +1,53 @@
 # Changelog
 
+## [2.0.1] — 2025-03-25
+
+### Security Fixes
+
+- `run.js`: Replace `execSync` with `spawnSync` to prevent shell injection
+- `deploy.sh`: Replace `eval "$cmd"` with `bash -c` + per-command error handling
+- `deploy.sh`: Fix TOML parser to strip inline comments (prevent value pollution)
+- `run.js`: Add concurrent execution guard (governor-state.json lock check)
+- `run.js`: Add Claude Code CLI availability check before pipeline execution
+
+### Bug Fixes
+
+- `init.js`: `detectFramework()` now actually parses package.json dependencies (detects Next.js, Express, NestJS, Fastify, Koa, Hono, React, Vue, Svelte)
+- `status.js`: Fix TOML parsing — per-section `enabled` check instead of global string search
+- `doctor.js`: Exit code 1 when issues found (was always 0)
+- `plugin.js`: Validate sanitized plugin name is non-empty
+- `context.js`: Use top-level `appendFile` import instead of dynamic `import()`
+- `context.js`: Atomic `writeJSON` via write-to-temp-then-rename
+- `registry.js`: Isolate hook errors (one hook failure no longer crashes entire command)
+- `metrics.js`: Warn when malformed JSONL lines are skipped
+
+### Improvements
+
+- Add `src/version.js` — centralized version from package.json (was hardcoded in 4 places)
+- Add `NO_COLOR` env var and non-TTY support to logging
+- Add JSONL log rotation to logger plugin (20k → 10k entries)
+- Add per-command `--help` flag support (`sentix doctor --help`)
+- Add `install-sentix.ps1` — Windows PowerShell installer
+
+### Missing Files Created
+
+- `tasks/patterns.md` — Pattern Engine data (was referenced but missing)
+- `tasks/predictions.md` — Active predictions (was referenced but missing)
+- `INTERFACE.md` — API contract template for multi-project cross-reference
+- `registry.md` — Project registry for cascade deployment
+- `sentix init` and `install-sentix.sh` now create INTERFACE.md + registry.md
+
+### Documentation
+
+- `FRAMEWORK.md`: Add governor-state.json schema with field definitions + `schema_version`
+- `FRAMEWORK.md`: Add pre-fix snapshot definition
+- `FRAMEWORK.md`: Add pattern-log.jsonl event type schema (7 event types)
+- `README.md`: Mark Layer 4 (Visual) and Layer 5 (Evolution) as `planned` with activation instructions
+- `CLAUDE.md`: Add deploy-output.md to learning files list
+- `agent-profiles/default.toml`: Add pattern-engine agent definition
+
+---
+
 ## [2.0.0] — 2025-03-25
 
 ### Document Normalization (9 → 2)

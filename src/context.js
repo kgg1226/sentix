@@ -6,9 +6,10 @@
  * Zero external dependencies — uses only Node.js built-ins.
  */
 
-import { readFile, writeFile, appendFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, appendFile, mkdir, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
 
@@ -56,14 +57,22 @@ export function createContext(cwd) {
     },
 
     /**
-     * Write a JSON file relative to cwd.
+     * Write a JSON file atomically (write-to-temp-then-rename).
+     * Prevents corruption if process crashes mid-write.
      * @param {string} path
      * @param {object} data
      */
     async writeJSON(path, data) {
       const full = resolve(cwd, path);
-      await mkdir(dirname(full), { recursive: true });
-      await writeFile(full, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+      const dir = dirname(full);
+      await mkdir(dir, { recursive: true });
+
+      const tmpName = `.${randomBytes(6).toString('hex')}.tmp`;
+      const tmpPath = join(dir, tmpName);
+      const content = JSON.stringify(data, null, 2) + '\n';
+
+      await writeFile(tmpPath, content, 'utf-8');
+      await rename(tmpPath, full);
     },
 
     /**

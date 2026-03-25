@@ -137,6 +137,50 @@ default = "claude"
       ctx.success('Created tasks/tickets/');
     }
 
+    // ── 4b. Multi-project files ─────────────────────
+    if (!ctx.exists('INTERFACE.md')) {
+      const iface = `# INTERFACE.md — API Contract
+
+> 다른 프로젝트가 이 프로젝트를 참조할 때 읽는 계약서.
+> Governor가 멀티 프로젝트 교차 참조 시 충돌 여부를 판단하는 기준.
+
+## Project
+
+\`\`\`
+name: # 프로젝트 이름
+version: # 현재 버전
+type: # api | library | framework | service
+\`\`\`
+
+## Exported APIs
+
+\`\`\`
+# 다른 프로젝트가 참조하는 API 엔드포인트나 모듈
+\`\`\`
+
+## Changelog
+
+| 날짜 | 변경 | 영향 범위 |
+|---|---|---|
+`;
+      await ctx.writeFile('INTERFACE.md', iface);
+      ctx.success('Created INTERFACE.md');
+    }
+
+    if (!ctx.exists('registry.md')) {
+      const reg = `# registry.md — 연동 프로젝트 목록
+
+> Governor와 deploy.yml cascade job이 이 파일을 참조.
+
+## 연동 프로젝트
+
+| 프로젝트 | 경로 | 참조 조건 |
+|---|---|---|
+`;
+      await ctx.writeFile('registry.md', reg);
+      ctx.success('Created registry.md');
+    }
+
     // ── 5. .gitignore entries ───────────────────────
     const ignoreEntries = [
       'tasks/.pre-fix-test-results.json',

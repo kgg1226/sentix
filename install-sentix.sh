@@ -107,6 +107,10 @@ touch_if_missing "$TARGET/tasks/predictions.md" "# Active Predictions — auto-u
 touch_if_missing "$TARGET/tasks/roadmap.md" "# Roadmap — 고도화 계획"
 touch_if_missing "$TARGET/tasks/security-report.md" "# Security Report"
 
+# Multi-project files
+touch_if_missing "$TARGET/INTERFACE.md" "# INTERFACE.md — API Contract"
+touch_if_missing "$TARGET/registry.md" "# registry.md — 연동 프로젝트 목록"
+
 # ── 5. 기술 스택 자동 감지 ────────────────────────────────
 echo "[4/5] Detecting tech stack..."
 
