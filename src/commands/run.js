@@ -51,6 +51,7 @@ registerCommand('run', {
     const cycleId = `cycle-${new Date().toISOString().slice(0, 10)}-${String(Date.now()).slice(-3)}`;
 
     const state = {
+      schema_version: 1,
       cycle_id: cycleId,
       request,
       status: 'in_progress',
@@ -59,6 +60,7 @@ registerCommand('run', {
       retries: {},
       cross_judgments: [],
       started_at: new Date().toISOString(),
+      completed_at: null,
       human_intervention_requested: false,
     };
 

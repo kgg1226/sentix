@@ -29,15 +29,19 @@ registerCommand('metrics', {
 
     // Parse entries
     const entries = [];
+    let skipped = 0;
     for (const line of lines) {
       try {
         entries.push(JSON.parse(line));
       } catch {
-        // skip malformed lines
+        skipped++;
       }
     }
 
-    ctx.log(`Total records: ${entries.length}\n`);
+    ctx.log(`Total records: ${entries.length}${skipped > 0 ? ` (${skipped} malformed lines skipped)` : ''}\n`);
+    if (skipped > 0) {
+      ctx.warn(`${skipped} malformed lines in agent-metrics.jsonl were skipped.`);
+    }
 
     // Group by agent
     const byAgent = new Map();

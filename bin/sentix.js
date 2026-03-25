@@ -94,11 +94,18 @@ async function main() {
     process.exit(1);
   }
 
+  // Per-command --help
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(`\n${cmd.description}\n`);
+    console.log(`Usage: ${cmd.usage}\n`);
+    process.exit(0);
+  }
+
   const ctx = createContext(cwd);
 
   try {
     await runHooks('before:command', { command: commandName, args, ctx });
-    await cmd.run(args, ctx);
+    await cmd.run(args.filter(a => a !== '--help' && a !== '-h'), ctx);
     await runHooks('after:command', { command: commandName, args, ctx });
   } catch (err) {
     ctx.error(err.message);

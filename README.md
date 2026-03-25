@@ -227,7 +227,9 @@ severity: suggestion     → 로깅만 → 파이프라인 계속
 어떤 수준에서도 인간에게 "이거 할까요?"라고 묻지 않는다.
 예측이 틀리면 준비한 것을 조용히 폐기한다.
 
-### Layer 4 — Visual Perception (시각 선호 학습)
+### Layer 4 — Visual Perception (시각 선호 학습) `planned`
+
+> `.sentix/config.toml`에서 `[layers.visual] enabled = true`로 활성화. 기본값: off.
 
 사용자의 피드백에서 시각적 선호도를 학습하여 생성물에 자동 반영한다.
 
@@ -241,7 +243,9 @@ severity: suggestion     → 로깅만 → 파이프라인 계속
 
 수집 방식: 명시적 ("글씨 키워줘") + 암묵적 (수정 없이 수락 → +1 confidence) + 비교 (A/B 선택)
 
-### Layer 5 — Self-Evolution Engine (자기 진화)
+### Layer 5 — Self-Evolution Engine (자기 진화) `planned`
+
+> `.sentix/config.toml`에서 `[layers.evolution] enabled = true`로 활성화. 기본값: off. 50사이클 이상 축적 후 활성화 권장.
 
 에이전트가 자기 자신의 성능 데이터를 분석하여 스스로 개선한다.
 

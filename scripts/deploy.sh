@@ -267,7 +267,13 @@ execute_local() {
     [[ "$cmd" =~ ^#.* ]] && echo "$cmd" && continue
     [[ -z "$cmd" ]] && continue
     echo "  → $cmd"
-    eval "$cmd"
+    # Execute via bash -c to avoid eval injection from TOML values
+    bash -c "$cmd"
+    if [[ $? -ne 0 ]]; then
+      echo "[STATUS] FAILED"
+      echo "[ISSUE] Command failed: $cmd"
+      return 1
+    fi
   done
   echo "[STATUS] PASSED"
 }
