@@ -2,9 +2,10 @@
  * sentix doctor — 설치 상태 진단
  *
  * CLAUDE.md, tasks/, Claude Code, git, deprecated 파일 등을 확인.
+ * Exits with code 1 if issues are found.
  */
 
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 
 registerCommand('doctor', {
@@ -23,6 +24,8 @@ registerCommand('doctor', {
       { path: '.sentix/config.toml', label: '.sentix/config.toml' },
       { path: '.sentix/rules/hard-rules.md', label: '.sentix/rules/hard-rules.md' },
       { path: 'tasks/lessons.md', label: 'tasks/lessons.md' },
+      { path: 'tasks/patterns.md', label: 'tasks/patterns.md' },
+      { path: 'tasks/predictions.md', label: 'tasks/predictions.md' },
     ];
 
     for (const { path, label } of required) {
@@ -78,38 +81,54 @@ registerCommand('doctor', {
       }
     }
 
+    // ── Multi-project files ─────────────────────────
+    ctx.log('\n--- Multi-Project ---\n');
+
+    if (ctx.exists('INTERFACE.md')) {
+      ctx.success('INTERFACE.md (API contract)');
+    } else {
+      ctx.warn('INTERFACE.md — not found (needed for multi-project cross-reference)');
+    }
+
+    if (ctx.exists('registry.md')) {
+      ctx.success('registry.md (project registry)');
+    } else {
+      ctx.warn('registry.md — not found (needed for multi-project cascade)');
+    }
+
     // ── External tools ──────────────────────────────
     ctx.log('\n--- External Tools ---\n');
 
     // Git
-    try {
-      const gitVersion = execSync('git --version', { encoding: 'utf-8' }).trim();
-      ctx.success(`git: ${gitVersion}`);
-    } catch {
+    const git = spawnSync('git', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
+    if (git.status === 0) {
+      ctx.success(`git: ${git.stdout.trim()}`);
+    } else {
       ctx.error('git: not found');
       issues++;
     }
 
     // Node.js
-    try {
-      const nodeVersion = execSync('node --version', { encoding: 'utf-8' }).trim();
-      const major = parseInt(nodeVersion.replace('v', ''));
+    const node = spawnSync('node', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
+    if (node.status === 0) {
+      const ver = node.stdout.trim();
+      const major = parseInt(ver.replace('v', ''));
       if (major >= 18) {
-        ctx.success(`node: ${nodeVersion}`);
+        ctx.success(`node: ${ver}`);
       } else {
-        ctx.warn(`node: ${nodeVersion} (18+ recommended)`);
+        ctx.warn(`node: ${ver} (18+ recommended)`);
         issues++;
       }
-    } catch {
+    } else {
       ctx.error('node: not found');
       issues++;
     }
 
     // Claude Code
-    try {
-      execSync('claude --version', { encoding: 'utf-8', stdio: 'pipe' });
+    const claude = spawnSync('claude', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
+    if (claude.status === 0) {
       ctx.success('claude: installed');
-    } catch {
+    } else {
       ctx.warn('claude: not found (needed for sentix run)');
     }
 
@@ -119,6 +138,7 @@ registerCommand('doctor', {
       ctx.success('All checks passed!');
     } else {
       ctx.warn(`${issues} issue(s) found. Run 'sentix init' to fix missing files.`);
+      process.exitCode = 1;
     }
     ctx.log('');
   },

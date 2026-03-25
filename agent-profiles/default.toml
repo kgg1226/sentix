@@ -48,3 +48,12 @@ program = "claude"
 auto_accept = true
 auto_execute_next = false       # true면 다음 티켓까지 자동 실행 (완전 자율)
                                 # false면 roadmap 출력 후 인간이 다음 실행 여부 결정
+
+# ── 패턴 엔진 ────────────────────────────────────────────
+
+[pattern-engine]
+program = "claude"
+auto_accept = true
+# 패턴 분석만 수행. 코드 파일 수정 금지.
+# 읽기: tasks/pattern-log.jsonl, tasks/patterns.md, tasks/lessons.md
+# 쓰기: tasks/patterns.md, tasks/predictions.md

@@ -6,9 +6,15 @@
  * Zero external dependencies — uses only Node.js built-ins.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, appendFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+
+const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
+
+function color(code, text) {
+  return useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
+}
 
 /**
  * Create a context object for command/plugin execution.
@@ -68,7 +74,6 @@ export function createContext(cwd) {
     async appendJSONL(path, data) {
       const full = resolve(cwd, path);
       await mkdir(dirname(full), { recursive: true });
-      const { appendFile } = await import('node:fs/promises');
       await appendFile(full, JSON.stringify(data) + '\n', 'utf-8');
     },
 
@@ -81,10 +86,10 @@ export function createContext(cwd) {
       return existsSync(resolve(cwd, path));
     },
 
-    // ── Logging ──────────────────────────────────────
+    // ── Logging (respects NO_COLOR and non-TTY) ─────
     log(msg)     { console.log(msg); },
-    success(msg) { console.log(`\x1b[32m✓\x1b[0m ${msg}`); },
-    warn(msg)    { console.log(`\x1b[33m⚠\x1b[0m ${msg}`); },
-    error(msg)   { console.error(`\x1b[31m✗\x1b[0m ${msg}`); },
+    success(msg) { console.log(`${color('32', '✓')} ${msg}`); },
+    warn(msg)    { console.log(`${color('33', '⚠')} ${msg}`); },
+    error(msg)   { console.error(`${color('31', '✗')} ${msg}`); },
   };
 }

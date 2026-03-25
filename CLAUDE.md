@@ -143,6 +143,7 @@ tasks/
 ├── governor-state.json      ← Governor 현재 상태 (복원용)
 ├── security-report.md       ← 최신 보안 스캔 결과
 ├── roadmap.md               ← 고도화 계획 + 다음 티켓 초안
+├── deploy-output.md         ← 배포 결과 또는 manual 모드 스크립트
 └── tickets/                 ← planner가 생성하는 티켓
 ```
 
