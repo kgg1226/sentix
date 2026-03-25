@@ -83,7 +83,7 @@
 ```
 
 ```
-실체: Claude Code 장기 실행 세션 (sentix daemon 또는 수동 실행)
+실체: Claude Code 장기 실행 세션 (sentix run 또는 수동 실행)
 읽기: 전체 프로젝트 (모든 파일 접근 가능)
 쓰기: tasks/governor-state.json (자신의 상태만)
 금지: 코드 직접 수정 (반드시 에이전트를 통해서)
@@ -144,6 +144,7 @@ Governor가 전체 상태를 갖고 있기 때문에 가능한 것:
 ```json
 // tasks/governor-state.json
 {
+  "schema_version": 1,
   "cycle_id": "cycle-2025-03-24-001",
   "request": "인증에 세션 만료 추가해줘",
   "status": "in_progress",
@@ -162,8 +163,51 @@ Governor가 전체 상태를 갖고 있기 때문에 가능한 것:
     "planner SCOPE 적절 — security 선행 분석과 dev 결과 일치"
   ],
   "started_at": "2025-03-24T09:00:00",
+  "completed_at": null,
   "human_intervention_requested": false
 }
+```
+
+**필드 정의:**
+- `schema_version` — 상태 파일 스키마 버전 (마이그레이션 판단용)
+- `status` — `in_progress` | `completed` | `failed`
+- `current_phase` — 현재 실행 중인 에이전트 이름
+- `plan[].status` — `pending` | `running` | `done` | `failed`
+- `plan[].result_ref` — 결과 파일 경로 또는 `inline`
+- Governor가 죽어도 이 파일에서 복원한다 → 중단된 phase부터 재개
+
+### Pre-fix Snapshot 정의
+
+dev/dev-fix가 코드를 수정하기 전에 생성하는 스냅샷:
+
+```
+tasks/.pre-fix-test-results.json — npm run test --json 결과
+
+포함 내용:
+  - 전체 테스트 수
+  - 통과/실패 테스트 수
+  - 실패한 테스트 이름 목록
+  - 테스트 실행 시간
+
+용도:
+  - pr-review가 회귀 검증에 사용 (변경 후 테스트와 비교)
+  - dev-fix가 원래 상태를 파악하는 데 사용
+```
+
+### pattern-log.jsonl 스키마
+
+```jsonl
+// 모든 이벤트의 공통 필드
+{"ts": "ISO 8601", "event": "이벤트 타입", ...이벤트별 필드}
+
+// 이벤트 타입:
+{"ts":"...","event":"request","input":"요청 내용","cycle_id":"cycle-xxx"}
+{"ts":"...","event":"pipeline-complete","cycle_id":"cycle-xxx","duration":1200}
+{"ts":"...","event":"pipeline-failed","cycle_id":"cycle-xxx","error":"메시지"}
+{"ts":"...","event":"deploy","env":"env-profile명","status":"success|failed"}
+{"ts":"...","event":"command:start","command":"sentix 커맨드명","args":["인자"]}
+{"ts":"...","event":"command:end","command":"sentix 커맨드명","args":["인자"]}
+{"ts":"...","event":"visual","category":"typography|density|color|hierarchy","feedback":"원본 피드백"}
 ```
 
 ## 에이전트 정의

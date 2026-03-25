@@ -8,17 +8,14 @@
 ## 기술 스택
 
 ```
-# {{PROJECT_TECH_STACK}} — 프로젝트별 커스터마이징
-# sentix init 또는 수동으로 아래 값을 프로젝트에 맞게 수정
-
 runtime: Node.js 18+
-language: TypeScript / JavaScript
+language: JavaScript (ESM)
 package_manager: npm
-test: npm run test
-lint: npm run lint
-build: npm run build
-framework: # 프로젝트에 맞게 설정 (Next.js, Express, etc.)
-database: # 프로젝트에 맞게 설정 (PostgreSQL, SQLite, etc.)
+test: npm test
+lint: # 미설정 (프로젝트에 맞게 추가)
+build: # 미설정 (CLI 프로젝트 — 빌드 불필요)
+framework: CLI (plugin architecture)
+database: N/A (tasks/ 파일 기반)
 deploy: env-profiles/active.toml 참조
 ```
 
@@ -143,6 +140,7 @@ tasks/
 ├── governor-state.json      ← Governor 현재 상태 (복원용)
 ├── security-report.md       ← 최신 보안 스캔 결과
 ├── roadmap.md               ← 고도화 계획 + 다음 티켓 초안
+├── deploy-output.md         ← 배포 결과 또는 manual 모드 스크립트
 └── tickets/                 ← planner가 생성하는 티켓
 ```
 

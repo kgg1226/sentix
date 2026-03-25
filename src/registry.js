@@ -46,12 +46,18 @@ export function getAllCommands() {
 
 /**
  * Run all hooks for a given event.
+ * Errors in individual hooks are caught and logged — they never break command execution.
  * @param {string} name - Hook event name
  * @param {object} info - Context passed to hooks
  */
 export async function runHooks(name, info) {
   const fns = hooks.get(name) || [];
   for (const fn of fns) {
-    await fn(info);
+    try {
+      await fn(info);
+    } catch (err) {
+      const hookName = fn.name || '(anonymous)';
+      console.error(`[sentix] Hook "${name}" (${hookName}) failed: ${err.message}`);
+    }
   }
 }

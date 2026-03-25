@@ -13,6 +13,9 @@ registerCommand('init', {
   async run(args, ctx) {
     ctx.log('Initializing Sentix...\n');
 
+    // ── 0. Detect tech stack (async) ────────────────
+    const techStack = await detectTechStack(ctx);
+
     // ── 1. CLAUDE.md ────────────────────────────────
     if (ctx.exists('CLAUDE.md')) {
       ctx.warn('CLAUDE.md already exists — skipping');
@@ -27,12 +30,13 @@ registerCommand('init', {
 ## 기술 스택
 
 \`\`\`
-runtime: ${detectRuntime(ctx)}
-package_manager: ${detectPackageManager(ctx)}
-framework: ${detectFramework(ctx)}
-test: npm run test
-lint: npm run lint
-build: npm run build
+runtime: ${techStack.runtime}
+language: ${techStack.language}
+package_manager: ${techStack.packageManager}
+framework: ${techStack.framework}
+test: ${techStack.test}
+lint: ${techStack.lint}
+build: ${techStack.build}
 \`\`\`
 
 ---
@@ -112,6 +116,8 @@ default = "claude"
     // ── 4. tasks/ ───────────────────────────────────
     const taskFiles = {
       'tasks/lessons.md': '# Lessons — 자동 축적되는 실패 패턴\n',
+      'tasks/patterns.md': '# User Patterns — auto-generated, do not edit manually\n',
+      'tasks/predictions.md': '# Active Predictions — auto-updated by pattern engine\n',
       'tasks/roadmap.md': '# Roadmap — 고도화 계획\n',
       'tasks/security-report.md': '# Security Report\n',
     };
@@ -129,6 +135,50 @@ default = "claude"
     if (!ctx.exists('tasks/tickets')) {
       await ctx.writeFile('tasks/tickets/.gitkeep', '');
       ctx.success('Created tasks/tickets/');
+    }
+
+    // ── 4b. Multi-project files ─────────────────────
+    if (!ctx.exists('INTERFACE.md')) {
+      const iface = `# INTERFACE.md — API Contract
+
+> 다른 프로젝트가 이 프로젝트를 참조할 때 읽는 계약서.
+> Governor가 멀티 프로젝트 교차 참조 시 충돌 여부를 판단하는 기준.
+
+## Project
+
+\`\`\`
+name: # 프로젝트 이름
+version: # 현재 버전
+type: # api | library | framework | service
+\`\`\`
+
+## Exported APIs
+
+\`\`\`
+# 다른 프로젝트가 참조하는 API 엔드포인트나 모듈
+\`\`\`
+
+## Changelog
+
+| 날짜 | 변경 | 영향 범위 |
+|---|---|---|
+`;
+      await ctx.writeFile('INTERFACE.md', iface);
+      ctx.success('Created INTERFACE.md');
+    }
+
+    if (!ctx.exists('registry.md')) {
+      const reg = `# registry.md — 연동 프로젝트 목록
+
+> Governor와 deploy.yml cascade job이 이 파일을 참조.
+
+## 연동 프로젝트
+
+| 프로젝트 | 경로 | 참조 조건 |
+|---|---|---|
+`;
+      await ctx.writeFile('registry.md', reg);
+      ctx.success('Created registry.md');
     }
 
     // ── 5. .gitignore entries ───────────────────────
@@ -155,40 +205,114 @@ default = "claude"
     // ── Done ────────────────────────────────────────
     ctx.log('\n=== Sentix initialized ===');
     ctx.log('');
+    if (techStack.detected) {
+      ctx.success(`Detected: ${techStack.runtime} / ${techStack.packageManager}${techStack.framework !== '# 프로젝트에 맞게 설정' ? ' / ' + techStack.framework : ''}`);
+    }
     ctx.log('Next steps:');
-    ctx.log('  1. Edit CLAUDE.md → 기술 스택을 프로젝트에 맞게 수정');
+    ctx.log('  1. Edit CLAUDE.md → 기술 스택을 프로젝트에 맞게 확인');
     ctx.log('  2. Run: sentix doctor');
     ctx.log('');
   },
 });
 
-// ── Tech stack detection helpers ─────────────────────────
+// ── Tech stack detection (async — reads package.json) ────
 
-function detectRuntime(ctx) {
-  if (ctx.exists('package.json')) return 'Node.js 18+';
-  if (ctx.exists('requirements.txt') || ctx.exists('pyproject.toml')) return 'Python';
-  if (ctx.exists('go.mod')) return 'Go';
-  if (ctx.exists('Cargo.toml')) return 'Rust';
-  return '# 프로젝트에 맞게 설정';
-}
+async function detectTechStack(ctx) {
+  const result = {
+    detected: false,
+    runtime: '# 프로젝트에 맞게 설정',
+    language: '# 프로젝트에 맞게 설정',
+    packageManager: '# 프로젝트에 맞게 설정',
+    framework: '# 프로젝트에 맞게 설정',
+    test: '# 프로젝트에 맞게 설정',
+    lint: '# 프로젝트에 맞게 설정',
+    build: '# 프로젝트에 맞게 설정',
+  };
 
-function detectPackageManager(ctx) {
-  if (ctx.exists('bun.lockb')) return 'bun';
-  if (ctx.exists('pnpm-lock.yaml')) return 'pnpm';
-  if (ctx.exists('yarn.lock')) return 'yarn';
-  if (ctx.exists('package.json')) return 'npm';
-  if (ctx.exists('pyproject.toml')) return 'poetry';
-  if (ctx.exists('requirements.txt')) return 'pip';
-  return '# 프로젝트에 맞게 설정';
-}
+  // ── Node.js ────────────────────────────────────
+  if (ctx.exists('package.json')) {
+    result.detected = true;
+    result.runtime = 'Node.js 18+';
+    result.language = 'TypeScript / JavaScript';
 
-function detectFramework(ctx) {
-  if (!ctx.exists('package.json')) return '# 프로젝트에 맞게 설정';
-  try {
-    // Sync read not available — return placeholder
-    // Actual detection happens at runtime when readFile is async
-    return '# 프로젝트에 맞게 설정 (Next.js, Express, etc.)';
-  } catch {
-    return '# 프로젝트에 맞게 설정';
+    // Package manager
+    if (ctx.exists('bun.lockb')) result.packageManager = 'bun';
+    else if (ctx.exists('pnpm-lock.yaml')) result.packageManager = 'pnpm';
+    else if (ctx.exists('yarn.lock')) result.packageManager = 'yarn';
+    else result.packageManager = 'npm';
+
+    // TypeScript check
+    if (ctx.exists('tsconfig.json')) {
+      result.language = 'TypeScript';
+    } else {
+      result.language = 'JavaScript';
+    }
+
+    // Framework detection from package.json
+    try {
+      const pkg = await ctx.readJSON('package.json');
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+
+      if (deps['next']) result.framework = 'Next.js';
+      else if (deps['express']) result.framework = 'Express';
+      else if (deps['fastify']) result.framework = 'Fastify';
+      else if (deps['@nestjs/core']) result.framework = 'NestJS';
+      else if (deps['koa']) result.framework = 'Koa';
+      else if (deps['hono']) result.framework = 'Hono';
+      else if (deps['react'] && !deps['next']) result.framework = 'React';
+      else if (deps['vue']) result.framework = 'Vue';
+      else if (deps['svelte']) result.framework = 'Svelte';
+
+      // Scripts detection
+      const scripts = pkg.scripts || {};
+      const pm = result.packageManager;
+      result.test = scripts.test ? `${pm} run test` : `# ${pm} run test`;
+      result.lint = scripts.lint ? `${pm} run lint` : `# ${pm} run lint`;
+      result.build = scripts.build ? `${pm} run build` : `# ${pm} run build`;
+    } catch {
+      result.test = `${result.packageManager} run test`;
+      result.lint = `${result.packageManager} run lint`;
+      result.build = `${result.packageManager} run build`;
+    }
+
+    return result;
   }
+
+  // ── Python ─────────────────────────────────────
+  if (ctx.exists('pyproject.toml') || ctx.exists('requirements.txt')) {
+    result.detected = true;
+    result.runtime = 'Python 3.10+';
+    result.language = 'Python';
+    result.packageManager = ctx.exists('pyproject.toml') ? 'poetry' : 'pip';
+    result.test = 'pytest';
+    result.lint = 'ruff check .';
+    result.build = '# 프로젝트에 맞게 설정';
+    return result;
+  }
+
+  // ── Go ─────────────────────────────────────────
+  if (ctx.exists('go.mod')) {
+    result.detected = true;
+    result.runtime = 'Go 1.21+';
+    result.language = 'Go';
+    result.packageManager = 'go mod';
+    result.test = 'go test ./...';
+    result.lint = 'golangci-lint run';
+    result.build = 'go build ./...';
+    return result;
+  }
+
+  // ── Rust ───────────────────────────────────────
+  if (ctx.exists('Cargo.toml')) {
+    result.detected = true;
+    result.runtime = 'Rust';
+    result.language = 'Rust';
+    result.packageManager = 'cargo';
+    result.test = 'cargo test';
+    result.lint = 'cargo clippy';
+    result.build = 'cargo build --release';
+    return result;
+  }
+
+  return result;
 }

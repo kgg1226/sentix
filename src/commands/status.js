@@ -23,9 +23,9 @@ registerCommand('status', {
         if (state.plan && state.plan.length > 0) {
           ctx.log('\nPipeline:');
           for (const step of state.plan) {
-            const icon = step.status === 'done' ? '\x1b[32m✓\x1b[0m'
-              : step.status === 'running' ? '\x1b[33m▶\x1b[0m'
-              : '\x1b[90m○\x1b[0m';
+            const icon = step.status === 'done' ? '✓'
+              : step.status === 'running' ? '▶'
+              : '○';
             ctx.log(`  ${icon} ${step.agent} — ${step.status}${step.result ? ` (${step.result})` : ''}`);
           }
         }
@@ -47,9 +47,18 @@ registerCommand('status', {
     if (ctx.exists('tasks/lessons.md')) {
       const lessons = await ctx.readFile('tasks/lessons.md');
       const lines = lessons.split('\n').filter(l => l.startsWith('- '));
-      ctx.log(`Lessons:    ${lines.length} entries`);
+      ctx.log(`Lessons:     ${lines.length} entries`);
     } else {
-      ctx.log('Lessons:    (not initialized)');
+      ctx.log('Lessons:     (not initialized)');
+    }
+
+    // patterns.md
+    if (ctx.exists('tasks/patterns.md')) {
+      const patterns = await ctx.readFile('tasks/patterns.md');
+      const lines = patterns.split('\n').filter(l => l.startsWith('- '));
+      ctx.log(`Patterns:    ${lines.length} entries`);
+    } else {
+      ctx.log('Patterns:    (not initialized)');
     }
 
     // pattern-log.jsonl
@@ -65,9 +74,9 @@ registerCommand('status', {
     if (ctx.exists('tasks/agent-metrics.jsonl')) {
       const metrics = await ctx.readFile('tasks/agent-metrics.jsonl');
       const entries = metrics.trim().split('\n').filter(Boolean);
-      ctx.log(`Metrics:    ${entries.length} records`);
+      ctx.log(`Metrics:     ${entries.length} records`);
     } else {
-      ctx.log('Metrics:    (empty)');
+      ctx.log('Metrics:     (empty)');
     }
 
     // ── Evolution Stage ─────────────────────────────
@@ -85,11 +94,9 @@ registerCommand('status', {
       ];
 
       for (const layer of layers) {
-        // Simple TOML check — look for enabled = true/false under the section
-        const section = config.includes(`[${layer.key}]`);
-        const enabled = layer.required || (section && config.includes(`enabled = true`));
-        const icon = enabled ? '\x1b[32m●\x1b[0m' : '\x1b[90m○\x1b[0m';
-        ctx.log(`  ${icon} ${layer.name}`);
+        const enabled = layer.required || isLayerEnabled(config, layer.key);
+        const icon = enabled ? '●' : '○';
+        ctx.log(`  ${enabled ? icon : icon} ${layer.name}${enabled ? '' : ' (disabled)'}`);
       }
     } else {
       ctx.warn('.sentix/config.toml not found. Run: sentix init');
@@ -98,3 +105,21 @@ registerCommand('status', {
     ctx.log('');
   },
 });
+
+/**
+ * Parse TOML config to check if a specific layer section has enabled = true.
+ * Handles per-section parsing instead of global string search.
+ */
+function isLayerEnabled(config, sectionKey) {
+  const sectionHeader = `[${sectionKey}]`;
+  const idx = config.indexOf(sectionHeader);
+  if (idx === -1) return false;
+
+  // Extract content between this section header and the next section header
+  const afterSection = config.slice(idx + sectionHeader.length);
+  const nextSection = afterSection.indexOf('\n[');
+  const sectionContent = nextSection === -1 ? afterSection : afterSection.slice(0, nextSection);
+
+  // Look for enabled = true within this section only
+  return /enabled\s*=\s*true/.test(sectionContent);
+}

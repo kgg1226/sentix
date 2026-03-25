@@ -102,8 +102,14 @@ touch_if_missing() {
 }
 
 touch_if_missing "$TARGET/tasks/lessons.md" "# Lessons — 자동 축적되는 실패 패턴"
+touch_if_missing "$TARGET/tasks/patterns.md" "# User Patterns — auto-generated, do not edit manually"
+touch_if_missing "$TARGET/tasks/predictions.md" "# Active Predictions — auto-updated by pattern engine"
 touch_if_missing "$TARGET/tasks/roadmap.md" "# Roadmap — 고도화 계획"
 touch_if_missing "$TARGET/tasks/security-report.md" "# Security Report"
+
+# Multi-project files
+touch_if_missing "$TARGET/INTERFACE.md" "# INTERFACE.md — API Contract"
+touch_if_missing "$TARGET/registry.md" "# registry.md — 연동 프로젝트 목록"
 
 # ── 5. 기술 스택 자동 감지 ────────────────────────────────
 echo "[4/5] Detecting tech stack..."

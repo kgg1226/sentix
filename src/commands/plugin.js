@@ -5,6 +5,8 @@
  * sentix plugin create — 새 플러그인 스캐폴딩
  */
 
+import { readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { registerCommand, getAllCommands } from '../registry.js';
 
 registerCommand('plugin', {
@@ -43,8 +45,6 @@ async function listPlugins(ctx) {
   // Check for project-local plugins
   if (ctx.exists('.sentix/plugins')) {
     ctx.log('--- Project Plugins ---\n');
-    const { readdir } = await import('node:fs/promises');
-    const { resolve } = await import('node:path');
     try {
       const files = await readdir(resolve(ctx.cwd, '.sentix/plugins'));
       const plugins = files.filter(f => f.endsWith('.js'));
@@ -66,7 +66,13 @@ async function listPlugins(ctx) {
 }
 
 async function createPlugin(name, ctx) {
-  const safeName = name.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+  const safeName = name.replace(/[^a-z0-9-]/gi, '-').toLowerCase().replace(/^-+|-+$/g, '');
+
+  if (!safeName) {
+    ctx.error('Invalid plugin name. Use alphanumeric characters and hyphens.');
+    return;
+  }
+
   const path = `.sentix/plugins/${safeName}.js`;
 
   if (ctx.exists(path)) {

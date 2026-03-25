@@ -13,6 +13,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getAllCommands, getCommand, runHooks } from '../src/registry.js';
 import { createContext } from '../src/context.js';
+import { VERSION } from '../src/version.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,7 +48,7 @@ async function loadProjectPlugins(cwd) {
 
 function showHelp() {
   console.log(`
-sentix v2.0.0 — Autonomous multi-agent DevSecOps pipeline
+sentix v${VERSION} — Autonomous multi-agent DevSecOps pipeline
 
 Usage: sentix <command> [args...]
 
@@ -82,7 +83,7 @@ async function main() {
   }
 
   if (commandName === '--version' || commandName === '-v') {
-    console.log('sentix v2.0.0');
+    console.log(`sentix v${VERSION}`);
     process.exit(0);
   }
 
@@ -93,11 +94,18 @@ async function main() {
     process.exit(1);
   }
 
+  // Per-command --help
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(`\n${cmd.description}\n`);
+    console.log(`Usage: ${cmd.usage}\n`);
+    process.exit(0);
+  }
+
   const ctx = createContext(cwd);
 
   try {
     await runHooks('before:command', { command: commandName, args, ctx });
-    await cmd.run(args, ctx);
+    await cmd.run(args.filter(a => a !== '--help' && a !== '-h'), ctx);
     await runHooks('after:command', { command: commandName, args, ctx });
   } catch (err) {
     ctx.error(err.message);

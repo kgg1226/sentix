@@ -6,9 +6,16 @@
  * Zero external dependencies — uses only Node.js built-ins.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, appendFile, mkdir, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+
+const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
+
+function color(code, text) {
+  return useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
+}
 
 /**
  * Create a context object for command/plugin execution.
@@ -50,14 +57,22 @@ export function createContext(cwd) {
     },
 
     /**
-     * Write a JSON file relative to cwd.
+     * Write a JSON file atomically (write-to-temp-then-rename).
+     * Prevents corruption if process crashes mid-write.
      * @param {string} path
      * @param {object} data
      */
     async writeJSON(path, data) {
       const full = resolve(cwd, path);
-      await mkdir(dirname(full), { recursive: true });
-      await writeFile(full, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+      const dir = dirname(full);
+      await mkdir(dir, { recursive: true });
+
+      const tmpName = `.${randomBytes(6).toString('hex')}.tmp`;
+      const tmpPath = join(dir, tmpName);
+      const content = JSON.stringify(data, null, 2) + '\n';
+
+      await writeFile(tmpPath, content, 'utf-8');
+      await rename(tmpPath, full);
     },
 
     /**
@@ -68,7 +83,6 @@ export function createContext(cwd) {
     async appendJSONL(path, data) {
       const full = resolve(cwd, path);
       await mkdir(dirname(full), { recursive: true });
-      const { appendFile } = await import('node:fs/promises');
       await appendFile(full, JSON.stringify(data) + '\n', 'utf-8');
     },
 
@@ -81,10 +95,10 @@ export function createContext(cwd) {
       return existsSync(resolve(cwd, path));
     },
 
-    // ── Logging ──────────────────────────────────────
+    // ── Logging (respects NO_COLOR and non-TTY) ─────
     log(msg)     { console.log(msg); },
-    success(msg) { console.log(`\x1b[32m✓\x1b[0m ${msg}`); },
-    warn(msg)    { console.log(`\x1b[33m⚠\x1b[0m ${msg}`); },
-    error(msg)   { console.error(`\x1b[31m✗\x1b[0m ${msg}`); },
+    success(msg) { console.log(`${color('32', '✓')} ${msg}`); },
+    warn(msg)    { console.log(`${color('33', '⚠')} ${msg}`); },
+    error(msg)   { console.error(`${color('31', '✗')} ${msg}`); },
   };
 }
