@@ -287,10 +287,48 @@ Governor 동작:
 ### devops
 
 ```
-입력: 배포 지시 + env-profiles/active.toml
-출력: [STATUS] PASSED / FAILED / MANUAL_PENDING + [ISSUE] (있으면)
-실체: scripts/deploy.sh (Governor가 직접 실행)
+입력: deploy-manifest.json + env-profiles/active.toml
+출력: [STATUS] PASSED / FAILED / MANUAL_PENDING / ROLLED_BACK + [ISSUE] (있으면)
+실체: scripts/deploy.sh --manifest tasks/deploy-manifest.json (Governor가 실행)
+
+Governor → devops 핸드오프:
+  1. Governor가 tasks/deploy-manifest.json 생성 (아래 스키마)
+  2. deploy.sh가 manifest를 읽고 pre_checks 검증
+  3. pre_checks 전부 통과해야 배포 진행
+  4. 실패 시 rollback_sha로 자동 롤백
+
+manifest 없이 호출하면 기존 동작 (하위 호환)
 ```
+
+### Deployment Manifest 스키마
+
+Governor가 devops 호출 전에 `tasks/deploy-manifest.json`에 생성:
+
+```json
+{
+  "schema_version": 1,
+  "deployment_id": "deploy-2025-03-24-001",
+  "cycle_id": "cycle-2025-03-24-001",
+  "ticket_id": "dev-043",
+  "commit_sha": "9f6b29f",
+  "rollback_sha": "74176aa",
+  "git_branch": "master",
+  "deploy_flag": true,
+  "pre_checks": {
+    "pr_review": "APPROVED",
+    "security": "PASSED",
+    "tests": "PASSED"
+  },
+  "reason": "세션 만료 기능 추가",
+  "created_at": "2025-03-24T10:15:00Z"
+}
+```
+
+**필드 정의:**
+- `commit_sha` — 배포할 정확한 커밋 (없으면 git_branch의 HEAD)
+- `rollback_sha` — 실패 시 롤백 대상 커밋 (없으면 롤백 불가, 수동 개입)
+- `pre_checks` — 배포 전 통과해야 할 조건 (하나라도 실패하면 배포 거부)
+- `deployment_id` — 로그/감사 추적용 고유 ID
 
 ### security
 

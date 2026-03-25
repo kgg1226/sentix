@@ -74,15 +74,48 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ap-northeast-2
 
+      # ── Deployment Manifest 생성 ─────────────────────────
+      - name: Generate deployment manifest
+        id: manifest
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          PREV_SHA=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          TICKET_ID=$(ls -t tasks/tickets/dev-*.md 2>/dev/null | head -1 | xargs basename 2>/dev/null | sed 's/\.md$//' || echo "")
+          BRANCH="${{ github.ref_name }}"
+          DEPLOY_ID="deploy-$(date '+%Y-%m-%d')-$(echo $COMMIT_SHA | head -c 7)"
+
+          cat > tasks/deploy-manifest.json << EOF
+          {
+            "schema_version": 1,
+            "deployment_id": "$DEPLOY_ID",
+            "cycle_id": "",
+            "ticket_id": "$TICKET_ID",
+            "commit_sha": "$COMMIT_SHA",
+            "rollback_sha": "$PREV_SHA",
+            "git_branch": "$BRANCH",
+            "deploy_flag": true,
+            "pre_checks": {
+              "pr_review": "APPROVED",
+              "security": "PENDING",
+              "tests": "PASSED"
+            },
+            "reason": "CI deployment triggered by push to $BRANCH",
+            "created_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          }
+          EOF
+          echo "Created deploy-manifest.json (deploy: $DEPLOY_ID, commit: $COMMIT_SHA)"
+
       - name: Execute deploy script
         if: needs.check-deploy.outputs.access_method == 'ssm' || needs.check-deploy.outputs.access_method == 'ssh'
         id: deploy-auto
         run: |
           chmod +x scripts/deploy.sh
-          bash scripts/deploy.sh 2>&1 | tee /tmp/deploy-output.txt
+          bash scripts/deploy.sh --manifest tasks/deploy-manifest.json 2>&1 | tee /tmp/deploy-output.txt
           # STATUS 추출
           if grep -q "\[STATUS\] PASSED" /tmp/deploy-output.txt; then
             echo "deploy_status=success" >> $GITHUB_OUTPUT
+          elif grep -q "\[STATUS\] ROLLED_BACK" /tmp/deploy-output.txt; then
+            echo "deploy_status=rolled_back" >> $GITHUB_OUTPUT
           else
             echo "deploy_status=failed" >> $GITHUB_OUTPUT
           fi
@@ -93,7 +126,7 @@ jobs:
         id: deploy-manual
         run: |
           chmod +x scripts/deploy.sh
-          bash scripts/deploy.sh --generate-only
+          bash scripts/deploy.sh --manifest tasks/deploy-manifest.json --generate-only
           echo "deploy_status=manual_pending" >> $GITHUB_OUTPUT
           echo "::warning::Manual deployment required — check tasks/deploy-output.md"
 

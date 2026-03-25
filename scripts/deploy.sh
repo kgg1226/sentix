@@ -6,10 +6,11 @@
 # CI에서도, 로컬에서도, VPN 환경에서도 동일한 스크립트를 사용한다.
 #
 # 사용법:
-#   ./scripts/deploy.sh                    # active.toml 사용
-#   ./scripts/deploy.sh --profile nas      # env-profiles/nas.toml 사용
-#   ./scripts/deploy.sh --dry-run          # 실행하지 않고 커맨드만 출력
-#   ./scripts/deploy.sh --generate-only    # tasks/deploy-output.md 에 스크립트 생성
+#   ./scripts/deploy.sh                              # active.toml 사용
+#   ./scripts/deploy.sh --profile nas                # env-profiles/nas.toml 사용
+#   ./scripts/deploy.sh --manifest tasks/deploy-manifest.json  # manifest 기반 배포
+#   ./scripts/deploy.sh --dry-run                    # 실행하지 않고 커맨드만 출력
+#   ./scripts/deploy.sh --generate-only              # tasks/deploy-output.md 에 스크립트 생성
 # ──────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -22,15 +23,90 @@ PROFILE_DIR="$PROJECT_ROOT/env-profiles"
 PROFILE_NAME=""
 DRY_RUN=false
 GENERATE_ONLY=false
+MANIFEST_PATH=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --profile)    PROFILE_NAME="$2"; shift 2 ;;
-    --dry-run)    DRY_RUN=true; shift ;;
+    --profile)       PROFILE_NAME="$2"; shift 2 ;;
+    --dry-run)       DRY_RUN=true; shift ;;
     --generate-only) GENERATE_ONLY=true; shift ;;
-    *)            echo "Unknown option: $1"; exit 1 ;;
+    --manifest)      MANIFEST_PATH="$2"; shift 2 ;;
+    *)               echo "Unknown option: $1"; exit 1 ;;
   esac
 done
+
+# ── Manifest 로드 (있으면) ────────────────────────────────
+# Governor가 devops 호출 전에 생성하는 배포 지시서.
+# 없으면 기존 동작 (profile만으로 배포) — 하위 호환.
+
+MANIFEST_COMMIT=""
+MANIFEST_ROLLBACK=""
+MANIFEST_DEPLOYMENT_ID=""
+MANIFEST_TICKET_ID=""
+MANIFEST_REASON=""
+
+# Manifest 자동 탐색: 명시적 경로 > 기본 경로 > 없음
+if [[ -z "$MANIFEST_PATH" && -f "$PROJECT_ROOT/tasks/deploy-manifest.json" ]]; then
+  MANIFEST_PATH="$PROJECT_ROOT/tasks/deploy-manifest.json"
+fi
+
+if [[ -n "$MANIFEST_PATH" ]]; then
+  if [[ ! -f "$MANIFEST_PATH" ]]; then
+    echo "❌ Manifest not found: $MANIFEST_PATH"
+    exit 1
+  fi
+
+  echo "📋 Loading manifest: $(basename "$MANIFEST_PATH")"
+
+  # 순수 bash JSON 파서 (jq 없이 동작)
+  # 단순 key-value만 추출 — 중첩 객체는 grep으로 처리
+  parse_manifest() {
+    local key="$1"
+    grep -o "\"${key}\"\s*:\s*\"[^\"]*\"" "$MANIFEST_PATH" 2>/dev/null | head -1 | \
+      sed 's/.*:\s*"//; s/"$//' || true
+  }
+
+  MANIFEST_DEPLOYMENT_ID=$(parse_manifest "deployment_id")
+  MANIFEST_COMMIT=$(parse_manifest "commit_sha")
+  MANIFEST_ROLLBACK=$(parse_manifest "rollback_sha")
+  MANIFEST_TICKET_ID=$(parse_manifest "ticket_id")
+  MANIFEST_REASON=$(parse_manifest "reason")
+
+  # ── Pre-checks 검증 ─────────────────────────────────
+  # manifest에 pre_checks가 있으면, 모든 항목이 PASSED/APPROVED여야 배포 진행
+  PR_REVIEW=$(parse_manifest "pr_review")
+  SECURITY=$(parse_manifest "security")
+  TESTS=$(parse_manifest "tests")
+
+  CHECKS_OK=true
+  if [[ -n "$PR_REVIEW" && "$PR_REVIEW" != "APPROVED" ]]; then
+    echo "❌ Pre-check failed: pr_review = $PR_REVIEW (expected APPROVED)"
+    CHECKS_OK=false
+  fi
+  if [[ -n "$SECURITY" && "$SECURITY" != "PASSED" ]]; then
+    echo "❌ Pre-check failed: security = $SECURITY (expected PASSED)"
+    CHECKS_OK=false
+  fi
+  if [[ -n "$TESTS" && "$TESTS" != "PASSED" ]]; then
+    echo "❌ Pre-check failed: tests = $TESTS (expected PASSED)"
+    CHECKS_OK=false
+  fi
+
+  if [[ "$CHECKS_OK" == "false" ]]; then
+    echo ""
+    echo "[STATUS] FAILED"
+    echo "[ISSUE] Pre-deployment checks did not pass. Fix issues and retry."
+    exit 1
+  fi
+
+  echo "  Deployment ID: ${MANIFEST_DEPLOYMENT_ID:-none}"
+  echo "  Commit:        ${MANIFEST_COMMIT:-HEAD}"
+  echo "  Rollback to:   ${MANIFEST_ROLLBACK:-none}"
+  echo "  Ticket:        ${MANIFEST_TICKET_ID:-none}"
+  echo "  Reason:        ${MANIFEST_REASON:-none}"
+  echo "  Pre-checks:    all passed"
+  echo ""
+fi
 
 # ── 프로필 로드 ───────────────────────────────────────────
 if [[ -n "$PROFILE_NAME" ]]; then
@@ -60,24 +136,22 @@ parse_toml() {
   local section="${2:-}"
 
   if [[ -n "$section" ]]; then
-    # Section-aware: extract lines between [section] and next [
     awk -v sec="[$section]" -v k="$key" '
       $0 == sec { found=1; next }
       /^\[/ { found=0 }
       found && $0 ~ "^"k"[[:space:]]*=" { print; exit }
     ' "$PROFILE" | sed 's/.*=\s*//; s/\s*#.*$//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//'
   else
-    grep -E "^${key}\s*=" "$PROFILE" | head -1 | \
-      sed 's/.*=\s*//; s/\s*#.*$//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//'
+    grep -E "^${key}\s*=" "$PROFILE" 2>/dev/null | head -1 | \
+      sed 's/.*=\s*//; s/\s*#.*$//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//' || true
   fi
 }
 
 parse_toml_array() {
   local key="$1"
-  # 한 줄짜리 배열만 지원: key = ["a", "b"]
-  grep -E "^${key}\s*=" "$PROFILE" | head -1 | \
+  grep -E "^${key}\s*=" "$PROFILE" 2>/dev/null | head -1 | \
     sed 's/.*\[//; s/\]//; s/\s*#.*$//; s/"//g; s/,/\n/g' | \
-    sed 's/^ *//; s/ *$//' | grep -v '^$'
+    sed 's/^ *//; s/ *$//' | grep -v '^$' || true
 }
 
 # ── 프로필 값 추출 ────────────────────────────────────────
@@ -107,9 +181,19 @@ HEALTH_TIMEOUT=$(parse_toml "timeout_seconds")
 SWAP_REQUIRED=$(parse_toml "swap_required")
 SWAP_SIZE_MB=$(parse_toml "swap_size_mb")
 
+# Manifest가 git_branch를 override할 수 있음
+if [[ -n "$MANIFEST_COMMIT" ]]; then
+  DEPLOY_REF="$MANIFEST_COMMIT"
+  DEPLOY_REF_TYPE="commit"
+else
+  DEPLOY_REF="$GIT_BRANCH"
+  DEPLOY_REF_TYPE="branch"
+fi
+
 echo "🔧 Environment: $ENV_NAME"
 echo "🔌 Access: $ACCESS_METHOD"
 echo "📦 Strategy: $STRATEGY"
+echo "🎯 Deploy ref: $DEPLOY_REF ($DEPLOY_REF_TYPE)"
 echo ""
 
 # ── 커맨드 빌더 ──────────────────────────────────────────
@@ -117,7 +201,7 @@ COMMANDS=()
 
 # 사전 조건: swap
 if [[ "$SWAP_REQUIRED" == "true" ]]; then
-  COMMANDS+=("# ── [1/5] Prerequisites: swap ──")
+  COMMANDS+=("# ── [1/6] Prerequisites: swap ──")
   COMMANDS+=("if ! swapon --show | grep -q swapfile; then")
   COMMANDS+=("  sudo dd if=/dev/zero of=/swapfile bs=128M count=$((SWAP_SIZE_MB / 128))")
   COMMANDS+=("  sudo chmod 600 /swapfile")
@@ -128,19 +212,23 @@ if [[ "$SWAP_REQUIRED" == "true" ]]; then
   COMMANDS+=("")
 fi
 
-# 코드 풀
-COMMANDS+=("# ── [2/5] Pull latest code ──")
+# 코드 풀 (manifest의 commit_sha 또는 branch)
+COMMANDS+=("# ── [2/6] Pull code (ref: $DEPLOY_REF) ──")
 COMMANDS+=("cd $REMOTE_PATH")
-COMMANDS+=("git pull origin $GIT_BRANCH")
+if [[ "$DEPLOY_REF_TYPE" == "commit" ]]; then
+  COMMANDS+=("git fetch origin $GIT_BRANCH")
+  COMMANDS+=("git checkout $DEPLOY_REF")
+else
+  COMMANDS+=("git pull origin $DEPLOY_REF")
+fi
 COMMANDS+=("")
 
 # 빌드 & 배포 (strategy별)
-COMMANDS+=("# ── [3/5] Build & Deploy ($STRATEGY) ──")
+COMMANDS+=("# ── [3/6] Build & Deploy ($STRATEGY) ──")
 if [[ "$STRATEGY" == "docker" ]]; then
   COMMANDS+=("sudo docker build -t ${IMAGE_NAME}:latest .")
   COMMANDS+=("sudo docker rm -f $CONTAINER_NAME || true")
 
-  # 볼륨 + 환경변수 조합
   RUN_CMD="sudo docker run -d --name $CONTAINER_NAME -p $PORT_MAPPING"
   while IFS= read -r env_var; do
     [[ -n "$env_var" ]] && RUN_CMD+=" -e $env_var"
@@ -163,23 +251,60 @@ fi
 COMMANDS+=("")
 
 # 헬스체크
-COMMANDS+=("# ── [4/5] Health check ──")
+COMMANDS+=("# ── [4/6] Health check ──")
 COMMANDS+=("echo 'Waiting for service to start...'")
 COMMANDS+=("sleep 8")
 COMMANDS+=("HTTP_CODE=\$(curl -s -o /dev/null -w '%{http_code}' --max-time $HEALTH_TIMEOUT $HEALTH_URL)")
 COMMANDS+=("if [ \"\$HTTP_CODE\" = \"$HEALTH_STATUS\" ]; then")
-COMMANDS+=("  echo '✅ HEALTH_OK (HTTP \$HTTP_CODE)'")
+COMMANDS+=("  echo 'HEALTH_OK (HTTP \$HTTP_CODE)'")
 COMMANDS+=("else")
-COMMANDS+=("  echo '❌ HEALTH_FAIL (HTTP \$HTTP_CODE)'")
+COMMANDS+=("  echo 'HEALTH_FAIL (HTTP \$HTTP_CODE)'")
 COMMANDS+=("  exit 1")
 COMMANDS+=("fi")
 COMMANDS+=("")
 
 # 로그 확인
 if [[ "$STRATEGY" == "docker" ]]; then
-  COMMANDS+=("# ── [5/5] Recent logs ──")
+  COMMANDS+=("# ── [5/6] Recent logs ──")
   COMMANDS+=("sudo docker logs $CONTAINER_NAME --tail 10")
+  COMMANDS+=("")
 fi
+
+# ── 롤백 함수 ────────────────────────────────────────────
+# manifest에 rollback_sha가 있으면, 실패 시 자동 롤백 시도
+
+do_rollback() {
+  if [[ -z "$MANIFEST_ROLLBACK" ]]; then
+    echo "⚠️  No rollback ref available. Manual intervention required."
+    return 1
+  fi
+
+  echo ""
+  echo "🔄 Rolling back to $MANIFEST_ROLLBACK..."
+
+  local ROLLBACK_CMDS=()
+  ROLLBACK_CMDS+=("cd $REMOTE_PATH")
+  ROLLBACK_CMDS+=("git checkout $MANIFEST_ROLLBACK")
+
+  if [[ "$STRATEGY" == "docker" ]]; then
+    ROLLBACK_CMDS+=("sudo docker build -t ${IMAGE_NAME}:rollback .")
+    ROLLBACK_CMDS+=("sudo docker rm -f $CONTAINER_NAME || true")
+    ROLLBACK_CMDS+=("sudo docker run -d --name $CONTAINER_NAME -p $PORT_MAPPING ${IMAGE_NAME}:rollback")
+  elif [[ "$STRATEGY" == "docker-compose" ]]; then
+    local CF
+    CF=$(parse_toml "compose_file")
+    ROLLBACK_CMDS+=("sudo docker compose -f $CF up -d --build")
+  fi
+
+  for cmd in "${ROLLBACK_CMDS[@]}"; do
+    echo "  → $cmd"
+    bash -c "$cmd" || true
+  done
+
+  echo ""
+  echo "[STATUS] ROLLED_BACK"
+  echo "[ISSUE] Deploy failed. Rolled back to $MANIFEST_ROLLBACK"
+}
 
 # ── 실행 모드별 분기 ─────────────────────────────────────
 
@@ -190,8 +315,11 @@ generate_script_block() {
 > Generated: $(date '+%Y-%m-%d %H:%M:%S')
 > Profile: $(basename "$PROFILE")
 > Access: $ACCESS_METHOD
+$(if [[ -n "$MANIFEST_DEPLOYMENT_ID" ]]; then echo "> Deployment: $MANIFEST_DEPLOYMENT_ID"; fi)
+$(if [[ -n "$MANIFEST_COMMIT" ]]; then echo "> Commit: $MANIFEST_COMMIT"; fi)
+$(if [[ -n "$MANIFEST_ROLLBACK" ]]; then echo "> Rollback: $MANIFEST_ROLLBACK"; fi)
 
-$(if [[ "$VPN_REQUIRED" == "true" ]]; then echo "⚠️ **VPN 연결 필수** — 사내 VPN에 연결한 후 아래 스크립트를 실행하세요."; fi)
+$(if [[ "$VPN_REQUIRED" == "true" ]]; then echo "**VPN 연결 필수** — 사내 VPN에 연결한 후 아래 스크립트를 실행하세요."; fi)
 
 ## 원커맨드 실행
 \`\`\`bash
@@ -253,6 +381,7 @@ execute_via_ssm() {
   else
     echo "[STATUS] FAILED"
     echo "[ISSUE] SSM command status: $STATUS"
+    do_rollback
   fi
 }
 
@@ -273,6 +402,7 @@ execute_via_ssh() {
   else
     echo "[STATUS] FAILED"
     echo "[ISSUE] SSH execution failed"
+    do_rollback
   fi
 }
 
@@ -282,11 +412,11 @@ execute_local() {
     [[ "$cmd" =~ ^#.* ]] && echo "$cmd" && continue
     [[ -z "$cmd" ]] && continue
     echo "  → $cmd"
-    # Execute via bash -c to avoid eval injection from TOML values
     bash -c "$cmd"
     if [[ $? -ne 0 ]]; then
       echo "[STATUS] FAILED"
       echo "[ISSUE] Command failed: $cmd"
+      do_rollback
       return 1
     fi
   done
@@ -302,6 +432,12 @@ fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "═══ DRY RUN — 실행하지 않고 커맨드만 출력 ═══"
+  if [[ -n "$MANIFEST_DEPLOYMENT_ID" ]]; then
+    echo "Deployment: $MANIFEST_DEPLOYMENT_ID"
+    echo "Commit:     ${MANIFEST_COMMIT:-HEAD}"
+    echo "Rollback:   ${MANIFEST_ROLLBACK:-none}"
+    echo ""
+  fi
   printf '%s\n' "${COMMANDS[@]}"
   echo "═══ END DRY RUN ═══"
   exit 0

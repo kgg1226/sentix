@@ -52,7 +52,11 @@ Governor 판단:
      → APPROVED → 머지
      → REJECTED → dev에게 사유 전달 + 재실행
 
-  5. DEPLOY_FLAG: true → devops 실행 (env-profiles 참조)
+  5. DEPLOY_FLAG: true →
+     5a. deploy-manifest.json 생성 (commit_sha, rollback_sha, pre_checks)
+     5b. pre_checks 전부 PASSED 확인
+     5c. devops 실행: deploy.sh --manifest tasks/deploy-manifest.json
+     5d. 실패 시 → rollback_sha로 자동 롤백
 
   6. security 소환 (전체 스캔)
      → PASSED → roadmap 소환
@@ -140,6 +144,7 @@ tasks/
 ├── governor-state.json      ← Governor 현재 상태 (복원용)
 ├── security-report.md       ← 최신 보안 스캔 결과
 ├── roadmap.md               ← 고도화 계획 + 다음 티켓 초안
+├── deploy-manifest.json     ← Governor가 devops 호출 전 생성 (배포 지시서, .gitignore)
 ├── deploy-output.md         ← 배포 결과 또는 manual 모드 스크립트
 └── tickets/                 ← planner가 생성하는 티켓
 ```
