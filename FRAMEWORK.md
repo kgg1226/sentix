@@ -83,7 +83,7 @@
 ```
 
 ```
-실체: Claude Code 장기 실행 세션 (sentix daemon 또는 수동 실행)
+실체: Claude Code 장기 실행 세션 (sentix run 또는 수동 실행)
 읽기: 전체 프로젝트 (모든 파일 접근 가능)
 쓰기: tasks/governor-state.json (자신의 상태만)
 금지: 코드 직접 수정 (반드시 에이전트를 통해서)

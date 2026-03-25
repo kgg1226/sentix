@@ -52,10 +52,24 @@ fi
 echo "📄 Loading profile: $(basename "$PROFILE")"
 
 # ── TOML 파서 (순수 bash — 외부 의존성 없음) ─────────────
+# parse_toml KEY [SECTION]
+#   KEY만 지정: 첫 번째 매치 반환
+#   KEY + SECTION 지정: 해당 섹션 내의 매치만 반환
 parse_toml() {
   local key="$1"
-  grep -E "^${key}\s*=" "$PROFILE" | head -1 | \
-    sed 's/.*=\s*//; s/\s*#.*$//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//'
+  local section="${2:-}"
+
+  if [[ -n "$section" ]]; then
+    # Section-aware: extract lines between [section] and next [
+    awk -v sec="[$section]" -v k="$key" '
+      $0 == sec { found=1; next }
+      /^\[/ { found=0 }
+      found && $0 ~ "^"k"[[:space:]]*=" { print; exit }
+    ' "$PROFILE" | sed 's/.*=\s*//; s/\s*#.*$//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//'
+  else
+    grep -E "^${key}\s*=" "$PROFILE" | head -1 | \
+      sed 's/.*=\s*//; s/\s*#.*$//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//'
+  fi
 }
 
 parse_toml_array() {
@@ -67,19 +81,19 @@ parse_toml_array() {
 }
 
 # ── 프로필 값 추출 ────────────────────────────────────────
-ENV_NAME=$(parse_toml "name")
-ACCESS_METHOD=$(parse_toml "method")
-VPN_REQUIRED=$(parse_toml "vpn_required")
-INSTANCE_ID=$(parse_toml "instance_id")
-REGION=$(parse_toml "region")
-SSH_HOST=$(parse_toml "host")
-SSH_USER=$(parse_toml "user")
-SSH_PORT=$(parse_toml "port")
-SSH_KEY=$(parse_toml "key_path")
+ENV_NAME=$(parse_toml "name" "environment")
+ACCESS_METHOD=$(parse_toml "method" "access")
+VPN_REQUIRED=$(parse_toml "vpn_required" "access")
+INSTANCE_ID=$(parse_toml "instance_id" "access")
+REGION=$(parse_toml "region" "access")
+SSH_HOST=$(parse_toml "host" "access")
+SSH_USER=$(parse_toml "user" "access")
+SSH_PORT=$(parse_toml "port" "access")
+SSH_KEY=$(parse_toml "key_path" "access")
 
-PROJECT_NAME=$(parse_toml "name" | tail -1)  # [project] section
-REMOTE_PATH=$(parse_toml "remote_path")
-GIT_BRANCH=$(parse_toml "git_branch")
+PROJECT_NAME=$(parse_toml "name" "project")
+REMOTE_PATH=$(parse_toml "remote_path" "project")
+GIT_BRANCH=$(parse_toml "git_branch" "project")
 
 STRATEGY=$(parse_toml "strategy")
 IMAGE_NAME=$(parse_toml "image_name")
