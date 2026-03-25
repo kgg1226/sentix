@@ -2,11 +2,17 @@
 
 ## [2.0.1] — 2025-03-25
 
+### New Features
+
+- `src/dev-server.js` — Dev server for dashboard testing (Governor state, Memory Layer, metrics as JSON API on port 4400)
+- `npm run dev` / `npm run start` / `npm run doctor` scripts added to package.json
+
 ### Security Fixes
 
 - `run.js`: Replace `execSync` with `spawnSync` to prevent shell injection
 - `deploy.sh`: Replace `eval "$cmd"` with `bash -c` + per-command error handling
 - `deploy.sh`: Fix TOML parser to strip inline comments (prevent value pollution)
+- `deploy.sh`: Section-aware `parse_toml KEY SECTION` — fixes ambiguous duplicate keys (e.g., `name` in both `[environment]` and `[project]`)
 - `run.js`: Add concurrent execution guard (governor-state.json lock check)
 - `run.js`: Add Claude Code CLI availability check before pipeline execution
 

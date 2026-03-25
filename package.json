@@ -6,6 +6,12 @@
   "bin": {
     "sentix": "./bin/sentix.js"
   },
+  "scripts": {
+    "dev": "node src/dev-server.js",
+    "start": "node bin/sentix.js",
+    "test": "node --test",
+    "doctor": "node bin/sentix.js doctor"
+  },
   "engines": {
     "node": ">=18.0.0"
   },

@@ -459,6 +459,29 @@ sentix plugin create     # 커스텀 플러그인 스캐폴딩
 - 로딩 순서: `src/commands/` → `src/plugins/` → `.sentix/plugins/` (프로젝트별)
 - 외부 의존성 0. Node.js 18+ ESM만 사용.
 
+### Dev Server
+
+대시보드 개발 시 Governor 상태와 Memory Layer를 JSON API로 제공하는 로컬 서버:
+
+```bash
+npm run dev
+# 또는
+node src/dev-server.js [port]    # 기본: 4400
+```
+
+| Endpoint | 내용 |
+|---|---|
+| `/api/status` | Governor 상태 + Memory Layer 요약 |
+| `/api/governor` | governor-state.json |
+| `/api/lessons` | 실패 패턴 |
+| `/api/patterns` | 사용자 행동 패턴 |
+| `/api/predictions` | 활성 예측 |
+| `/api/metrics` | 에이전트 메트릭스 (에이전트별 그룹) |
+| `/api/pattern-log` | 원시 이벤트 로그 (최근 100건) |
+| `/api/security` | 보안 리포트 |
+| `/api/roadmap` | 고도화 계획 |
+| `/health` | 헬스체크 |
+
 ---
 
 ## 인간 개입 지점
