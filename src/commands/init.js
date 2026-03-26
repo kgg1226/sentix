@@ -64,6 +64,22 @@ Step 7: pattern-engine 실행 → 사이클 학습
 4. 기존 테스트 삭제/약화 금지
 5. 순삭제 50줄 제한
 6. 기존 기능/핸들러 삭제 금지
+\`\`\`
+
+---
+
+## 프레임워크 업데이트
+
+\`\`\`
+# sentix 프레임워크 파일 최신화 (워크플로우, 룰, FRAMEWORK.md)
+# CLAUDE.md, .sentix/config.toml, providers/ 등 프로젝트 고유 파일은 변경하지 않음
+
+# 미리보기
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash -s -- --dry
+
+# 실제 적용
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash
+\`\`\`
 `;
       await ctx.writeFile('CLAUDE.md', claudeTemplate);
       ctx.success('Created CLAUDE.md');
