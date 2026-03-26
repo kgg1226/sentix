@@ -1,6 +1,6 @@
 # Sentix
 
-**AI가 알아서 코드를 짜고, 검사하고, 배포하는 자동 파이프라인.**
+**AI가 알아서 코드를 짜고, 검사하고, 배포까지 하는 개발·배포 총괄 프레임워크.**
 
 > 당신은 "뭐 해줘" 한 마디만 하면 됩니다. 나머지는 Sentix가 합니다.
 
@@ -155,6 +155,8 @@ sentix status
 | `sentix status` | 현재 상태 보기 |
 | `sentix doctor` | 설치가 제대로 됐는지 확인 |
 | `sentix metrics` | AI 성공률/재시도 통계 보기 |
+| `sentix update` | 프레임워크 파일을 최신 sentix로 업데이트 |
+| `sentix update --dry` | 업데이트 미리보기 (변경 없이 확인만) |
 | `sentix plugin list` | 플러그인 목록 보기 |
 | `sentix plugin create 이름` | 나만의 플러그인 만들기 |
 
@@ -254,6 +256,44 @@ Sentix는 사용할수록 똑똑해집니다:
 
 ---
 
+## 업데이트 방법
+
+Sentix가 업데이트되면 (보안 강화, 워크플로우 개선 등), 이미 설치된 프로젝트에도 적용해야 합니다.
+
+### 방법 1: sentix update (최신 sentix 설치 시)
+
+```bash
+sentix update          # 실제 적용
+sentix update --dry    # 미리보기만
+```
+
+### 방법 2: 독립 스크립트 (구형 sentix에서도 동작)
+
+```bash
+# sentix 버전에 관계없이 항상 동작합니다
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash
+
+# 미리보기
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash -s -- --dry
+```
+
+### 방법 3: 자동 동기화 (registry 등록 시)
+
+sentix의 `registry.md`에 등록된 프로젝트는 프레임워크 파일 변경 시 자동으로 PR을 받습니다.
+
+### 무엇이 업데이트되나요?
+
+| 업데이트 됨 (프레임워크 공통) | 안 됨 (프로젝트 고유) |
+|---|---|
+| `.github/workflows/deploy.yml` | `CLAUDE.md` |
+| `.github/workflows/security-scan.yml` | `.sentix/config.toml` |
+| `.sentix/rules/hard-rules.md` | `.sentix/providers/` |
+| `FRAMEWORK.md` | `env-profiles/`, `tasks/` |
+
+**프로젝트 고유 설정은 절대 덮어쓰지 않습니다.**
+
+---
+
 ## 여러 프로젝트를 연결하면?
 
 프로젝트 A의 API를 바꿀 때, 프로젝트 B가 그 API를 쓰고 있으면:
@@ -269,6 +309,18 @@ Sentix: "프로젝트 B가 안 망가지게 호환되는 방식으로 바꿀게.
 ```
 
 이걸 위해 `INTERFACE.md` (API 계약서)와 `registry.md` (연결 목록)가 있습니다.
+
+또한 sentix 프레임워크 자체가 업데이트되면:
+
+```
+sentix: 보안 워크플로우 강화 (Trivy 추가, SHA 핀 고정)
+  ↓
+sync-framework: registry.md에 등록된 프로젝트 감지
+  ↓
+프로젝트 A, B, C: 자동 PR 생성 (변경 내역 + diff 포함)
+  ↓
+각 프로젝트 담당자: 리뷰 후 병합
+```
 
 ---
 
