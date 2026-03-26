@@ -1,4 +1,7 @@
 name: deploy
+# ── 공급망 보안 정책 ──────────────────────────────────────────
+# 1. 모든 GitHub Action은 커밋 SHA로 고정 (태그 오염 공격 방어)
+# 2. ${{ }} 표현식은 env로 분리 (expression injection 방어)
 
 on:
   push:
@@ -15,7 +18,7 @@ jobs:
       access_method: ${{ steps.profile.outputs.access_method }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Check DEPLOY_FLAG from recent ticket
         id: check
@@ -63,12 +66,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # ── CI 자동 배포 (ssm/ssh) ─────────────────────────
       - name: Configure AWS (SSM mode)
         if: needs.check-deploy.outputs.access_method == 'ssm'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -111,29 +114,41 @@ jobs:
       # ── security 에이전트 트리거 ───────────────────────
       - name: Dispatch security scan (auto deploy succeeded)
         if: steps.deploy-auto.outputs.deploy_status == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
           curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+            -H "Authorization: token ${GH_TOKEN}" \
             -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type":"security-scan","client_payload":{"sha":"${{ github.sha }}"}}'
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -d "$(jq -n --arg sha "$SHA" '{
+              event_type: "security-scan",
+              client_payload: { sha: $sha }
+            }')"
 
       # ── 실패 시 dev-fix 트리거 ─────────────────────────
       - name: Trigger dev-fix on failure
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+            -H "Authorization: token ${GH_TOKEN}" \
             -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d "{
-              \"event_type\": \"devops-failed\",
-              \"client_payload\": {
-                \"sha\": \"${{ github.sha }}\",
-                \"run_id\": \"${{ github.run_id }}\",
-                \"issue\": \"Deploy failed — check deploy output\"
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -d "$(jq -n --arg sha "$SHA" --arg run_id "$RUN_ID" '{
+              event_type: "devops-failed",
+              client_payload: {
+                sha: $sha,
+                run_id: $run_id,
+                issue: "Deploy failed — check deploy output"
               }
-            }"
+            }')"
 
   # ── 배포 건너뜀 → security 직행 ─────────────────────────
   skip-deploy:
@@ -142,13 +157,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Skip deploy — trigger security directly
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
           echo "Deploy skipped (DEPLOY_FLAG: false)"
           curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+            -H "Authorization: token ${GH_TOKEN}" \
             -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type":"security-scan","client_payload":{"sha":"${{ github.sha }}","deploy_skipped":true}}'
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -d "$(jq -n --arg sha "$SHA" '{
+              event_type: "security-scan",
+              client_payload: { sha: $sha, deploy_skipped: true }
+            }')"
 
   # ── 멀티 프로젝트 cascade ──────────────────────────────
   cascade:
@@ -157,11 +179,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Cascade to dependent projects
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          SOURCE_REPO: ${{ github.event.repository.name }}
+          SHA: ${{ github.sha }}
         run: |
           if [[ ! -f registry.md ]]; then
             echo "No registry.md — skipping cascade"
@@ -172,8 +196,11 @@ jobs:
             PROJECT=$(basename "$repo")
             echo "Dispatching to $PROJECT..."
             curl -s -X POST \
-              -H "Authorization: token $GH_TOKEN" \
+              -H "Authorization: token ${GH_TOKEN}" \
               -H "Content-Type: application/json" \
-              https://api.github.com/repos/kgg1226/$PROJECT/dispatches \
-              -d "{\"event_type\":\"interface-updated\",\"client_payload\":{\"source\":\"${{ github.event.repository.name }}\",\"sha\":\"${{ github.sha }}\"}}"
+              "https://api.github.com/repos/kgg1226/${PROJECT}/dispatches" \
+              -d "$(jq -n --arg source "$SOURCE_REPO" --arg sha "$SHA" '{
+                event_type: "interface-updated",
+                client_payload: { source: $source, sha: $sha }
+              }')"
           done
