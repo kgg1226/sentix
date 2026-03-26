@@ -1,4 +1,9 @@
 name: security-scan
+# ── 공급망 보안 정책 ──────────────────────────────────────────
+# 1. 모든 GitHub Action은 커밋 SHA로 고정 (태그 오염 공격 방어)
+# 2. 외부 바이너리는 SHA-256 체크섬 검증 필수
+# 3. ${{ }} 표현식은 env로 분리 (expression injection 방어)
+# ref: https://m.boannews.com/html/detail.html?tab_type=1&idx=142760
 
 on:
   repository_dispatch:
@@ -12,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.client_payload.sha || github.sha }}
 
@@ -41,7 +46,7 @@ jobs:
 
       # ── 정적 분석 ─────────────────────────────────────────
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 
@@ -143,35 +148,36 @@ jobs:
           fi
 
       # ── 리포트 생성 (severity 기반) ──────────────────────
+      # env로 분리하여 expression injection 방어
       - name: Generate security report
         id: report
+        env:
+          AUDIT_CRITICAL: ${{ steps.audit.outputs.critical }}
+          AUDIT_HIGH: ${{ steps.audit.outputs.high }}
+          GREP_SECRETS: ${{ steps.secrets-check.outputs.HARDCODED_SECRETS }}
+          TOTAL_ROUTES: ${{ steps.auth-check.outputs.total_routes }}
+          AUTH_COVERED: ${{ steps.auth-check.outputs.auth_covered }}
+          AUTH_UNPROTECTED: ${{ steps.auth-check.outputs.unprotected }}
+          TRIVY_FS_CRITICAL: ${{ steps.trivy-fs.outputs.fs_critical }}
+          TRIVY_FS_HIGH: ${{ steps.trivy-fs.outputs.fs_high }}
+          TRIVY_SECRETS: ${{ steps.trivy-secrets.outputs.trivy_secrets }}
+          TRIVY_MISCONFIG_CRITICAL: ${{ steps.trivy-misconfig.outputs.misconfig_critical }}
+          TRIVY_MISCONFIG_HIGH: ${{ steps.trivy-misconfig.outputs.misconfig_high }}
+          DEPLOY_SKIPPED: ${{ github.event.client_payload.deploy_skipped }}
         run: |
-          CRITICAL=${{ steps.audit.outputs.critical }}
-          HIGH=${{ steps.audit.outputs.high }}
-          SECRETS=${{ steps.secrets-check.outputs.HARDCODED_SECRETS }}
-          ROUTES=${{ steps.auth-check.outputs.total_routes }}
-          AUTH=${{ steps.auth-check.outputs.auth_covered }}
-          UNPROTECTED="${{ steps.auth-check.outputs.unprotected }}"
-
-          TRIVY_FS_CRITICAL=${{ steps.trivy-fs.outputs.fs_critical }}
-          TRIVY_FS_HIGH=${{ steps.trivy-fs.outputs.fs_high }}
-          TRIVY_SECRETS=${{ steps.trivy-secrets.outputs.trivy_secrets }}
-          TRIVY_MISCONFIG_CRITICAL=${{ steps.trivy-misconfig.outputs.misconfig_critical }}
-          TRIVY_MISCONFIG_HIGH=${{ steps.trivy-misconfig.outputs.misconfig_high }}
-
           # severity 분류
           FINDINGS=""
-          if [ "$CRITICAL" -gt 0 ]; then
-            FINDINGS+="[critical] npm audit: $CRITICAL critical vulnerabilities\n"
+          if [ "$AUDIT_CRITICAL" -gt 0 ]; then
+            FINDINGS+="[critical] npm audit: $AUDIT_CRITICAL critical vulnerabilities\n"
           fi
-          if [ "$SECRETS" = "true" ]; then
+          if [ "$GREP_SECRETS" = "true" ]; then
             FINDINGS+="[critical] Hardcoded secrets detected in source code\n"
           fi
-          if [ "$HIGH" -gt 0 ]; then
-            FINDINGS+="[warning] npm audit: $HIGH high vulnerabilities\n"
+          if [ "$AUDIT_HIGH" -gt 0 ]; then
+            FINDINGS+="[warning] npm audit: $AUDIT_HIGH high vulnerabilities\n"
           fi
-          if [ "$AUTH" -lt "$ROUTES" ]; then
-            FINDINGS+="[warning] Unprotected API routes: $UNPROTECTED\n"
+          if [ "$AUTH_COVERED" -lt "$TOTAL_ROUTES" ]; then
+            FINDINGS+="[warning] Unprotected API routes: $AUTH_UNPROTECTED\n"
           fi
 
           # Trivy 결과 반영
@@ -195,13 +201,13 @@ jobs:
           HAS_CRITICAL=false
           HAS_WARNING=false
 
-          if [ "$CRITICAL" -gt 0 ] || [ "$SECRETS" = "true" ] || \
+          if [ "$AUDIT_CRITICAL" -gt 0 ] || [ "$GREP_SECRETS" = "true" ] || \
              [ "$TRIVY_FS_CRITICAL" -gt 0 ] || [ "$TRIVY_SECRETS" -gt 0 ] || \
              [ "$TRIVY_MISCONFIG_CRITICAL" -gt 0 ]; then
             HAS_CRITICAL=true
           fi
 
-          if [ "$HIGH" -gt 0 ] || [ "$AUTH" -lt "$ROUTES" ] || \
+          if [ "$AUDIT_HIGH" -gt 0 ] || [ "$AUTH_COVERED" -lt "$TOTAL_ROUTES" ] || \
              [ "$TRIVY_FS_HIGH" -gt 0 ] || [ "$TRIVY_MISCONFIG_HIGH" -gt 0 ]; then
             HAS_WARNING=true
           fi
@@ -222,16 +228,14 @@ jobs:
           echo "status=$STATUS"   >> $GITHUB_OUTPUT
           echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
 
-          DEPLOY_SKIPPED="${{ github.event.client_payload.deploy_skipped }}"
-
           cat > tasks/security-report.md << EOF
           # Security Report — $(date +%Y-%m-%d)
 
           ## Summary
-          - npm audit critical: $CRITICAL
-          - npm audit high: $HIGH
-          - Hardcoded secrets: $SECRETS
-          - API routes: $ROUTES / Auth covered: $AUTH
+          - npm audit critical: $AUDIT_CRITICAL
+          - npm audit high: $AUDIT_HIGH
+          - Hardcoded secrets: $GREP_SECRETS
+          - API routes: $TOTAL_ROUTES / Auth covered: $AUTH_COVERED
           - Trivy FS critical: $TRIVY_FS_CRITICAL
           - Trivy FS high: $TRIVY_FS_HIGH
           - Trivy secrets: $TRIVY_SECRETS
@@ -258,57 +262,101 @@ jobs:
           git push origin master || true
 
       # ── severity 기반 분기 ───────────────────────────────
+      # env로 분리하여 expression injection 방어
       # CRITICAL → dev-fix (최대 3회 후 에스컬레이션)
       - name: Trigger dev-fix (critical)
         if: steps.report.outputs.status == 'FAILED'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          VERDICT: ${{ steps.report.outputs.verdict }}
+          AUDIT_CRITICAL: ${{ steps.audit.outputs.critical }}
+          AUDIT_HIGH: ${{ steps.audit.outputs.high }}
+          GREP_SECRETS: ${{ steps.secrets-check.outputs.HARDCODED_SECRETS }}
+          TRIVY_FS_CRITICAL: ${{ steps.trivy-fs.outputs.fs_critical }}
+          TRIVY_SECRETS: ${{ steps.trivy-secrets.outputs.trivy_secrets }}
+          TRIVY_MISCONFIG_CRITICAL: ${{ steps.trivy-misconfig.outputs.misconfig_critical }}
         run: |
           curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+            -H "Authorization: token ${GH_TOKEN}" \
             -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d "{
-              \"event_type\": \"security-failed\",
-              \"client_payload\": {
-                \"sha\": \"${{ github.sha }}\",
-                \"severity\": \"critical\",
-                \"verdict\": \"${{ steps.report.outputs.verdict }}\",
-                \"critical\": ${{ steps.audit.outputs.critical }},
-                \"high\": ${{ steps.audit.outputs.high }},
-                \"trivy_fs_critical\": ${{ steps.trivy-fs.outputs.fs_critical }},
-                \"trivy_secrets\": ${{ steps.trivy-secrets.outputs.trivy_secrets }},
-                \"trivy_misconfig_critical\": ${{ steps.trivy-misconfig.outputs.misconfig_critical }},
-                \"issue\": \"Security scan CRITICAL: audit=${{ steps.audit.outputs.critical }}, secrets=${{ steps.secrets-check.outputs.HARDCODED_SECRETS }}, trivy_fs=${{ steps.trivy-fs.outputs.fs_critical }}, trivy_secrets=${{ steps.trivy-secrets.outputs.trivy_secrets }}\"
-              }
-            }"
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -d "$(jq -n \
+              --arg sha "$SHA" \
+              --arg verdict "$VERDICT" \
+              --argjson critical "$AUDIT_CRITICAL" \
+              --argjson high "$AUDIT_HIGH" \
+              --argjson trivy_fs "$TRIVY_FS_CRITICAL" \
+              --argjson trivy_secrets "$TRIVY_SECRETS" \
+              --argjson trivy_misconfig "$TRIVY_MISCONFIG_CRITICAL" \
+              --arg secrets "$GREP_SECRETS" \
+              '{
+                event_type: "security-failed",
+                client_payload: {
+                  sha: $sha,
+                  severity: "critical",
+                  verdict: $verdict,
+                  critical: $critical,
+                  high: $high,
+                  trivy_fs_critical: $trivy_fs,
+                  trivy_secrets: $trivy_secrets,
+                  trivy_misconfig_critical: $trivy_misconfig,
+                  issue: "Security scan CRITICAL: audit=\($critical), secrets=\($secrets), trivy_fs=\($trivy_fs), trivy_secrets=\($trivy_secrets)"
+                }
+              }')"
 
       # WARNING → dev-fix (최대 10회)
       - name: Trigger dev-fix (warning)
         if: steps.report.outputs.status == 'NEEDS_FIX'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          VERDICT: ${{ steps.report.outputs.verdict }}
+          AUDIT_CRITICAL: ${{ steps.audit.outputs.critical }}
+          AUDIT_HIGH: ${{ steps.audit.outputs.high }}
+          TRIVY_FS_HIGH: ${{ steps.trivy-fs.outputs.fs_high }}
+          TRIVY_MISCONFIG_HIGH: ${{ steps.trivy-misconfig.outputs.misconfig_high }}
         run: |
           curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+            -H "Authorization: token ${GH_TOKEN}" \
             -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d "{
-              \"event_type\": \"security-failed\",
-              \"client_payload\": {
-                \"sha\": \"${{ github.sha }}\",
-                \"severity\": \"warning\",
-                \"verdict\": \"${{ steps.report.outputs.verdict }}\",
-                \"critical\": ${{ steps.audit.outputs.critical }},
-                \"high\": ${{ steps.audit.outputs.high }},
-                \"trivy_fs_high\": ${{ steps.trivy-fs.outputs.fs_high }},
-                \"trivy_misconfig_high\": ${{ steps.trivy-misconfig.outputs.misconfig_high }},
-                \"issue\": \"Security scan MEDIUM: audit_high=${{ steps.audit.outputs.high }}, trivy_fs_high=${{ steps.trivy-fs.outputs.fs_high }}, trivy_misconfig_high=${{ steps.trivy-misconfig.outputs.misconfig_high }}\"
-              }
-            }"
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -d "$(jq -n \
+              --arg sha "$SHA" \
+              --arg verdict "$VERDICT" \
+              --argjson critical "$AUDIT_CRITICAL" \
+              --argjson high "$AUDIT_HIGH" \
+              --argjson trivy_fs_high "$TRIVY_FS_HIGH" \
+              --argjson trivy_misconfig_high "$TRIVY_MISCONFIG_HIGH" \
+              '{
+                event_type: "security-failed",
+                client_payload: {
+                  sha: $sha,
+                  severity: "warning",
+                  verdict: $verdict,
+                  critical: $critical,
+                  high: $high,
+                  trivy_fs_high: $trivy_fs_high,
+                  trivy_misconfig_high: $trivy_misconfig_high,
+                  issue: "Security scan MEDIUM: audit_high=\($high), trivy_fs_high=\($trivy_fs_high), trivy_misconfig_high=\($trivy_misconfig_high)"
+                }
+              }')"
 
       # PASSED → roadmap
       - name: Dispatch roadmap
         if: steps.report.outputs.status == 'PASSED'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
           curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+            -H "Authorization: token ${GH_TOKEN}" \
             -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type":"generate-roadmap","client_payload":{"sha":"${{ github.sha }}"}}'
+            "https://api.github.com/repos/${REPO}/dispatches" \
+            -d "$(jq -n --arg sha "$SHA" '{
+              event_type: "generate-roadmap",
+              client_payload: { sha: $sha }
+            }')"
