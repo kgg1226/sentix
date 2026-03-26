@@ -3,6 +3,7 @@
  */
 
 import { registerCommand } from '../registry.js';
+import { loadIndex } from '../lib/ticket-index.js';
 
 registerCommand('status', {
   description: 'Show Governor state and Memory Layer summary',
@@ -77,6 +78,29 @@ registerCommand('status', {
       ctx.log(`Metrics:     ${entries.length} records`);
     } else {
       ctx.log('Metrics:     (empty)');
+    }
+
+    // ── Tickets ───────────────────────────────────────
+    ctx.log('\n--- Tickets ---\n');
+
+    try {
+      const tickets = await loadIndex(ctx);
+      if (tickets.length > 0) {
+        const byStatus = {};
+        for (const t of tickets) {
+          byStatus[t.status] = (byStatus[t.status] || 0) + 1;
+        }
+        const critical = tickets.filter(t => t.severity === 'critical' && t.status !== 'closed').length;
+        const parts = Object.entries(byStatus).map(([k, v]) => `${k}: ${v}`);
+        ctx.log(`Tickets:     ${tickets.length} total (${parts.join(', ')})`);
+        if (critical > 0) {
+          ctx.warn(`Critical:    ${critical} open critical ticket(s)`);
+        }
+      } else {
+        ctx.log('Tickets:     (none)');
+      }
+    } catch {
+      ctx.log('Tickets:     (not initialized)');
     }
 
     // ── Evolution Stage ─────────────────────────────

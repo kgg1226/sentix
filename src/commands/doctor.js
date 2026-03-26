@@ -47,6 +47,20 @@ registerCommand('doctor', {
       }
     }
 
+    // Ticket index
+    if (ctx.exists('tasks/tickets/index.json')) {
+      ctx.success('tasks/tickets/index.json (ticket index)');
+    } else {
+      ctx.warn('tasks/tickets/index.json — missing (create with: sentix ticket create)');
+    }
+
+    // CHANGELOG
+    if (ctx.exists('CHANGELOG.md')) {
+      ctx.success('CHANGELOG.md');
+    } else {
+      ctx.warn('CHANGELOG.md — missing (create with: sentix version bump)');
+    }
+
     // ── Deprecated files ────────────────────────────
     ctx.log('\n--- Deprecated Files ---\n');
 
