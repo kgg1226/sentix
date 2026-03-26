@@ -87,6 +87,63 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
+      - name: Generate changelog
+        if: steps.changes.outputs.has_changes == 'true'
+        id: changelog
+        run: |
+          FRAMEWORK_PATHS=".github/workflows/deploy.yml .github/workflows/security-scan.yml .sentix/rules/hard-rules.md FRAMEWORK.md"
+
+          # 이전 동기화 이후 프레임워크 파일 관련 커밋 로그 수집
+          # 최근 20개 커밋 중 프레임워크 파일을 변경한 것만 추출
+          COMMIT_LOG=$(git log --oneline -20 --no-merges -- $FRAMEWORK_PATHS 2>/dev/null | head -10)
+
+          # 파일별 diff 통계
+          DIFF_STAT=$(git diff --stat HEAD~1 HEAD -- $FRAMEWORK_PATHS 2>/dev/null)
+
+          # 파일별 주요 변경 내용 요약 (추가/삭제된 라인 중 의미 있는 것만)
+          DIFF_DETAILS=""
+          while IFS= read -r FILE; do
+            [ -z "$FILE" ] && continue
+            [ ! -f "$FILE" ] && continue
+
+            ADDITIONS=$(git diff HEAD~1 HEAD -- "$FILE" 2>/dev/null | grep "^+" | grep -v "^+++" | grep -v "^+$" | grep -v "^+\s*#" | head -5)
+            DELETIONS=$(git diff HEAD~1 HEAD -- "$FILE" 2>/dev/null | grep "^-" | grep -v "^---" | grep -v "^-$" | grep -v "^-\s*#" | head -5)
+
+            if [ -n "$ADDITIONS" ] || [ -n "$DELETIONS" ]; then
+              DIFF_DETAILS+="#### \`${FILE}\`"$'\n'
+              if [ -n "$DELETIONS" ]; then
+                DIFF_DETAILS+='```diff'$'\n'
+                DIFF_DETAILS+="${DELETIONS}"$'\n'
+                DIFF_DETAILS+='```'$'\n'
+              fi
+              if [ -n "$ADDITIONS" ]; then
+                DIFF_DETAILS+='```diff'$'\n'
+                DIFF_DETAILS+="${ADDITIONS}"$'\n'
+                DIFF_DETAILS+='```'$'\n'
+              fi
+              DIFF_DETAILS+=$'\n'
+            fi
+          done <<< "${{ steps.changes.outputs.files }}"
+
+          # changelog 멀티라인 output
+          {
+            echo "log<<EOF"
+            echo "$COMMIT_LOG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+          {
+            echo "stat<<EOF"
+            echo "$DIFF_STAT"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+          {
+            echo "details<<EOF"
+            echo "$DIFF_DETAILS"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Parse registry and sync
         if: steps.changes.outputs.has_changes == 'true'
         env:
@@ -95,6 +152,9 @@ jobs:
           TARGET_PROJECT: ${{ inputs.target_project }}
           DRY_RUN: ${{ inputs.dry_run }}
           CHANGED_FILES: ${{ steps.changes.outputs.files }}
+          CHANGELOG_LOG: ${{ steps.changelog.outputs.log }}
+          CHANGELOG_STAT: ${{ steps.changelog.outputs.stat }}
+          CHANGELOG_DETAILS: ${{ steps.changelog.outputs.details }}
         run: |
           if [ ! -f registry.md ]; then
             echo "::error::registry.md not found"
@@ -237,6 +297,19 @@ jobs:
 
           ### 변경된 파일
           $(echo "$CHANGED_FILES" | sed 's/^/- /')
+
+          ### 변경 이력
+          \`\`\`
+          ${CHANGELOG_LOG}
+          \`\`\`
+
+          ### 변경 통계
+          \`\`\`
+          ${CHANGELOG_STAT}
+          \`\`\`
+
+          ### 주요 변경 내용
+          ${CHANGELOG_DETAILS}
 
           ### Source
           - sentix commit: \`${SENTIX_VERSION:0:7}\`
