@@ -6,7 +6,6 @@
  * sentix feature impact <id|"설명">     — 영향 분석
  */
 
-import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import {
   loadIndex, addTicket, nextTicketId, createTicketEntry, findTicket,
@@ -129,17 +128,8 @@ ${complexity === 'high' ? generateDecomposition(description) : '<!-- N/A — low
   ctx.log(`  Deploy flag:    ${impact.deployFlag}`);
   ctx.log(`  Security flag:  ${impact.securityFlag}`);
   ctx.log(`  File:           ${entry.file_path}`);
-
-  // Ask whether to run pipeline
   ctx.log('');
-  ctx.log('To run the Governor pipeline for this feature:');
-  ctx.log(`  sentix run "Execute feature ticket ${id}: ${title}"`);
-
-  // Check if Claude Code is available for auto-run hint
-  const claudeCheck = spawnSync('claude', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
-  if (claudeCheck.error) {
-    ctx.warn('Claude Code CLI not found — install to run the pipeline');
-  }
+  ctx.log('Governor: proceed with FEATURE pipeline using this ticket.');
 }
 
 // ── sentix feature list ───────────────────────────────
