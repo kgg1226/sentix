@@ -16,6 +16,29 @@ jobs:
         with:
           ref: ${{ github.event.client_payload.sha || github.sha }}
 
+      # ── Trivy CLI 설치 (공급망 안전) ────────────────────────
+      # 주의: aquasecurity/trivy-action 은 공급망 공격으로 오염됨
+      # GitHub Action 대신 CLI 바이너리를 직접 설치하고 체크섬 검증
+      - name: Install Trivy CLI (supply-chain safe)
+        run: |
+          TRIVY_VERSION="0.69.3"
+          TRIVY_DEB="trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          TRIVY_EXPECTED_SHA256="a484057aafde31089cf2558ca0f79a4bc835125a5ee6834183a5bcf0735af358"
+
+          curl -sfL -o "/tmp/${TRIVY_DEB}" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${TRIVY_DEB}"
+
+          ACTUAL_SHA256=$(sha256sum "/tmp/${TRIVY_DEB}" | awk '{print $1}')
+          if [ "$ACTUAL_SHA256" != "$TRIVY_EXPECTED_SHA256" ]; then
+            echo "::error::Trivy checksum mismatch! Expected: ${TRIVY_EXPECTED_SHA256}, Got: ${ACTUAL_SHA256}"
+            echo "::error::Possible supply chain compromise — aborting installation"
+            exit 1
+          fi
+          echo "Trivy checksum verified: ${ACTUAL_SHA256}"
+
+          sudo dpkg -i "/tmp/${TRIVY_DEB}"
+          trivy --version
+
       # ── 정적 분석 ─────────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,6 +58,54 @@ jobs:
           echo "high=$HIGH"         >> $GITHUB_OUTPUT
           echo "--- npm audit summary ---"
           jq '.metadata.vulnerabilities' /tmp/audit.json
+
+      # ── Trivy 스캔 (3종) ─────────────────────────────────
+      - name: Trivy filesystem vulnerability scan
+        id: trivy-fs
+        run: |
+          trivy fs --format json --output /tmp/trivy-fs.json \
+            --severity CRITICAL,HIGH \
+            --scanners vuln \
+            --skip-dirs node_modules \
+            . || true
+
+          FS_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/trivy-fs.json 2>/dev/null)
+          FS_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/trivy-fs.json 2>/dev/null)
+          echo "fs_critical=${FS_CRITICAL:-0}" >> $GITHUB_OUTPUT
+          echo "fs_high=${FS_HIGH:-0}" >> $GITHUB_OUTPUT
+          echo "--- Trivy FS scan: critical=${FS_CRITICAL:-0}, high=${FS_HIGH:-0} ---"
+
+      - name: Trivy secrets scan
+        id: trivy-secrets
+        run: |
+          trivy fs --format json --output /tmp/trivy-secrets.json \
+            --scanners secret \
+            --skip-dirs node_modules,.git \
+            . || true
+
+          SECRETS_COUNT=$(jq '[.Results[]?.Secrets[]?] | length' /tmp/trivy-secrets.json 2>/dev/null)
+          echo "trivy_secrets=${SECRETS_COUNT:-0}" >> $GITHUB_OUTPUT
+
+          if [ "${SECRETS_COUNT:-0}" -gt 0 ]; then
+            echo "--- Trivy secrets findings ---"
+            jq '.Results[]? | select(.Secrets) | .Secrets[] | {RuleID, Title, Match: .Match[0:80]}' /tmp/trivy-secrets.json
+          else
+            echo "--- Trivy secrets scan: clean ---"
+          fi
+
+      - name: Trivy misconfiguration scan
+        id: trivy-misconfig
+        run: |
+          trivy fs --format json --output /tmp/trivy-misconfig.json \
+            --scanners misconfig \
+            --skip-dirs node_modules,.git \
+            . || true
+
+          MISCONFIG_CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="CRITICAL")] | length' /tmp/trivy-misconfig.json 2>/dev/null)
+          MISCONFIG_HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="HIGH")] | length' /tmp/trivy-misconfig.json 2>/dev/null)
+          echo "misconfig_critical=${MISCONFIG_CRITICAL:-0}" >> $GITHUB_OUTPUT
+          echo "misconfig_high=${MISCONFIG_HIGH:-0}" >> $GITHUB_OUTPUT
+          echo "--- Trivy misconfig scan: critical=${MISCONFIG_CRITICAL:-0}, high=${MISCONFIG_HIGH:-0} ---"
 
       # ── 환경변수 노출 체크 ────────────────────────────────
       - name: Check for hardcoded secrets
@@ -82,6 +153,12 @@ jobs:
           AUTH=${{ steps.auth-check.outputs.auth_covered }}
           UNPROTECTED="${{ steps.auth-check.outputs.unprotected }}"
 
+          TRIVY_FS_CRITICAL=${{ steps.trivy-fs.outputs.fs_critical }}
+          TRIVY_FS_HIGH=${{ steps.trivy-fs.outputs.fs_high }}
+          TRIVY_SECRETS=${{ steps.trivy-secrets.outputs.trivy_secrets }}
+          TRIVY_MISCONFIG_CRITICAL=${{ steps.trivy-misconfig.outputs.misconfig_critical }}
+          TRIVY_MISCONFIG_HIGH=${{ steps.trivy-misconfig.outputs.misconfig_high }}
+
           # severity 분류
           FINDINGS=""
           if [ "$CRITICAL" -gt 0 ]; then
@@ -97,11 +174,42 @@ jobs:
             FINDINGS+="[warning] Unprotected API routes: $UNPROTECTED\n"
           fi
 
+          # Trivy 결과 반영
+          if [ "$TRIVY_FS_CRITICAL" -gt 0 ]; then
+            FINDINGS+="[critical] Trivy: $TRIVY_FS_CRITICAL critical filesystem vulnerabilities\n"
+          fi
+          if [ "$TRIVY_FS_HIGH" -gt 0 ]; then
+            FINDINGS+="[warning] Trivy: $TRIVY_FS_HIGH high filesystem vulnerabilities\n"
+          fi
+          if [ "$TRIVY_SECRETS" -gt 0 ]; then
+            FINDINGS+="[critical] Trivy: $TRIVY_SECRETS secrets detected in codebase\n"
+          fi
+          if [ "$TRIVY_MISCONFIG_CRITICAL" -gt 0 ]; then
+            FINDINGS+="[critical] Trivy: $TRIVY_MISCONFIG_CRITICAL critical misconfigurations\n"
+          fi
+          if [ "$TRIVY_MISCONFIG_HIGH" -gt 0 ]; then
+            FINDINGS+="[warning] Trivy: $TRIVY_MISCONFIG_HIGH high misconfigurations\n"
+          fi
+
           # STATUS/VERDICT 결정
-          if [ "$CRITICAL" -gt 0 ] || [ "$SECRETS" = "true" ]; then
+          HAS_CRITICAL=false
+          HAS_WARNING=false
+
+          if [ "$CRITICAL" -gt 0 ] || [ "$SECRETS" = "true" ] || \
+             [ "$TRIVY_FS_CRITICAL" -gt 0 ] || [ "$TRIVY_SECRETS" -gt 0 ] || \
+             [ "$TRIVY_MISCONFIG_CRITICAL" -gt 0 ]; then
+            HAS_CRITICAL=true
+          fi
+
+          if [ "$HIGH" -gt 0 ] || [ "$AUTH" -lt "$ROUTES" ] || \
+             [ "$TRIVY_FS_HIGH" -gt 0 ] || [ "$TRIVY_MISCONFIG_HIGH" -gt 0 ]; then
+            HAS_WARNING=true
+          fi
+
+          if [ "$HAS_CRITICAL" = "true" ]; then
             STATUS="FAILED"
             VERDICT="CRITICAL"
-          elif [ "$HIGH" -gt 0 ] || [ "$AUTH" -lt "$ROUTES" ]; then
+          elif [ "$HAS_WARNING" = "true" ]; then
             STATUS="NEEDS_FIX"
             VERDICT="MEDIUM"
           else
@@ -124,6 +232,11 @@ jobs:
           - npm audit high: $HIGH
           - Hardcoded secrets: $SECRETS
           - API routes: $ROUTES / Auth covered: $AUTH
+          - Trivy FS critical: $TRIVY_FS_CRITICAL
+          - Trivy FS high: $TRIVY_FS_HIGH
+          - Trivy secrets: $TRIVY_SECRETS
+          - Trivy misconfig critical: $TRIVY_MISCONFIG_CRITICAL
+          - Trivy misconfig high: $TRIVY_MISCONFIG_HIGH
           - Deploy skipped: ${DEPLOY_SKIPPED:-false}
 
           ## Findings
@@ -161,7 +274,10 @@ jobs:
                 \"verdict\": \"${{ steps.report.outputs.verdict }}\",
                 \"critical\": ${{ steps.audit.outputs.critical }},
                 \"high\": ${{ steps.audit.outputs.high }},
-                \"issue\": \"Security scan CRITICAL: audit critical=${{ steps.audit.outputs.critical }}, secrets=${{ steps.secrets-check.outputs.HARDCODED_SECRETS }}\"
+                \"trivy_fs_critical\": ${{ steps.trivy-fs.outputs.fs_critical }},
+                \"trivy_secrets\": ${{ steps.trivy-secrets.outputs.trivy_secrets }},
+                \"trivy_misconfig_critical\": ${{ steps.trivy-misconfig.outputs.misconfig_critical }},
+                \"issue\": \"Security scan CRITICAL: audit=${{ steps.audit.outputs.critical }}, secrets=${{ steps.secrets-check.outputs.HARDCODED_SECRETS }}, trivy_fs=${{ steps.trivy-fs.outputs.fs_critical }}, trivy_secrets=${{ steps.trivy-secrets.outputs.trivy_secrets }}\"
               }
             }"
 
@@ -181,7 +297,9 @@ jobs:
                 \"verdict\": \"${{ steps.report.outputs.verdict }}\",
                 \"critical\": ${{ steps.audit.outputs.critical }},
                 \"high\": ${{ steps.audit.outputs.high }},
-                \"issue\": \"Security scan MEDIUM: audit high=${{ steps.audit.outputs.high }}, auth coverage gap\"
+                \"trivy_fs_high\": ${{ steps.trivy-fs.outputs.fs_high }},
+                \"trivy_misconfig_high\": ${{ steps.trivy-misconfig.outputs.misconfig_high }},
+                \"issue\": \"Security scan MEDIUM: audit_high=${{ steps.audit.outputs.high }}, trivy_fs_high=${{ steps.trivy-fs.outputs.fs_high }}, trivy_misconfig_high=${{ steps.trivy-misconfig.outputs.misconfig_high }}\"
               }
             }"
 
