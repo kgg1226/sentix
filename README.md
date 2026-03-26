@@ -118,50 +118,101 @@ npx sentix doctor
 
 ## 사용 방법
 
-### 1단계: 요청하기
+Sentix는 **어디서든** 작동합니다. 환경에 따라 자동으로 모드가 결정됩니다.
 
-```bash
-sentix run "로그인 페이지에 비밀번호 찾기 기능 추가해줘"
+### 환경별 사용법
+
+| 환경 | 방법 | 자동화 수준 |
+|---|---|---|
+| **Claude Code / Cursor / Windsurf** | CLAUDE.md가 있는 프로젝트에서 대화하면 자동 작동 | 완전 자동 |
+| **claude.ai 웹** | CLAUDE.md를 Project Knowledge에 업로드하고 대화 | 반자동 (실행은 사용자) |
+| **Claude 모바일 앱** | CLAUDE.md 내용을 대화에 붙여넣고 요청 | 안내 모드 |
+| **Claude API** | system prompt에 CLAUDE.md 포함 | 완전 자동 (도구 제공 시) |
+
+### Claude Code에서 (완전 자동)
+
+```
+당신: "로그인에 세션 만료 추가해줘"
+
+Claude (Governor):
+  1. 요청 분석 → FEATURE 파이프라인 선택
+  2. node bin/sentix.js feature add "세션 만료 추가"  → 티켓 생성
+  3. 코드 직접 구현
+  4. 테스트 실행
+  5. node bin/sentix.js version bump minor            → 버전 올림
+  6. "완료됐습니다" 보고
 ```
 
-이것만 하면 AI가 알아서:
-- 작업 계획을 세우고 (planner)
-- 코드를 짜고 (dev)
-- 코드를 검토하고 (pr-review)
-- 서버에 올리고 (devops)
-- 보안 검사를 하고 (security)
-- 다음 할 일을 제안합니다 (roadmap)
+### 웹/모바일에서 (안내 모드)
 
-### 2단계: 상태 확인하기
+```
+당신: "로그인에 세션 만료 추가해줘"
+
+Claude (Governor):
+  1. [SENTIX:FEATURE] feat-001 생성 안내
+  2. 코드 변경을 코드 블록으로 제시
+  3. "npm run test를 실행해서 결과를 공유해주세요"
+  4. [SENTIX:VERSION] "이 명령어를 실행하세요: node bin/sentix.js version bump minor"
+  5. 완료 보고
+```
+
+### 상태 확인
 
 ```bash
 sentix status
 ```
 
-현재 어떤 단계를 실행 중인지, 학습 데이터가 얼마나 쌓였는지 보여줍니다.
-
-### 3단계: 끝
-
-정말 이게 전부입니다.
+현재 어떤 단계를 실행 중인지, 티켓 상태, 학습 데이터가 얼마나 쌓였는지 보여줍니다.
 
 ---
 
 ## CLI 명령어 전체 목록
 
+### 기본
+
 | 명령어 | 하는 일 |
 |---|---|
 | `sentix init` | 프로젝트에 Sentix 설치 (자동으로 기술 스택 감지) |
 | `sentix run "요청"` | AI 파이프라인 실행 |
-| `sentix status` | 현재 상태 보기 |
+| `sentix status` | 현재 상태 보기 (Governor + 티켓 + 학습) |
 | `sentix doctor` | 설치가 제대로 됐는지 확인 |
 | `sentix metrics` | AI 성공률/재시도 통계 보기 |
+
+### 버전 관리
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix version current` | 현재 버전 + git tag 확인 |
+| `sentix version bump [major\|minor\|patch]` | 버전 올림 + CHANGELOG + git tag |
+| `sentix version changelog` | CHANGELOG 미리보기 |
+
+### 버그/이슈 티켓
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix ticket create "설명"` | 버그 티켓 생성 (severity 자동 분류) |
+| `sentix ticket list` | 티켓 목록 (필터링 가능) |
+| `sentix ticket debug <id>` | AI가 자동으로 디버깅 |
+
+### 기능 추가
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix feature add "설명"` | 기능 티켓 + 복잡도 평가 + 영향 분석 |
+| `sentix feature list` | 기능 목록 |
+| `sentix feature impact "설명"` | 영향 분석만 실행 |
+
+### 플러그인
+
+| 명령어 | 하는 일 |
+|---|---|
 | `sentix plugin list` | 플러그인 목록 보기 |
 | `sentix plugin create 이름` | 나만의 플러그인 만들기 |
 
 각 명령어에 `--help`를 붙이면 상세 설명이 나옵니다:
 
 ```bash
-sentix run --help
+sentix version --help
 ```
 
 ---
