@@ -93,6 +93,11 @@ enabled = false
 
 [provider]
 default = "claude"
+
+[version]
+auto_bump = true
+auto_tag = true
+auto_changelog = true
 `;
       await ctx.writeFile('.sentix/config.toml', config);
       ctx.success('Created .sentix/config.toml');
@@ -131,10 +136,14 @@ default = "claude"
       }
     }
 
-    // Ensure tickets dir exists
+    // Ensure tickets dir and index exist
     if (!ctx.exists('tasks/tickets')) {
       await ctx.writeFile('tasks/tickets/.gitkeep', '');
       ctx.success('Created tasks/tickets/');
+    }
+    if (!ctx.exists('tasks/tickets/index.json')) {
+      await ctx.writeJSON('tasks/tickets/index.json', []);
+      ctx.success('Created tasks/tickets/index.json');
     }
 
     // ── 4b. Multi-project files ─────────────────────

@@ -96,6 +96,27 @@ const routes = {
     return { count: entries.length, entries: entries.slice(-100) }; // last 100
   },
 
+  '/api/tickets': async () => {
+    const index = await readJSON('tasks/tickets/index.json');
+    if (!index) return { count: 0, tickets: [] };
+    return { count: index.length, tickets: index };
+  },
+
+  '/api/version': async () => {
+    const pkg = await readJSON('package.json');
+    return {
+      current: pkg?.version || 'unknown',
+      name: pkg?.name || 'unknown',
+    };
+  },
+
+  '/api/features': async () => {
+    const index = await readJSON('tasks/tickets/index.json');
+    if (!index) return { count: 0, features: [] };
+    const features = index.filter(t => t.type === 'feature');
+    return { count: features.length, features };
+  },
+
   '/health': async () => ({ ok: true, ts: new Date().toISOString() }),
 };
 
