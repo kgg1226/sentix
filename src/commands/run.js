@@ -82,7 +82,7 @@ registerCommand('run', {
     ctx.log('');
 
     const prompt = [
-      'Read CLAUDE.md and FRAMEWORK.md first.',
+      'Read CLAUDE.md first. Refer to FRAMEWORK.md and docs/ only when you need design details for the current task.',
       'Execute the following request through the 7-step Governor pipeline:',
       `"${request}"`,
       '',

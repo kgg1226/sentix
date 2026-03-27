@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node src/dev-server.js",
     "start": "node bin/sentix.js",
-    "test": "node --test",
+    "test": "node --test __tests__/*.test.js",
     "doctor": "node bin/sentix.js doctor"
   },
   "engines": {

@@ -22,8 +22,8 @@ registerCommand('init', {
     } else {
       const claudeTemplate = `# CLAUDE.md — Sentix Governor 실행 지침
 
-> 이 파일은 Claude Code가 읽는 유일한 실행 문서다.
-> 설계 배경은 FRAMEWORK.md를 참조하라.
+> 이 파일은 Claude Code가 읽는 실행 인덱스다.
+> 상세 설계는 FRAMEWORK.md, 세부 규칙은 docs/ 를 참조하라.
 
 ---
 
@@ -41,18 +41,18 @@ build: ${techStack.build}
 
 ---
 
-## Governor SOP — 7단계 파이프라인
+## Governor SOP — 7단계
 
-\`\`\`
-Step 0: CLAUDE.md(이 파일) + FRAMEWORK.md 읽기
-Step 1: 요청 수신
-Step 2: lessons.md + patterns.md 로드
-Step 3: 실행 계획 수립
-Step 4: 에이전트 순차/병렬 소환 → 결과 수거 → 판단
-Step 5: 이슈 시 교차 판단 (재시도 / 에스컬레이션)
-Step 6: 전체 완료 → 인간에게 최종 보고
-Step 7: pattern-engine 실행 → 사이클 학습
-\`\`\`
+0. CLAUDE.md + FRAMEWORK.md 읽기
+1. 요청 수신
+2. lessons.md + patterns.md 로드
+3. 실행 계획 수립
+4. 에이전트 소환 → 결과 수거 → 판단
+5. 이슈 시 교차 판단 (재시도 / 에스컬레이션)
+6. 인간에게 최종 보고
+7. pattern-engine → 사이클 학습
+
+> 상세 SOP + 실행 예시: docs/governor-sop.md
 
 ---
 
@@ -64,20 +64,17 @@ Step 7: pattern-engine 실행 → 사이클 학습
 4. 기존 테스트 삭제/약화 금지
 5. 순삭제 50줄 제한
 6. 기존 기능/핸들러 삭제 금지
-\`\`\`
+
+> 상세 규칙: .sentix/rules/hard-rules.md
+> 에이전트 범위: docs/agent-scopes.md
+> Severity 분기: docs/severity.md
+> 아키텍처 다이어그램: docs/architecture.md
 
 ---
 
 ## 프레임워크 업데이트
 
 \`\`\`
-# sentix 프레임워크 파일 최신화 (워크플로우, 룰, FRAMEWORK.md)
-# CLAUDE.md, .sentix/config.toml, providers/ 등 프로젝트 고유 파일은 변경하지 않음
-
-# 미리보기
-curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash -s -- --dry
-
-# 실제 적용
 curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash
 \`\`\`
 `;
@@ -127,6 +124,23 @@ default = "claude"
 `;
       await ctx.writeFile('.sentix/rules/hard-rules.md', rules);
       ctx.success('Created .sentix/rules/hard-rules.md');
+    }
+
+    // ── 3b. docs/ (lazy loading 참조 문서) ──────────
+    const docFiles = {
+      'docs/governor-sop.md': '# Governor SOP\n\n> 상세 SOP는 sentix update 실행 시 동기화됩니다.\n> 또는 FRAMEWORK.md Layer 1을 참조하세요.\n',
+      'docs/agent-scopes.md': '# Agent Scopes\n\n> 에이전트별 파일 범위는 sentix update 실행 시 동기화됩니다.\n> 또는 FRAMEWORK.md 에이전트 정의를 참조하세요.\n',
+      'docs/severity.md': '# Severity Logic\n\n> severity 분기 로직은 sentix update 실행 시 동기화됩니다.\n> 또는 FRAMEWORK.md Layer 1을 참조하세요.\n',
+      'docs/architecture.md': '# Architecture\n\n> Mermaid 다이어그램은 sentix update 실행 시 동기화됩니다.\n> 또는 FRAMEWORK.md를 참조하세요.\n',
+    };
+
+    for (const [path, content] of Object.entries(docFiles)) {
+      if (ctx.exists(path)) {
+        ctx.warn(`${path} already exists — skipping`);
+      } else {
+        await ctx.writeFile(path, content);
+        ctx.success(`Created ${path}`);
+      }
     }
 
     // ── 4. tasks/ ───────────────────────────────────

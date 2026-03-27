@@ -28,6 +28,10 @@ SYNC_FILES=(
   ".github/workflows/security-scan.yml"
   ".sentix/rules/hard-rules.md"
   "FRAMEWORK.md"
+  "docs/governor-sop.md"
+  "docs/agent-scopes.md"
+  "docs/severity.md"
+  "docs/architecture.md"
 )
 
 # ── 프로젝트 확인 ──────────────────────────────────────────

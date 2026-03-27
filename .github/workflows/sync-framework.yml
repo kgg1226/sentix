@@ -7,6 +7,7 @@ name: sync-framework
 #   .github/workflows/deploy.yml, security-scan.yml
 #   .sentix/rules/hard-rules.md
 #   FRAMEWORK.md
+#   docs/governor-sop.md, agent-scopes.md, severity.md, architecture.md
 #
 # 동기화 제외 (프로젝트 고유):
 #   CLAUDE.md, .sentix/config.toml, .sentix/providers/
@@ -22,6 +23,10 @@ on:
       - '.github/workflows/security-scan.yml'
       - '.sentix/rules/hard-rules.md'
       - 'FRAMEWORK.md'
+      - 'docs/governor-sop.md'
+      - 'docs/agent-scopes.md'
+      - 'docs/severity.md'
+      - 'docs/architecture.md'
   workflow_dispatch:
     inputs:
       target_project:
@@ -60,6 +65,10 @@ jobs:
           .github/workflows/security-scan.yml
           .sentix/rules/hard-rules.md
           FRAMEWORK.md
+          docs/governor-sop.md
+          docs/agent-scopes.md
+          docs/severity.md
+          docs/architecture.md
           LIST
           )
           else
@@ -67,7 +76,11 @@ jobs:
               .github/workflows/deploy.yml \
               .github/workflows/security-scan.yml \
               .sentix/rules/hard-rules.md \
-              FRAMEWORK.md)
+              FRAMEWORK.md \
+              docs/governor-sop.md \
+              docs/agent-scopes.md \
+              docs/severity.md \
+              docs/architecture.md)
           fi
 
           if [ -z "$CHANGED_FILES" ]; then
@@ -91,7 +104,7 @@ jobs:
         if: steps.changes.outputs.has_changes == 'true'
         id: changelog
         run: |
-          FRAMEWORK_PATHS=".github/workflows/deploy.yml .github/workflows/security-scan.yml .sentix/rules/hard-rules.md FRAMEWORK.md"
+          FRAMEWORK_PATHS=".github/workflows/deploy.yml .github/workflows/security-scan.yml .sentix/rules/hard-rules.md FRAMEWORK.md docs/governor-sop.md docs/agent-scopes.md docs/severity.md docs/architecture.md"
 
           # 이전 동기화 이후 프레임워크 파일 관련 커밋 로그 수집
           # 최근 20개 커밋 중 프레임워크 파일을 변경한 것만 추출

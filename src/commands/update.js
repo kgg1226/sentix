@@ -24,6 +24,10 @@ const SYNC_FILES = [
   { src: '.github/workflows/security-scan.yml',  dst: '.github/workflows/security-scan.yml' },
   { src: '.sentix/rules/hard-rules.md',          dst: '.sentix/rules/hard-rules.md' },
   { src: 'FRAMEWORK.md',                         dst: 'FRAMEWORK.md' },
+  { src: 'docs/governor-sop.md',                 dst: 'docs/governor-sop.md' },
+  { src: 'docs/agent-scopes.md',                 dst: 'docs/agent-scopes.md' },
+  { src: 'docs/severity.md',                     dst: 'docs/severity.md' },
+  { src: 'docs/architecture.md',                 dst: 'docs/architecture.md' },
 ];
 
 registerCommand('update', {
