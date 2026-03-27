@@ -181,6 +181,7 @@ tasks/
 ├── security-report.md       ← 최신 보안 스캔 결과
 ├── roadmap.md               ← 고도화 계획 + 다음 티켓 초안
 ├── deploy-output.md         ← 배포 결과 또는 manual 모드 스크립트
+├── context/                 ← 연동 프로젝트 컨텍스트 캐시 (sentix context)
 └── tickets/                 ← 티켓 (index.json + 마크다운)
 ```
 
@@ -238,6 +239,18 @@ env-profiles/active.toml → devops 실행 방식 결정
 조건부: ../[프로젝트]/src/** (스키마 연동 시만)
 금지: 다른 프로젝트 파일 수정
 ```
+
+### 크로스 프로젝트 컨텍스트
+
+```bash
+sentix context                        # registry 전체 프로젝트 컨텍스트 동기화
+sentix context asset-manager           # 특정 프로젝트만
+sentix context asset-manager --full    # src/ 스키마까지 포함
+sentix context --list                  # 등록된 프로젝트 접근 상태 확인
+```
+
+로컬(`../`)에 있으면 파일시스템으로, 없으면 GitHub API로 가져와 `tasks/context/`에 캐시.
+다른 프로젝트의 API 변경이 현재 프로젝트에 영향을 주는지 확인할 때 사용.
 
 ## config
 

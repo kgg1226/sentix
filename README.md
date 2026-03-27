@@ -182,6 +182,8 @@ sentix status
 | `sentix metrics` | AI 성공률/재시도 통계 보기 |
 | `sentix update` | 프레임워크 파일을 최신 sentix로 업데이트 |
 | `sentix update --dry` | 업데이트 미리보기 (변경 없이 확인만) |
+| `sentix context` | 연동 프로젝트 컨텍스트 가져오기 |
+| `sentix context --list` | 연동 프로젝트 접근 상태 확인 |
 
 ### 버전 관리
 
@@ -403,6 +405,22 @@ Sentix: "프로젝트 B가 안 망가지게 호환되는 방식으로 바꿀게.
 ```
 
 이걸 위해 `INTERFACE.md` (API 계약서)와 `registry.md` (연결 목록)가 있습니다.
+
+### 다른 프로젝트 파일 읽기
+
+```bash
+# 연동 프로젝트 목록 + 접근 상태 확인
+sentix context --list
+
+# 프로젝트 컨텍스트 가져오기 (INTERFACE.md, README.md)
+sentix context asset-manager
+
+# 스키마까지 포함 (package.json, config, lessons.md)
+sentix context asset-manager --full
+```
+
+로컬(`../asset-manager/`)에 있으면 파일시스템으로, 없으면 GitHub에서 가져옵니다.
+가져온 파일은 `tasks/context/asset-manager/`에 캐시되어 AI가 바로 참조할 수 있습니다.
 
 또한 sentix 프레임워크 자체가 업데이트되면:
 
