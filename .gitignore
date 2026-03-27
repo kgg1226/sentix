@@ -12,6 +12,9 @@ build/
 env-profiles/active.toml
 agent-profiles/active.toml
 
+# Sentix security (NEVER commit — treat like PEM keys)
+.sentix/safety.toml
+
 # Sentix runtime files
 tasks/.pre-fix-test-results.json
 tasks/pattern-log.jsonl

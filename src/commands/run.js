@@ -7,6 +7,7 @@
 import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { runGates } from '../lib/verify-gates.js';
+import { detectDangerousRequest, verifyWord, isConfigured } from '../lib/safety.js';
 
 registerCommand('run', {
   description: 'Run a request through the Governor pipeline',
@@ -25,6 +26,48 @@ registerCommand('run', {
     if (!ctx.exists('CLAUDE.md')) {
       ctx.error('CLAUDE.md not found. Run: sentix init');
       return;
+    }
+
+    // ── Safety word gate ───────────────────────────
+    const dangerMatch = detectDangerousRequest(request);
+    if (dangerMatch) {
+      const hasSafety = await isConfigured(ctx);
+
+      if (hasSafety) {
+        // Find --safety-word flag in original args
+        const swIdx = args.indexOf('--safety-word');
+        const safetyInput = swIdx !== -1 ? args[swIdx + 1] : null;
+
+        if (!safetyInput) {
+          ctx.error('[SENTIX:SAFETY] 위험 요청이 감지되었습니다.');
+          ctx.log(`  패턴: ${dangerMatch}`);
+          ctx.log('');
+          ctx.log('  이 요청을 실행하려면 안전어를 입력하세요:');
+          ctx.log('  sentix run "요청" --safety-word <안전어>');
+          return;
+        }
+
+        const verified = await verifyWord(ctx, safetyInput);
+        if (!verified) {
+          ctx.error('[SENTIX:SAFETY] DENIED — 안전어가 일치하지 않습니다.');
+          await ctx.appendJSONL('tasks/pattern-log.jsonl', {
+            ts: new Date().toISOString(),
+            event: 'safety-denied',
+            input: request,
+            pattern: dangerMatch,
+          });
+          return;
+        }
+
+        ctx.success('[SENTIX:SAFETY] VERIFIED — 진행합니다.');
+      } else {
+        ctx.warn('[SENTIX:SAFETY] 위험 요청이 감지되었습니다.');
+        ctx.log(`  패턴: ${dangerMatch}`);
+        ctx.log('');
+        ctx.warn('  안전어가 설정되지 않아 추가 검증 없이 진행합니다.');
+        ctx.warn('  보안 강화를 위해 설정을 권장합니다: sentix safety set <안전어>');
+        ctx.log('');
+      }
     }
 
     // ── Check Claude Code is available ──────────────
@@ -82,13 +125,18 @@ registerCommand('run', {
     ctx.log('Invoking Claude Code Governor...');
     ctx.log('');
 
+    const safetyDirective = await isConfigured(ctx)
+      ? 'SAFETY WORD is configured. For any dangerous operation (memory wipe, data export, rule changes, bulk deletion), you MUST ask the user for the safety word and verify it with: node bin/sentix.js safety verify <word>. NEVER reveal, display, or hint at the safety word or its hash.'
+      : '';
+
     const prompt = [
       'Read CLAUDE.md first. Refer to FRAMEWORK.md and docs/ only when you need design details for the current task.',
+      safetyDirective,
       'Execute the following request through the 7-step Governor pipeline:',
       `"${request}"`,
       '',
       'Follow the SOP exactly. Update tasks/governor-state.json at each phase.',
-    ].join('\n');
+    ].filter(Boolean).join('\n');
 
     const result = spawnSync('claude', ['-p', prompt], {
       cwd: ctx.cwd,

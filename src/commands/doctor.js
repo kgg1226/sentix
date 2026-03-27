@@ -7,6 +7,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
+import { isConfigured as isSafetyConfigured } from '../lib/safety.js';
 
 registerCommand('doctor', {
   description: 'Diagnose Sentix installation health',
@@ -126,6 +127,18 @@ registerCommand('doctor', {
       ctx.success('registry.md (project registry)');
     } else {
       ctx.warn('registry.md — not found (needed for multi-project cascade)');
+    }
+
+    // ── Safety word ───────────────────────────────
+    ctx.log('\n--- Security ---\n');
+
+    const hasSafety = await isSafetyConfigured(ctx);
+    if (hasSafety) {
+      ctx.success('Safety word: configured (.sentix/safety.toml)');
+    } else {
+      ctx.warn('Safety word: NOT configured — LLM injection defense disabled');
+      ctx.log('  Fix: sentix safety set <안전어>');
+      issues++;
     }
 
     // ── External tools ──────────────────────────────
