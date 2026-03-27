@@ -6,6 +6,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
+import { runGates } from '../lib/verify-gates.js';
 
 registerCommand('run', {
   description: 'Run a request through the Governor pipeline',
@@ -131,22 +132,76 @@ registerCommand('run', {
       return;
     }
 
+    // ── Verification gates (deterministic code, not AI) ──
+    ctx.log('');
+    ctx.log('--- Verification Gates ---');
+
+    const gateResults = runGates(ctx.cwd);
+
+    for (const check of gateResults.checks) {
+      if (check.passed) {
+        ctx.success(`[${check.rule}] ${check.detail}`);
+      } else {
+        ctx.warn(`[${check.rule}] ${check.detail}`);
+        for (const v of check.violations) {
+          ctx.warn(`  → ${v.message}`);
+        }
+      }
+    }
+
+    if (gateResults.checks.length === 0) {
+      ctx.log(gateResults.summary);
+    }
+
+    ctx.log('');
+
     // ── Update state on completion ──────────────────
-    state.status = 'completed';
-    state.completed_at = new Date().toISOString();
+    const completedAt = new Date().toISOString();
+    const durationMs = Date.now() - new Date(state.started_at).getTime();
+
+    state.status = gateResults.passed ? 'completed' : 'gate-warning';
+    state.completed_at = completedAt;
+    state.verification = gateResults;
 
     // Detect ticket type for auto-version hook
     state.ticket_type = detectTicketType(request, state);
 
     await ctx.writeJSON('tasks/governor-state.json', state);
 
-    await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-      ts: new Date().toISOString(),
-      event: 'pipeline-complete',
+    // ── Record thread metrics ─────────────────────
+    await ctx.appendJSONL('tasks/agent-metrics.jsonl', {
+      ts: completedAt,
       cycle_id: cycleId,
+      agent: 'governor',
+      request,
+      ticket_type: state.ticket_type,
+      duration_seconds: Math.round(durationMs / 1000),
+      exit_code: 0,
+      verification: {
+        passed: gateResults.passed,
+        checks_run: gateResults.checks.length,
+        checks_passed: gateResults.checks.filter(c => c.passed).length,
+        violations: gateResults.violations.map(v => v.rule),
+      },
+      autonomy: {
+        human_interventions: 0,
+        gate_failures: gateResults.passed ? 0 : 1,
+      },
     });
 
-    ctx.success('Pipeline completed.');
+    await ctx.appendJSONL('tasks/pattern-log.jsonl', {
+      ts: completedAt,
+      event: gateResults.passed ? 'pipeline-complete' : 'pipeline-gate-warning',
+      cycle_id: cycleId,
+      gate_summary: gateResults.summary,
+    });
+
+    if (gateResults.passed) {
+      ctx.success('Pipeline completed — all gates passed.');
+    } else {
+      ctx.warn(`Pipeline completed with warnings — ${gateResults.violations.length} gate violation(s).`);
+      ctx.log('Review violations above before merging.');
+    }
   },
 });
 

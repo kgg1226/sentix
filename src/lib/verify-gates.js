@@ -1,0 +1,254 @@
+/**
+ * verify-gates.js — 하드 룰 검증 게이트
+ *
+ * 에이전트 작업 완료 후 git diff를 분석하여 하드 룰 위반 여부를 코드로 검증한다.
+ * "AI에게 부탁하는 규칙"이 아닌 "코드가 강제하는 게이트".
+ *
+ * 검증 항목:
+ *   #2 SCOPE 준수 — 변경 파일이 허용 범위 안에 있는가
+ *   #3 export 삭제 금지 — export 키워드가 삭제되었는가
+ *   #4 테스트 삭제 금지 — 테스트 파일에서 테스트가 삭제되었는가
+ *   #5 순삭제 50줄 — net deletions이 50줄을 넘는가
+ */
+
+import { execSync } from 'node:child_process';
+
+/**
+ * Run all verification gates against the current git diff.
+ * @param {string} cwd - Working directory
+ * @param {object} [options]
+ * @param {string[]} [options.scope] - Allowed file patterns (glob-like). If empty, scope check is skipped.
+ * @returns {object} Gate results
+ */
+export function runGates(cwd, options = {}) {
+  const results = {
+    passed: true,
+    checks: [],
+    violations: [],
+    summary: '',
+  };
+
+  let diff;
+  try {
+    diff = getDiff(cwd);
+  } catch {
+    // No git repo or no changes — all gates pass trivially
+    results.summary = 'No git changes detected — gates skipped';
+    return results;
+  }
+
+  if (!diff.files.length) {
+    results.summary = 'No file changes — gates skipped';
+    return results;
+  }
+
+  // Gate #2: SCOPE compliance
+  const scopeResult = checkScope(diff, options.scope);
+  results.checks.push(scopeResult);
+  if (!scopeResult.passed) {
+    results.passed = false;
+    results.violations.push(...scopeResult.violations);
+  }
+
+  // Gate #3: No export deletion
+  const exportResult = checkExportDeletion(diff);
+  results.checks.push(exportResult);
+  if (!exportResult.passed) {
+    results.passed = false;
+    results.violations.push(...exportResult.violations);
+  }
+
+  // Gate #4: No test deletion
+  const testResult = checkTestDeletion(diff);
+  results.checks.push(testResult);
+  if (!testResult.passed) {
+    results.passed = false;
+    results.violations.push(...testResult.violations);
+  }
+
+  // Gate #5: Net deletion limit (50 lines)
+  const deletionResult = checkNetDeletion(diff);
+  results.checks.push(deletionResult);
+  if (!deletionResult.passed) {
+    results.passed = false;
+    results.violations.push(...deletionResult.violations);
+  }
+
+  const passCount = results.checks.filter(c => c.passed).length;
+  results.summary = `${passCount}/${results.checks.length} gates passed`;
+
+  return results;
+}
+
+// ── Git diff parsing ──────────────────────────────────
+
+function getDiff(cwd) {
+  const numstat = execSync('git diff --numstat HEAD 2>/dev/null || git diff --numstat', {
+    cwd,
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 10000,
+  }).trim();
+
+  const diffContent = execSync('git diff HEAD 2>/dev/null || git diff', {
+    cwd,
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 10000,
+  });
+
+  const files = [];
+  let totalAdded = 0;
+  let totalDeleted = 0;
+
+  for (const line of numstat.split('\n')) {
+    if (!line.trim()) continue;
+    const [added, deleted, file] = line.split('\t');
+    const a = parseInt(added) || 0;
+    const d = parseInt(deleted) || 0;
+    files.push({ file, added: a, deleted: d });
+    totalAdded += a;
+    totalDeleted += d;
+  }
+
+  // Extract deleted lines from full diff
+  const deletedLines = [];
+  let currentFile = null;
+  for (const line of diffContent.split('\n')) {
+    if (line.startsWith('diff --git')) {
+      const match = line.match(/b\/(.+)$/);
+      currentFile = match ? match[1] : null;
+    } else if (line.startsWith('-') && !line.startsWith('---') && currentFile) {
+      deletedLines.push({ file: currentFile, line: line.slice(1) });
+    }
+  }
+
+  return { files, totalAdded, totalDeleted, deletedLines };
+}
+
+// ── Gate #2: SCOPE compliance ─────────────────────────
+
+function checkScope(diff, scope) {
+  const result = { rule: 'scope', passed: true, violations: [], detail: '' };
+
+  if (!scope || scope.length === 0) {
+    result.detail = 'No scope defined — skipped';
+    return result;
+  }
+
+  for (const { file } of diff.files) {
+    if (!matchesScope(file, scope)) {
+      result.passed = false;
+      result.violations.push({
+        rule: 'scope',
+        message: `File outside SCOPE: ${file}`,
+        file,
+      });
+    }
+  }
+
+  result.detail = result.passed
+    ? `${diff.files.length} files within scope`
+    : `${result.violations.length} file(s) outside scope`;
+
+  return result;
+}
+
+function matchesScope(file, patterns) {
+  for (const pattern of patterns) {
+    if (pattern.endsWith('/**')) {
+      const dir = pattern.slice(0, -3);
+      if (file.startsWith(dir + '/') || file === dir) return true;
+    } else if (pattern.endsWith('/*')) {
+      const dir = pattern.slice(0, -2);
+      if (file.startsWith(dir + '/') && !file.slice(dir.length + 1).includes('/')) return true;
+    } else if (file === pattern) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ── Gate #3: No export deletion ───────────────────────
+
+function checkExportDeletion(diff) {
+  const result = { rule: 'no-export-deletion', passed: true, violations: [], detail: '' };
+
+  const exportPattern = /^export\s+(function|const|let|var|class|default|async)/;
+  const deletedExports = diff.deletedLines.filter(
+    d => exportPattern.test(d.line.trim()) && !isTestFile(d.file)
+  );
+
+  if (deletedExports.length > 0) {
+    result.passed = false;
+    for (const d of deletedExports) {
+      result.violations.push({
+        rule: 'no-export-deletion',
+        message: `Export deleted in ${d.file}: ${d.line.trim().substring(0, 60)}`,
+        file: d.file,
+      });
+    }
+  }
+
+  result.detail = result.passed
+    ? 'No exports deleted'
+    : `${deletedExports.length} export(s) deleted`;
+
+  return result;
+}
+
+// ── Gate #4: No test deletion ─────────────────────────
+
+function checkTestDeletion(diff) {
+  const result = { rule: 'no-test-deletion', passed: true, violations: [], detail: '' };
+
+  const testPattern = /\b(describe|it|test)\s*\(/;
+  const deletedTests = diff.deletedLines.filter(
+    d => isTestFile(d.file) && testPattern.test(d.line)
+  );
+
+  if (deletedTests.length > 0) {
+    result.passed = false;
+    for (const d of deletedTests) {
+      result.violations.push({
+        rule: 'no-test-deletion',
+        message: `Test deleted in ${d.file}: ${d.line.trim().substring(0, 60)}`,
+        file: d.file,
+      });
+    }
+  }
+
+  result.detail = result.passed
+    ? 'No tests deleted'
+    : `${deletedTests.length} test(s) deleted`;
+
+  return result;
+}
+
+function isTestFile(file) {
+  return file.includes('__tests__/') ||
+    file.includes('.test.') ||
+    file.includes('.spec.') ||
+    file.includes('test/');
+}
+
+// ── Gate #5: Net deletion limit ───────────────────────
+
+function checkNetDeletion(diff, limit = 50) {
+  const result = { rule: 'net-deletion-limit', passed: true, violations: [], detail: '' };
+
+  const netDeletions = diff.totalDeleted - diff.totalAdded;
+
+  if (netDeletions > limit) {
+    result.passed = false;
+    result.violations.push({
+      rule: 'net-deletion-limit',
+      message: `Net deletions: ${netDeletions} (limit: ${limit})`,
+      net_deletions: netDeletions,
+    });
+  }
+
+  result.detail = `Net: +${diff.totalAdded} -${diff.totalDeleted} (net ${netDeletions > 0 ? '+' : ''}${-netDeletions})`;
+
+  return result;
+}

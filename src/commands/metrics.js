@@ -111,8 +111,60 @@ registerCommand('metrics', {
     // Governor summary
     const govRecords = byAgent.get('governor') || [];
     if (govRecords.length > 0) {
-      const humanInterventions = govRecords.filter(r => r.human_intervention);
+      const humanInterventions = govRecords.filter(r =>
+        r.human_intervention || (r.autonomy && r.autonomy.human_interventions > 0)
+      );
       ctx.log(`Human intervention rate: ${((humanInterventions.length / govRecords.length) * 100).toFixed(1)}%`);
+    }
+
+    // ── Verification gate stats ──────────────────────
+    const withVerification = entries.filter(r => r.verification);
+    if (withVerification.length > 0) {
+      ctx.log('--- Verification Gates ---\n');
+
+      const gatePassed = withVerification.filter(r => r.verification.passed).length;
+      const gateRate = ((gatePassed / withVerification.length) * 100).toFixed(1);
+      ctx.log(`  Gate pass rate: ${gateRate}% (${gatePassed}/${withVerification.length})`);
+
+      // Most common violations
+      const allViolations = withVerification
+        .flatMap(r => r.verification.violations || []);
+      if (allViolations.length > 0) {
+        const counts = {};
+        for (const v of allViolations) {
+          const rule = typeof v === 'string' ? v : v;
+          counts[rule] = (counts[rule] || 0) + 1;
+        }
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        ctx.log('  Top violations:');
+        for (const [rule, count] of sorted) {
+          ctx.log(`    - ${rule} (${count}x)`);
+        }
+      }
+
+      ctx.log('');
+    }
+
+    // ── Autonomy score ───────────────────────────────
+    const withAutonomy = entries.filter(r => r.autonomy);
+    if (withAutonomy.length > 0) {
+      ctx.log('--- Autonomy ---\n');
+
+      const totalInterventions = withAutonomy.reduce(
+        (sum, r) => sum + (r.autonomy.human_interventions || 0), 0
+      );
+      const totalGateFailures = withAutonomy.reduce(
+        (sum, r) => sum + (r.autonomy.gate_failures || 0), 0
+      );
+      const autonomyScore = withAutonomy.length > 0
+        ? (1 - totalInterventions / withAutonomy.length).toFixed(2)
+        : '1.00';
+
+      ctx.log(`  Cycles: ${withAutonomy.length}`);
+      ctx.log(`  Human interventions: ${totalInterventions}`);
+      ctx.log(`  Gate failures: ${totalGateFailures}`);
+      ctx.log(`  Autonomy score: ${autonomyScore} (1.00 = zero-touch)`);
+      ctx.log('');
     }
   },
 });

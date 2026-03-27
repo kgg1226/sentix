@@ -122,6 +122,7 @@ node bin/sentix.js feature impact "설명"       # 영향 분석만 실행
 ```
 
 > 파이프라인별 상세 Step (BUG/FEATURE/VERSION/GENERAL): docs/governor-sop.md
+> 검증 게이트 + 에이전트 자기 검증: docs/governor-sop.md
 > 아키텍처 다이어그램: docs/architecture.md
 
 ---
@@ -216,10 +217,12 @@ tasks/
 
 ```
 □ 하드 룰 6개 위반 없음
+□ 검증 게이트 통과 (sentix run 시 자동 — scope, export, test, deletion)
 □ 테스트 통과 (CLI: 직접 실행, 대화: 사용자 확인)
 □ 티켓 생성됨
 □ 버전 범프됨
 □ lessons.md 업데이트됨 (실패 패턴이 있었다면)
+□ README.md 업데이트됨 (변경된 기능/명령어/구조가 있다면)
 □ 사용자에게 결과 보고됨
 ```
 
