@@ -1,0 +1,370 @@
+name: sync-framework
+# ── 프레임워크 동기화 ─────────────────────────────────────────
+# sentix 프레임워크 파일이 업데이트되면 registry.md에 등록된
+# 하위 프로젝트들에 자동으로 PR을 생성한다.
+#
+# 동기화 대상 (프레임워크 공통):
+#   .github/workflows/deploy.yml, security-scan.yml
+#   .sentix/rules/hard-rules.md
+#   FRAMEWORK.md
+#   docs/governor-sop.md, agent-scopes.md, severity.md, architecture.md
+#
+# 동기화 제외 (프로젝트 고유):
+#   CLAUDE.md, .sentix/config.toml, .sentix/providers/
+#   env-profiles/, tasks/, registry.md, INTERFACE.md
+#
+# 공급망 보안: 모든 Action은 커밋 SHA 고정
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy.yml'
+      - '.github/workflows/security-scan.yml'
+      - '.sentix/rules/hard-rules.md'
+      - 'FRAMEWORK.md'
+      - 'docs/governor-sop.md'
+      - 'docs/agent-scopes.md'
+      - 'docs/severity.md'
+      - 'docs/architecture.md'
+  workflow_dispatch:
+    inputs:
+      target_project:
+        description: '특정 프로젝트만 동기화 (비우면 전체)'
+        required: false
+        type: string
+      dry_run:
+        description: 'PR 생성 없이 변경 사항만 확인'
+        required: false
+        type: boolean
+        default: false
+
+# 동시 실행 방지
+concurrency:
+  group: sync-framework
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout sentix
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed framework files
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # 수동 실행 시 모든 프레임워크 파일을 동기화 대상으로
+            CHANGED_FILES=$(cat <<'LIST'
+          .github/workflows/deploy.yml
+          .github/workflows/security-scan.yml
+          .sentix/rules/hard-rules.md
+          FRAMEWORK.md
+          docs/governor-sop.md
+          docs/agent-scopes.md
+          docs/severity.md
+          docs/architecture.md
+          LIST
+          )
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD -- \
+              .github/workflows/deploy.yml \
+              .github/workflows/security-scan.yml \
+              .sentix/rules/hard-rules.md \
+              FRAMEWORK.md \
+              docs/governor-sop.md \
+              docs/agent-scopes.md \
+              docs/severity.md \
+              docs/architecture.md)
+          fi
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No framework files changed"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Changed framework files:"
+          echo "$CHANGED_FILES"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+          # 멀티라인 output
+          {
+            echo "files<<EOF"
+            echo "$CHANGED_FILES"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        if: steps.changes.outputs.has_changes == 'true'
+        id: changelog
+        run: |
+          FRAMEWORK_PATHS=".github/workflows/deploy.yml .github/workflows/security-scan.yml .sentix/rules/hard-rules.md FRAMEWORK.md docs/governor-sop.md docs/agent-scopes.md docs/severity.md docs/architecture.md"
+
+          # 이전 동기화 이후 프레임워크 파일 관련 커밋 로그 수집
+          # 최근 20개 커밋 중 프레임워크 파일을 변경한 것만 추출
+          COMMIT_LOG=$(git log --oneline -20 --no-merges -- $FRAMEWORK_PATHS 2>/dev/null | head -10)
+
+          # 파일별 diff 통계
+          DIFF_STAT=$(git diff --stat HEAD~1 HEAD -- $FRAMEWORK_PATHS 2>/dev/null)
+
+          # 파일별 주요 변경 내용 요약 (추가/삭제된 라인 중 의미 있는 것만)
+          DIFF_DETAILS=""
+          while IFS= read -r FILE; do
+            [ -z "$FILE" ] && continue
+            [ ! -f "$FILE" ] && continue
+
+            ADDITIONS=$(git diff HEAD~1 HEAD -- "$FILE" 2>/dev/null | grep "^+" | grep -v "^+++" | grep -v "^+$" | grep -v "^+\s*#" | head -5)
+            DELETIONS=$(git diff HEAD~1 HEAD -- "$FILE" 2>/dev/null | grep "^-" | grep -v "^---" | grep -v "^-$" | grep -v "^-\s*#" | head -5)
+
+            if [ -n "$ADDITIONS" ] || [ -n "$DELETIONS" ]; then
+              DIFF_DETAILS+="#### \`${FILE}\`"$'\n'
+              if [ -n "$DELETIONS" ]; then
+                DIFF_DETAILS+='```diff'$'\n'
+                DIFF_DETAILS+="${DELETIONS}"$'\n'
+                DIFF_DETAILS+='```'$'\n'
+              fi
+              if [ -n "$ADDITIONS" ]; then
+                DIFF_DETAILS+='```diff'$'\n'
+                DIFF_DETAILS+="${ADDITIONS}"$'\n'
+                DIFF_DETAILS+='```'$'\n'
+              fi
+              DIFF_DETAILS+=$'\n'
+            fi
+          done <<< "${{ steps.changes.outputs.files }}"
+
+          # changelog 멀티라인 output
+          {
+            echo "log<<EOF"
+            echo "$COMMIT_LOG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+          {
+            echo "stat<<EOF"
+            echo "$DIFF_STAT"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+          {
+            echo "details<<EOF"
+            echo "$DIFF_DETAILS"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Parse registry and sync
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          SENTIX_VERSION: ${{ github.sha }}
+          TARGET_PROJECT: ${{ inputs.target_project }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CHANGED_FILES: ${{ steps.changes.outputs.files }}
+          CHANGELOG_LOG: ${{ steps.changelog.outputs.log }}
+          CHANGELOG_STAT: ${{ steps.changelog.outputs.stat }}
+          CHANGELOG_DETAILS: ${{ steps.changelog.outputs.details }}
+        run: |
+          if [ ! -f registry.md ]; then
+            echo "::error::registry.md not found"
+            exit 1
+          fi
+
+          # registry.md에서 프로젝트 목록 추출
+          PROJECTS=$(awk -F'|' '/^\|[^-]/ && !/프로젝트/ {gsub(/^ +| +$/, "", $2); if ($2 != "") print $2}' registry.md)
+
+          if [ -z "$PROJECTS" ]; then
+            echo "No projects found in registry.md"
+            exit 0
+          fi
+
+          echo "=== Registered projects ==="
+          echo "$PROJECTS"
+          echo ""
+
+          SYNC_BRANCH="sentix/framework-sync-$(date +%Y%m%d-%H%M%S)"
+          SYNC_SUMMARY=""
+          FAILED_PROJECTS=""
+
+          for PROJECT in $PROJECTS; do
+            # 특정 프로젝트만 동기화
+            if [ -n "$TARGET_PROJECT" ] && [ "$PROJECT" != "$TARGET_PROJECT" ]; then
+              echo "Skipping $PROJECT (target: $TARGET_PROJECT)"
+              continue
+            fi
+
+            echo ""
+            echo "=== Syncing to $PROJECT ==="
+
+            # dry run 모드
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "[DRY RUN] Would sync to kgg1226/$PROJECT:"
+              echo "$CHANGED_FILES"
+              SYNC_SUMMARY+="- $PROJECT: dry run (would sync)\n"
+              continue
+            fi
+
+            # 하위 프로젝트 존재 확인
+            REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/repos/kgg1226/${PROJECT}")
+
+            if [ "$REPO_CHECK" != "200" ]; then
+              echo "::warning::Repository kgg1226/$PROJECT not found (HTTP $REPO_CHECK), skipping"
+              FAILED_PROJECTS+="$PROJECT "
+              continue
+            fi
+
+            # 하위 프로젝트의 기본 브랜치 확인
+            DEFAULT_BRANCH=$(curl -s \
+              -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/repos/kgg1226/${PROJECT}" | jq -r '.default_branch')
+
+            # 동기화 브랜치 생성 (기본 브랜치 기준)
+            BASE_SHA=$(curl -s \
+              -H "Authorization: token ${GH_TOKEN}" \
+              "https://api.github.com/repos/kgg1226/${PROJECT}/git/refs/heads/${DEFAULT_BRANCH}" | jq -r '.object.sha')
+
+            if [ "$BASE_SHA" = "null" ] || [ -z "$BASE_SHA" ]; then
+              echo "::warning::Could not get base SHA for $PROJECT, skipping"
+              FAILED_PROJECTS+="$PROJECT "
+              continue
+            fi
+
+            # 브랜치 생성
+            CREATE_BRANCH=$(curl -s -w "\n%{http_code}" \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/kgg1226/${PROJECT}/git/refs" \
+              -d "$(jq -n --arg sha "$BASE_SHA" --arg ref "refs/heads/$SYNC_BRANCH" \
+                '{ref: $ref, sha: $sha}')")
+
+            HTTP_CODE=$(echo "$CREATE_BRANCH" | tail -1)
+            if [ "$HTTP_CODE" != "201" ]; then
+              echo "::warning::Failed to create branch in $PROJECT (HTTP $HTTP_CODE)"
+              FAILED_PROJECTS+="$PROJECT "
+              continue
+            fi
+
+            # 변경된 파일들을 하위 프로젝트에 푸시
+            FILE_COUNT=0
+            while IFS= read -r FILE; do
+              [ -z "$FILE" ] && continue
+              [ ! -f "$FILE" ] && continue
+
+              # 파일 내용을 base64로 인코딩
+              CONTENT=$(base64 -w 0 "$FILE")
+
+              # 하위 프로젝트에서 기존 파일의 SHA 확인 (업데이트 시 필요)
+              EXISTING_SHA=$(curl -s \
+                -H "Authorization: token ${GH_TOKEN}" \
+                "https://api.github.com/repos/kgg1226/${PROJECT}/contents/${FILE}?ref=${SYNC_BRANCH}" | jq -r '.sha // empty')
+
+              # 파일 생성/업데이트
+              COMMIT_MSG="sync: update ${FILE} from sentix@${SENTIX_VERSION:0:7}"
+
+              if [ -n "$EXISTING_SHA" ]; then
+                PAYLOAD=$(jq -n \
+                  --arg msg "$COMMIT_MSG" \
+                  --arg content "$CONTENT" \
+                  --arg sha "$EXISTING_SHA" \
+                  --arg branch "$SYNC_BRANCH" \
+                  '{message: $msg, content: $content, sha: $sha, branch: $branch}')
+              else
+                PAYLOAD=$(jq -n \
+                  --arg msg "$COMMIT_MSG" \
+                  --arg content "$CONTENT" \
+                  --arg branch "$SYNC_BRANCH" \
+                  '{message: $msg, content: $content, branch: $branch}')
+              fi
+
+              PUT_RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X PUT \
+                -H "Authorization: token ${GH_TOKEN}" \
+                -H "Content-Type: application/json" \
+                "https://api.github.com/repos/kgg1226/${PROJECT}/contents/${FILE}" \
+                -d "$PAYLOAD")
+
+              if [ "$PUT_RESULT" = "200" ] || [ "$PUT_RESULT" = "201" ]; then
+                echo "  ✓ $FILE synced"
+                FILE_COUNT=$((FILE_COUNT + 1))
+              else
+                echo "  ✗ $FILE failed (HTTP $PUT_RESULT)"
+              fi
+            done <<< "$CHANGED_FILES"
+
+            if [ "$FILE_COUNT" -eq 0 ]; then
+              echo "No files synced to $PROJECT, skipping PR"
+              continue
+            fi
+
+            # PR 생성
+            PR_BODY=$(cat <<PRBODY
+          ## Sentix Framework 자동 동기화
+
+          sentix 프레임워크 업데이트가 감지되어 자동 생성된 PR입니다.
+
+          ### 변경된 파일
+          $(echo "$CHANGED_FILES" | sed 's/^/- /')
+
+          ### 변경 이력
+          \`\`\`
+          ${CHANGELOG_LOG}
+          \`\`\`
+
+          ### 변경 통계
+          \`\`\`
+          ${CHANGELOG_STAT}
+          \`\`\`
+
+          ### 주요 변경 내용
+          ${CHANGELOG_DETAILS}
+
+          ### Source
+          - sentix commit: \`${SENTIX_VERSION:0:7}\`
+          - 동기화 시각: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          > 이 PR은 sentix의 \`sync-framework.yml\` 워크플로우에 의해 자동 생성되었습니다.
+          > 병합 전 프로젝트별 커스터마이징과 충돌 여부를 확인하세요.
+          PRBODY
+          )
+
+            PR_RESULT=$(curl -s \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/kgg1226/${PROJECT}/pulls" \
+              -d "$(jq -n \
+                --arg title "sync: sentix framework update (${SENTIX_VERSION:0:7})" \
+                --arg body "$PR_BODY" \
+                --arg head "$SYNC_BRANCH" \
+                --arg base "$DEFAULT_BRANCH" \
+                '{title: $title, body: $body, head: $head, base: $base}')")
+
+            PR_URL=$(echo "$PR_RESULT" | jq -r '.html_url // empty')
+            if [ -n "$PR_URL" ]; then
+              echo "  → PR created: $PR_URL"
+              SYNC_SUMMARY+="- $PROJECT: $PR_URL\n"
+            else
+              echo "::warning::Failed to create PR for $PROJECT"
+              echo "$PR_RESULT" | jq '.message // .'
+              FAILED_PROJECTS+="$PROJECT "
+            fi
+          done
+
+          # 결과 요약
+          echo ""
+          echo "=== Sync Summary ==="
+          if [ -n "$SYNC_SUMMARY" ]; then
+            echo -e "$SYNC_SUMMARY"
+          else
+            echo "No projects synced"
+          fi
+
+          if [ -n "$FAILED_PROJECTS" ]; then
+            echo ""
+            echo "::warning::Failed projects: $FAILED_PROJECTS"
+          fi

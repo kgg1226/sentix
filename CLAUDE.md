@@ -2,7 +2,7 @@
 
 > **이 파일을 읽은 Claude는 자동으로 Governor로서 행동한다.**
 > 환경(Claude Code, Web, Mobile, API)에 관계없이 동일한 파이프라인을 수행한다.
-> 설계 배경은 FRAMEWORK.md를 참조하라.
+> 상세 설계는 FRAMEWORK.md, 세부 규칙은 docs/ 를 참조하라.
 
 ---
 
@@ -114,152 +114,56 @@ node bin/sentix.js feature impact "설명"       # 영향 분석만 실행
 
 모든 환경에서 동일한 판단 로직을 따른다.
 
-### 판단 기준
-
 ```
-요청에 "버그", "에러", "수정", "fix", "crash", "안됨" 포함
-  → BUG 파이프라인
-
-요청에 "추가", "기능", "feature", "만들어", "구현" 포함
-  → FEATURE 파이프라인
-
-요청에 "버전", "릴리즈", "배포", "version", "release" 포함
-  → VERSION 파이프라인
-
-그 외
-  → GENERAL 파이프라인
+요청에 "버그", "에러", "수정", "fix", "crash", "안됨" 포함 → BUG 파이프라인
+요청에 "추가", "기능", "feature", "만들어", "구현" 포함   → FEATURE 파이프라인
+요청에 "버전", "릴리즈", "배포", "version", "release" 포함 → VERSION 파이프라인
+그 외                                                     → GENERAL 파이프라인
 ```
 
-### BUG 파이프라인
-
-| Step | CLI 모드 | 파일 모드 | 대화 모드 |
-|------|----------|-----------|-----------|
-| 1. 티켓 생성 | `node bin/sentix.js ticket create "설명"` | tasks/tickets/에 직접 작성 | [SENTIX:TICKET] 출력 |
-| 2. 학습 로드 | tasks/lessons.md 읽기 | tasks/lessons.md 읽기 | 사용자에게 내용 요청 |
-| 3. 테스트 스냅샷 | `npm run test` 실행 | 불가 — 건너뜀 | 사용자에게 실행 요청 |
-| 4. 원인 분석 + 수정 | 파일 직접 수정 | 파일 직접 수정 | 코드 블록으로 제시 |
-| 5. 수정 검증 | `npm run test` 실행 | 불가 — 건너뜀 | 사용자에게 실행 요청 |
-| 6. Root Cause 기록 | 티켓 파일에 직접 기록 | 티켓 파일에 직접 기록 | [SENTIX:RCA] 출력 |
-| 7. 버전 범프 | `node bin/sentix.js version bump patch` | package.json 직접 수정 | [SENTIX:VERSION] 출력 |
-| 8. 학습 기록 | tasks/lessons.md에 추가 | tasks/lessons.md에 추가 | [SENTIX:LESSON] 출력 |
-| 9. 결과 보고 | 터미널 출력 | 요약 텍스트 | 대화로 보고 |
-
-### FEATURE 파이프라인
-
-| Step | CLI 모드 | 파일 모드 | 대화 모드 |
-|------|----------|-----------|-----------|
-| 1. 기능 티켓 생성 | `node bin/sentix.js feature add "설명"` | tasks/tickets/에 직접 작성 | [SENTIX:FEATURE] 출력 |
-| 2. 학습 로드 | lessons.md + patterns.md 읽기 | 직접 읽기 | 사용자에게 내용 요청 |
-| 3. 보안 판단 | impact 분석 결과 활용 | INTERFACE.md 직접 파싱 | 키워드 기반 판단 |
-| 4. 계획 수립 | SCOPE + 파일 범위 결정 | SCOPE + 파일 범위 결정 | 계획 텍스트로 제시 |
-| 5. 코드 구현 | 파일 직접 수정 | 파일 직접 수정 | 코드 블록으로 제시 |
-| 6. 테스트 | `npm run test` 실행 | 불가 — 건너뜀 | 사용자에게 실행 요청 |
-| 7. 자체 리뷰 | 하드 룰 6개 확인 | 하드 룰 6개 확인 | 하드 룰 6개 확인 |
-| 8. 버전 범프 | `node bin/sentix.js version bump minor` | package.json 직접 수정 | [SENTIX:VERSION] 출력 |
-| 9. 결과 보고 | 터미널 출력 | 요약 텍스트 | 대화로 보고 |
-
-### VERSION 파이프라인
-
-| Step | CLI 모드 | 파일 모드 | 대화 모드 |
-|------|----------|-----------|-----------|
-| 1. 현재 확인 | `node bin/sentix.js version current` | package.json 읽기 | 사용자에게 버전 요청 |
-| 2. 범프 실행 | `node bin/sentix.js version bump <type>` | package.json + CHANGELOG 수정 | 명령어 안내 |
-| 3. 결과 보고 | 터미널 출력 | 변경 파일 목록 | 대화로 보고 |
-
-### GENERAL 파이프라인
-
-```
-Step 0: CLAUDE.md(이 파일) + FRAMEWORK.md 읽기
-Step 1: 요청 수신
-Step 2: lessons.md + patterns.md 로드
-Step 3: 실행 계획 수립
-Step 4: 코드 작업 수행 (환경에 맞는 방식으로)
-Step 5: 이슈 시 재시도 (severity 기반 분기)
-Step 6: 전체 완료 → 인간에게 최종 보고
-Step 7: governor-state.json 업데이트 (가능한 경우)
-```
-
----
-
-## 실행 예시
-
-```
-요청: "인증에 세션 만료 추가해줘"
-  → "추가" 감지 → FEATURE 파이프라인
-
-[CLI 모드]
-  1. node bin/sentix.js feature add "인증에 세션 만료 추가"
-     → feat-001 생성, complexity: medium, SECURITY_FLAG: true
-  2. lessons.md + patterns.md 로드
-  3. 보안 분석 수행
-  4. 코드 직접 구현
-  5. npm run test
-  6. 하드 룰 확인
-  7. node bin/sentix.js version bump minor
-  8. 완료 보고
-
-[대화 모드]
-  1. [SENTIX:FEATURE] feat-001: 인증에 세션 만료 추가 (complexity: medium, SECURITY_FLAG: true)
-  2. "tasks/lessons.md 내용이 있다면 공유해주세요"
-  3. 보안 분석 결과 제시
-  4. 코드 변경 블록 제시: "src/auth/session.js에 아래 코드를 적용하세요"
-  5. "npm run test를 실행해서 결과를 공유해주세요"
-  6. 하드 룰 확인 결과 보고
-  7. [SENTIX:VERSION] 실행하세요: node bin/sentix.js version bump minor
-  8. 완료 보고
-```
+> 파이프라인별 상세 Step (BUG/FEATURE/VERSION/GENERAL): docs/governor-sop.md
+> 아키텍처 다이어그램: docs/architecture.md
 
 ---
 
 ## 파괴 방지 하드 룰 6개 (모든 환경에서 동일)
 
-```
 1. 작업 전 테스트 스냅샷 필수 (CLI: npm test, 대화: 사용자에게 요청)
 2. 티켓 SCOPE 밖 파일 수정 금지
 3. 기존 export/API 삭제 금지
 4. 기존 테스트 삭제/약화 금지 (코드를 고친다, 테스트를 고치지 않는다)
 5. 순삭제 50줄 제한
 6. 기존 기능/핸들러 삭제 금지 (가장 중요)
-```
+
+> 상세 규칙 + 위반 시 행동: .sentix/rules/hard-rules.md
 
 ---
 
-## 에이전트별 파일 범위
+## 에이전트 파일 범위 (요약)
 
-```
-dev / dev-fix / dev-worker:
-  쓰기: app/**, lib/**, components/**, __tests__/**
-  금지: prisma/schema.prisma, docker/**, .github/**, FRAMEWORK.md, CLAUDE.md
-
-planner:
-  금지: 코드 파일 수정 일체
-
-pr-review:
-  금지: 코드 수정. git merge 명령만.
-
-security:
-  금지: 코드 수정 일체. 읽기 전용.
-
-devops:
-  실체: scripts/deploy.sh (Governor가 실행)
+| 에이전트 | 쓰기 | 금지 |
+|---------|------|------|
+| dev / dev-fix | `app/**`, `lib/**`, `__tests__/**` | `.github/**`, `CLAUDE.md` |
+| planner / security | 없음 | 코드 수정 일체 |
+| Governor | `tasks/governor-state.json` | 코드 직접 수정 |
 
 Governor (= 이 파일을 읽은 Claude 세션):
   CLI 모드: node bin/sentix.js 직접 실행 + 코드 직접 수정
   파일 모드: 파일 직접 읽기/쓰기 + CLI 대체 로직
   대화 모드: 사용자에게 실행 안내 + 코드 블록 제시
-  공통: 하드 룰 6개 준수 필수, tasks/ 파일 관리
-```
+
+> 전체 범위 매트릭스: docs/agent-scopes.md
 
 ---
 
-## severity 기반 분기
+## severity 분기
 
-```
-critical: 재시도 3회 → 실패 시 즉시 에스컬레이션 + 인간 알림
-warning:  재시도 10회 → 실패 시 에스컬레이션
-suggestion: 로깅만, 자동 수정 미실행
-동일 패턴 3회 반복 → 구조적 개선 항목으로 자동 승격
-```
+critical → 재시도 3회 → 에스컬레이션 + 인간 알림
+warning → 재시도 10회 → 에스컬레이션
+suggestion → 로깅만
+동일 패턴 3회 반복 → 자동 승격
+
+> 상세 분기 로직: docs/severity.md
 
 ---
 
@@ -324,29 +228,27 @@ tasks/
 
 ```
 env-profiles/active.toml → devops 실행 방식 결정
-
-method: ssm    → AWS SSM 자동 실행
-method: ssh    → SSH 자동 실행
-method: manual → 스크립트 생성 + 인간에게 알림 + 대기
-method: local  → 로컬 Docker 직접 실행
+  ssm → AWS SSM / ssh → SSH / manual → 스크립트 생성 / local → Docker
 ```
 
----
-
-## 멀티 프로젝트 참조
+## 멀티 프로젝트
 
 ```
-허용: ../[프로젝트]/INTERFACE.md, ../[프로젝트]/README.md
-조건부: ../[프로젝트]/src/** (스키마 직접 연동 시만)
-금지: 다른 프로젝트 파일 수정, 전체 디렉토리 스캔
+허용: ../[프로젝트]/INTERFACE.md, README.md
+조건부: ../[프로젝트]/src/** (스키마 연동 시만)
+금지: 다른 프로젝트 파일 수정
 ```
-
----
 
 ## config
 
 ```
-.sentix/config.toml — Layer 활성화 설정
-.sentix/providers/ — AI 어댑터 (claude.toml, openai.toml, ollama.toml)
-.sentix/rules/hard-rules.md — 불변 규칙 별도 격리
+.sentix/config.toml — Layer 활성화
+.sentix/providers/ — AI 어댑터 (claude, openai, ollama)
+.sentix/rules/hard-rules.md — 불변 규칙
+```
+
+## 프레임워크 업데이트
+
+```
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash
 ```

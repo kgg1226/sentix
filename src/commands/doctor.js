@@ -47,6 +47,24 @@ registerCommand('doctor', {
       }
     }
 
+    // ── Docs (lazy loading) ─────────────────────────
+    ctx.log('\n--- Context Docs ---\n');
+
+    const docs = [
+      { path: 'docs/governor-sop.md', label: 'docs/governor-sop.md (SOP details)' },
+      { path: 'docs/agent-scopes.md', label: 'docs/agent-scopes.md (agent file scopes)' },
+      { path: 'docs/severity.md', label: 'docs/severity.md (severity logic)' },
+      { path: 'docs/architecture.md', label: 'docs/architecture.md (Mermaid diagrams)' },
+    ];
+
+    for (const { path, label } of docs) {
+      if (ctx.exists(path)) {
+        ctx.success(label);
+      } else {
+        ctx.warn(`${label} — missing (run: sentix update)`);
+      }
+    }
+
     // Ticket index
     if (ctx.exists('tasks/tickets/index.json')) {
       ctx.success('tasks/tickets/index.json (ticket index)');
