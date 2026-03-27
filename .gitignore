@@ -18,3 +18,4 @@ tasks/pattern-log.jsonl
 tasks/agent-metrics.jsonl
 tasks/strategies.jsonl
 tasks/governor-state.json
+tasks/context/
