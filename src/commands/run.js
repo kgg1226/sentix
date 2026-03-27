@@ -134,6 +134,10 @@ registerCommand('run', {
     // ── Update state on completion ──────────────────
     state.status = 'completed';
     state.completed_at = new Date().toISOString();
+
+    // Detect ticket type for auto-version hook
+    state.ticket_type = detectTicketType(request, state);
+
     await ctx.writeJSON('tasks/governor-state.json', state);
 
     await ctx.appendJSONL('tasks/pattern-log.jsonl', {
@@ -145,3 +149,25 @@ registerCommand('run', {
     ctx.success('Pipeline completed.');
   },
 });
+
+/**
+ * Detect ticket type from request text or governor state plan.
+ * Used by auto-version hook to determine bump type (minor for feature, patch for bug).
+ */
+function detectTicketType(request, state) {
+  // Check if a ticket ID is referenced
+  if (request.includes('feat-') || /feature|기능|추가/i.test(request)) return 'feature';
+  if (request.includes('bug-') || /bug|fix|debug|버그|수정/i.test(request)) return 'bug';
+
+  // Check plan for ticket references
+  if (state.plan) {
+    for (const step of state.plan) {
+      if (step.result_ref && typeof step.result_ref === 'string') {
+        if (step.result_ref.includes('feat-')) return 'feature';
+        if (step.result_ref.includes('bug-')) return 'bug';
+      }
+    }
+  }
+
+  return null; // Unknown — auto-version hook will default to patch
+}

@@ -41,6 +41,12 @@ min_cycles_for_evolution = 50   # 진화 분석 시작 최소 사이클 수
 ab_test_cycles = 10             # 프롬프트 A/B 테스트 사이클 수
 auto_rollback_threshold = 0.10  # 성능 하락 10% 시 자동 롤백
 
+# ── Version Management ──────────────────────────────────
+[version]
+auto_bump = true                # 파이프라인 완료 후 자동 버전 범프
+auto_tag = true                 # 자동 git tag 생성
+auto_changelog = true           # 자동 CHANGELOG.md 업데이트
+
 # ── Provider ─────────────────────────────────────────────
 [provider]
 default = "claude"              # claude | openai | ollama
