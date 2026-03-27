@@ -72,6 +72,17 @@ build: ${techStack.build}
 
 ---
 
+## 작업 완료 체크리스트
+
+\`\`\`
+□ 하드 룰 6개 위반 없음
+□ 테스트 통과
+□ README.md 업데이트됨 (변경된 기능/명령어/구조/설치 방법이 있다면)
+□ 사용자에게 결과 보고됨
+\`\`\`
+
+---
+
 ## 프레임워크 업데이트
 
 \`\`\`
@@ -220,7 +231,152 @@ type: # api | library | framework | service
       ctx.success('Created registry.md');
     }
 
-    // ── 5. .gitignore entries ───────────────────────
+    // ── 5. README.md sentix 섹션 추가 ───────────────
+    if (ctx.exists('README.md')) {
+      const readme = await ctx.readFile('README.md');
+      if (!readme.includes('Sentix') && !readme.includes('sentix')) {
+        const sentixSection = `
+
+---
+
+## 개발 자동화 (Sentix)
+
+이 프로젝트는 [Sentix](https://github.com/kgg1226/sentix) 프레임워크로 관리됩니다.
+
+### Sentix가 뭔가요?
+
+AI에게 "이거 해줘" 한 마디만 하면, 알아서 코드를 짜고, 검토하고, 배포까지 하는 자동화 도구입니다.
+
+\`\`\`
+사람: "로그인에 세션 만료 추가해줘"
+  ↓
+Sentix: 계획 수립 → 코드 작성 → 리뷰 → 배포 → 보안 검사 → 완료 보고
+\`\`\`
+
+### 어떻게 시작하나요?
+
+\`\`\`bash
+# 1. 설치 확인
+npx sentix doctor
+
+# 2. AI에게 요청
+sentix run "하고 싶은 것"
+
+# 3. 상태 확인
+sentix status
+\`\`\`
+
+### 주요 명령어
+
+| 명령어 | 설명 |
+|--------|------|
+| \`sentix run "요청"\` | AI 파이프라인 실행 |
+| \`sentix status\` | 현재 상태 보기 |
+| \`sentix doctor\` | 설치 상태 진단 |
+| \`sentix update\` | 프레임워크 최신화 |
+| \`sentix ticket create "설명"\` | 버그 티켓 생성 |
+| \`sentix version bump patch\` | 버전 올림 |
+
+### AI가 지키는 규칙 6개
+
+1. 작업 전 테스트 결과를 저장해둬야 합니다
+2. 맡은 범위 밖의 파일은 건드리지 않습니다
+3. 이미 있는 API를 삭제하지 않습니다
+4. 이미 있는 테스트를 삭제하지 않습니다
+5. 한 번에 50줄 넘게 삭제하지 않습니다
+6. 이미 있는 기능을 삭제하지 않습니다
+
+### 프레임워크 업데이트
+
+\`\`\`bash
+# Sentix가 업데이트되면 이 명령어로 최신화:
+sentix update
+
+# 또는 (구형 sentix에서도 동작):
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash
+\`\`\`
+
+> 자세한 내용: [Sentix README](https://github.com/kgg1226/sentix)
+`;
+        await ctx.writeFile('README.md', readme + sentixSection);
+        ctx.success('Updated README.md with Sentix section');
+      }
+    } else {
+      // README가 없으면 기본 생성
+      const readmeTemplate = `# ${techStack.detected ? '' : '프로젝트 이름'}
+
+> 프로젝트 설명을 여기에 작성하세요.
+
+---
+
+## 시작하기
+
+\`\`\`bash
+${techStack.packageManager !== '# 프로젝트에 맞게 설정' ? techStack.packageManager + ' install' : '# 의존성 설치'}
+\`\`\`
+
+---
+
+## 개발 자동화 (Sentix)
+
+이 프로젝트는 [Sentix](https://github.com/kgg1226/sentix) 프레임워크로 관리됩니다.
+
+### Sentix가 뭔가요?
+
+AI에게 "이거 해줘" 한 마디만 하면, 알아서 코드를 짜고, 검토하고, 배포까지 하는 자동화 도구입니다.
+
+\`\`\`
+사람: "로그인에 세션 만료 추가해줘"
+  ↓
+Sentix: 계획 수립 → 코드 작성 → 리뷰 → 배포 → 보안 검사 → 완료 보고
+\`\`\`
+
+### 어떻게 시작하나요?
+
+\`\`\`bash
+# 1. 설치 확인
+npx sentix doctor
+
+# 2. AI에게 요청
+sentix run "하고 싶은 것"
+
+# 3. 상태 확인
+sentix status
+\`\`\`
+
+### 주요 명령어
+
+| 명령어 | 설명 |
+|--------|------|
+| \`sentix run "요청"\` | AI 파이프라인 실행 |
+| \`sentix status\` | 현재 상태 보기 |
+| \`sentix doctor\` | 설치 상태 진단 |
+| \`sentix update\` | 프레임워크 최신화 |
+| \`sentix ticket create "설명"\` | 버그 티켓 생성 |
+| \`sentix version bump patch\` | 버전 올림 |
+
+### AI가 지키는 규칙 6개
+
+1. 작업 전 테스트 결과를 저장해둬야 합니다
+2. 맡은 범위 밖의 파일은 건드리지 않습니다
+3. 이미 있는 API를 삭제하지 않습니다
+4. 이미 있는 테스트를 삭제하지 않습니다
+5. 한 번에 50줄 넘게 삭제하지 않습니다
+6. 이미 있는 기능을 삭제하지 않습니다
+
+### 프레임워크 업데이트
+
+\`\`\`bash
+sentix update
+\`\`\`
+
+> 자세한 내용: [Sentix README](https://github.com/kgg1226/sentix)
+`;
+      await ctx.writeFile('README.md', readmeTemplate);
+      ctx.success('Created README.md with Sentix section');
+    }
+
+    // ── 6. .gitignore entries ───────────────────────
     const ignoreEntries = [
       'tasks/.pre-fix-test-results.json',
       'tasks/pattern-log.jsonl',
