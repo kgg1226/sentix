@@ -132,7 +132,9 @@ Sentix는 **어디서든** 작동합니다. 환경에 따라 자동으로 모드
 | **Claude 모바일 앱** | CLAUDE.md 내용을 대화에 붙여넣고 요청 | 안내 모드 |
 | **Claude API** | system prompt에 CLAUDE.md 포함 | 완전 자동 (도구 제공 시) |
 
-### Claude Code에서 (완전 자동)
+### 1. Claude Code / Cursor / Windsurf (완전 자동)
+
+**설정:** 없음. CLAUDE.md가 있는 프로젝트 폴더에서 대화를 시작하면 자동으로 Governor 모드가 됩니다.
 
 ```
 당신: "로그인에 세션 만료 추가해줘"
@@ -146,20 +148,67 @@ Claude (Governor):
   6. "완료됐습니다" 보고
 ```
 
-### 웹/모바일에서 (안내 모드)
+### 2. claude.ai 웹 (반자동)
+
+**설정 방법:**
+
+1. [claude.ai](https://claude.ai)에서 프로젝트를 생성합니다
+2. 프로젝트 설정 → **Project Knowledge**에 아래 파일들을 업로드합니다:
+   - `CLAUDE.md` (필수)
+   - `FRAMEWORK.md` (권장)
+   - `tasks/lessons.md` (있다면)
+3. 대화를 시작하면 Claude가 자동으로 Governor로서 행동합니다
 
 ```
 당신: "로그인에 세션 만료 추가해줘"
 
 Claude (Governor):
-  1. [SENTIX:FEATURE] feat-001 생성 안내
+  1. [SENTIX:FEATURE] feat-001: 세션 만료 추가 (complexity: medium)
   2. 코드 변경을 코드 블록으로 제시
   3. "npm run test를 실행해서 결과를 공유해주세요"
   4. [SENTIX:VERSION] "이 명령어를 실행하세요: node bin/sentix.js version bump minor"
   5. 완료 보고
 ```
 
-### 상태 확인
+> 코드 실행은 사용자가 직접 합니다. Claude는 무엇을 어디에 적용할지 안내합니다.
+
+### 3. Claude 모바일 앱 (안내 모드)
+
+**설정 방법:**
+
+1. CLAUDE.md 파일의 내용을 복사합니다
+2. 새 대화를 시작하고, 첫 메시지에 CLAUDE.md 내용을 붙여넣습니다:
+   ```
+   아래 CLAUDE.md를 읽고 Governor로서 행동해줘.
+
+   [CLAUDE.md 내용 붙여넣기]
+   ```
+3. 그 다음부터 평소처럼 요청하면 됩니다
+
+> 파일 접근이 불가능하므로, 모든 코드는 코드 블록으로 제시되고 실행은 사용자가 합니다.
+
+### 4. Claude API (완전 자동)
+
+```python
+# system prompt에 CLAUDE.md 내용을 포함시킵니다
+import anthropic
+
+client = anthropic.Anthropic()
+
+with open("CLAUDE.md") as f:
+    claude_md = f.read()
+
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    system=claude_md,
+    messages=[{"role": "user", "content": "로그인에 세션 만료 추가해줘"}],
+    # tools를 제공하면 파일 읽기/쓰기, 명령 실행도 가능
+)
+```
+
+> `tools`에 파일시스템/터미널 도구를 제공하면 CLI 모드처럼 완전 자동화됩니다.
+
+### 상태 확인 (CLI 모드)
 
 ```bash
 sentix status
