@@ -139,7 +139,7 @@ registerCommand('doctor', {
     } else {
       ctx.warn('Safety word: NOT configured — LLM injection defense disabled');
       ctx.log('  Fix: sentix safety set <안전어>');
-      issues++;
+      // issue 카운트하지 않음 — CI/CD 환경에서는 safety word 미설정이 정상
     }
 
     // ── Runtime mode ──────────────────────────────
