@@ -239,7 +239,7 @@ CLI 모드:
 
 | 에이전트 | 쓰기 | 금지 |
 |---------|------|------|
-| dev / dev-fix | `app/**`, `lib/**`, `__tests__/**` | `.github/**`, `CLAUDE.md` |
+| dev / dev-fix | `src/**`, `bin/**`, `scripts/**`, `__tests__/**`, `docs/**`, `app/**`, `lib/**` | `.github/**`, `CLAUDE.md`, `FRAMEWORK.md` |
 | planner / security | 없음 | 코드 수정 일체 |
 | Governor | `tasks/governor-state.json` | 코드 직접 수정 |
 
