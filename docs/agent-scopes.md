@@ -9,7 +9,7 @@
 
 | 에이전트 | 쓰기 허용 | 금지 |
 |---------|----------|------|
-| dev / dev-fix / dev-worker | `app/**`, `lib/**`, `components/**`, `__tests__/**` | `prisma/schema.prisma`, `docker/**`, `.github/**`, `FRAMEWORK.md`, `CLAUDE.md` |
+| dev / dev-fix / dev-worker | `src/**`, `bin/**`, `scripts/**`, `__tests__/**`, `docs/**`, `app/**`, `lib/**`, `components/**` | `.github/**`, `FRAMEWORK.md`, `CLAUDE.md` |
 | planner | 없음 (티켓만 생성) | 코드 파일 수정 일체 |
 | pr-review | 없음 | 코드 수정. `git merge` 명령만 |
 | security | 없음 | 코드 수정 일체. 읽기 전용 |
