@@ -294,6 +294,18 @@ type: # api | library | framework | service
     }
 
     // ── Done ────────────────────────────────────────
+    // init 완료 후 자동으로 update 실행 (FRAMEWORK.md 등 동기화)
+    ctx.log('\n--- Syncing framework files ---\n');
+    try {
+      const { getCommand } = await import('../registry.js');
+      const updateCmd = getCommand('update');
+      if (updateCmd) {
+        await updateCmd.run([], ctx);
+      }
+    } catch {
+      ctx.warn('Auto-update skipped (run manually: sentix update)');
+    }
+
     ctx.log('\n=== Sentix initialized ===');
     ctx.log('');
     if (techStack.detected) {
