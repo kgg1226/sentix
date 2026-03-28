@@ -85,6 +85,20 @@ npx sentix init
 
 이것만 하면 됩니다. 필요한 파일이 자동으로 만들어집니다.
 
+> **`npx` vs 글로벌 설치:**
+> - `npx sentix ...` — 설치 없이 바로 실행 (매번 `npx` 붙여야 함)
+> - `npm install -g sentix` — 한 번 설치하면 그 뒤부터 `sentix ...`만으로 실행 가능
+>
+> ```bash
+> # 글로벌 설치 (선택)
+> npm install -g sentix
+>
+> # 그 뒤부터는 npx 없이 사용 가능:
+> sentix init
+> sentix doctor
+> sentix run "요청"
+> ```
+
 ### 방법 2: 설치 스크립트
 
 ```bash

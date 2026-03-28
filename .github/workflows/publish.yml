@@ -1,0 +1,57 @@
+name: publish
+# main에 머지되면 자동으로 npm publish
+# 버전이 변경된 경우에만 퍼블리시 (중복 방지)
+#
+# 필요 Secret: NPM_TOKEN (Granular Access Token, publish 권한)
+# GitHub repo Settings → Secrets → NPM_TOKEN 등록
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Check version change
+        id: version
+        run: |
+          LOCAL_VERSION=$(node -e "console.log(require('./package.json').version)")
+          NPM_VERSION=$(npm view sentix version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL_VERSION" >> $GITHUB_OUTPUT
+          echo "npm=$NPM_VERSION" >> $GITHUB_OUTPUT
+
+          if [ "$LOCAL_VERSION" = "$NPM_VERSION" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Version $LOCAL_VERSION already published — skipping"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "New version: $NPM_VERSION → $LOCAL_VERSION"
+          fi
+
+      - name: Run tests
+        if: steps.version.outputs.changed == 'true'
+        run: npm test
+
+      - name: Publish to npm
+        if: steps.version.outputs.changed == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish
+
+      - name: Log result
+        if: steps.version.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.local }}
+        run: echo "Published sentix@${VERSION} to npm"
