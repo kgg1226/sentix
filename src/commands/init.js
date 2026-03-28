@@ -311,13 +311,22 @@ type: # api | library | framework | service
     if (techStack.detected) {
       ctx.success(`Detected: ${techStack.runtime} / ${techStack.packageManager}${techStack.framework !== '# 프로젝트에 맞게 설정' ? ' / ' + techStack.framework : ''}`);
     }
-    ctx.log('Next steps:');
-    ctx.log('  1. Edit CLAUDE.md → 기술 스택을 프로젝트에 맞게 확인');
+
+    // init 끝에 자동으로 doctor 실행
+    ctx.log('\n--- Health Check ---\n');
+    try {
+      const { getCommand } = await import('../registry.js');
+      const doctorCmd = getCommand('doctor');
+      if (doctorCmd) {
+        await doctorCmd.run([], ctx);
+      }
+    } catch {
+      ctx.warn('Auto-check skipped (run manually: sentix doctor)');
+    }
+
     if (!hasSafety) {
-      ctx.log('  2. Run: sentix safety set <안전어>');
-      ctx.log('  3. Run: sentix doctor');
-    } else {
-      ctx.log('  2. Run: sentix doctor');
+      ctx.log('');
+      ctx.log('Optional: sentix safety set <안전어>  (LLM 인젝션 방지)');
     }
     ctx.log('');
   },
