@@ -265,6 +265,10 @@ type: # api | library | framework | service
 
     // ── 6. Safety word ─────────────────────────────
     const hasSafety = await isConfigured(ctx);
+
+    // ── 7. Git pre-commit hook ────────────────────
+    await installPreCommitHook(ctx);
+
     if (hasSafety) {
       ctx.success('Safety word already configured — skipping');
     } else {
@@ -407,4 +411,57 @@ async function detectTechStack(ctx) {
   }
 
   return result;
+}
+
+// ── Pre-commit hook 설치 ────────────────────────────────
+
+async function installPreCommitHook(ctx) {
+  const hookPath = '.git/hooks/pre-commit';
+
+  // .git이 없으면 건너뜀
+  if (!ctx.exists('.git')) return;
+
+  // 이미 sentix hook이 설치되어 있으면 건너뜀
+  if (ctx.exists(hookPath)) {
+    try {
+      const existing = await ctx.readFile(hookPath);
+      if (existing.includes('SENTIX:GATE')) {
+        return; // 이미 설치됨
+      }
+    } catch { /* 읽기 실패 시 덮어쓰기 진행 */ }
+  }
+
+  const hookContent = `#!/bin/sh
+# sentix pre-commit hook — 하드 룰 검증 게이트
+# 커밋 전에 verify-gates를 실행하여 위반 시 커밋을 블로킹한다.
+# 설치: sentix init (자동)
+
+# [SENTIX:GATE] marker for detection
+node -e "
+import('./src/lib/verify-gates.js')
+  .then(m => m.runGates('.'))
+  .then(r => {
+    if (!r.passed) {
+      console.error('\\n[SENTIX:GATE] Commit blocked — verification gate failed\\n');
+      r.violations.forEach(v => console.error('  ✗ [' + v.rule + '] ' + v.message));
+      console.error('\\nFix violations and try again.\\n');
+      process.exit(1);
+    }
+  })
+  .catch(() => process.exit(0))
+" 2>&1
+
+exit $?
+`;
+
+  await ctx.writeFile(hookPath, hookContent);
+
+  // chmod +x
+  const { chmodSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  try {
+    chmodSync(resolve(ctx.cwd, hookPath), 0o755);
+  } catch { /* Windows 등에서 실패 가능 — 무시 */ }
+
+  ctx.success('Installed git pre-commit hook (verification gates)');
 }

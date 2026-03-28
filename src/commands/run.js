@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { runGates } from '../lib/verify-gates.js';
 import { detectDangerousRequest, verifyWord, isConfigured } from '../lib/safety.js';
+import { runChainedPipeline } from '../lib/pipeline.js';
 
 registerCommand('run', {
   description: 'Run a request through the Governor pipeline',
@@ -121,71 +122,94 @@ registerCommand('run', {
       cycle_id: cycleId,
     });
 
-    // ── Invoke Claude Code (safe spawn, no shell) ───
-    ctx.log('Invoking Claude Code Governor...');
-    ctx.log('');
+    // ── Determine pipeline mode ───────────────────
+    const useChained = args.includes('--chained') || args.includes('-c');
+    const useLegacy = args.includes('--single');
 
     const safetyDirective = await isConfigured(ctx)
       ? 'SAFETY WORD is configured. For any dangerous operation (memory wipe, data export, rule changes, bulk deletion), you MUST ask the user for the safety word and verify it with: node bin/sentix.js safety verify <word>. NEVER reveal, display, or hint at the safety word or its hash.'
       : '';
 
-    const prompt = [
-      'Read CLAUDE.md first. Refer to FRAMEWORK.md and docs/ only when you need design details for the current task.',
-      safetyDirective,
-      'Execute the following request through the 7-step Governor pipeline:',
-      `"${request}"`,
-      '',
-      'Follow the SOP exactly. Update tasks/governor-state.json at each phase.',
-    ].filter(Boolean).join('\n');
+    let pipelineResult;
 
-    const result = spawnSync('claude', ['-p', prompt], {
-      cwd: ctx.cwd,
-      stdio: 'inherit',
-      timeout: 600_000, // 10 minutes
-    });
+    if (useChained || (!useLegacy && !args.includes('--single'))) {
+      // ── Chained pipeline (기본값) ─────────────────
+      // Phase별로 분리 실행 + 중간 게이트 + 자동 테스트
+      ctx.log('Pipeline mode: chained (PLAN → DEV → GATE → REVIEW → FINALIZE)\n');
 
-    if (result.error) {
-      state.status = 'failed';
-      state.error = result.error.message;
-      await ctx.writeJSON('tasks/governor-state.json', state);
+      const chainResult = await runChainedPipeline(request, cycleId, state, ctx, { safetyDirective });
 
-      await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-        ts: new Date().toISOString(),
-        event: 'pipeline-failed',
-        cycle_id: cycleId,
-        error: result.error.message,
+      pipelineResult = {
+        success: chainResult.success,
+        gateResults: chainResult.gateResults || runGates(ctx.cwd),
+        duration_seconds: chainResult.duration_seconds,
+        phases: chainResult.phases,
+        test_passed: chainResult.test_passed,
+        failedAt: chainResult.failedAt,
+      };
+    } else {
+      // ── Legacy single-shot (--single 플래그) ──────
+      ctx.log('Pipeline mode: single (legacy)\n');
+      ctx.log('Invoking Claude Code Governor...\n');
+
+      const prompt = [
+        'Read CLAUDE.md first. Refer to FRAMEWORK.md and docs/ only when you need design details for the current task.',
+        safetyDirective,
+        'Execute the following request through the Governor pipeline:',
+        `"${request}"`,
+        '',
+        'Follow the SOP exactly. Update tasks/governor-state.json at each phase.',
+      ].filter(Boolean).join('\n');
+
+      const result = spawnSync('claude', ['-p', prompt], {
+        cwd: ctx.cwd,
+        stdio: 'inherit',
+        timeout: 600_000,
       });
 
-      if (result.error.code === 'ETIMEDOUT') {
-        ctx.error('Pipeline timed out after 10 minutes.');
-      } else {
-        ctx.error(`Pipeline failed: ${result.error.message}`);
+      if (result.error || result.status !== 0) {
+        const error = result.error?.message || `Exit code ${result.status}`;
+        state.status = 'failed';
+        state.error = error;
+        await ctx.writeJSON('tasks/governor-state.json', state);
+        await ctx.appendJSONL('tasks/pattern-log.jsonl', {
+          ts: new Date().toISOString(),
+          event: 'pipeline-failed',
+          cycle_id: cycleId,
+          error,
+        });
+        ctx.error(`Pipeline failed: ${error}`);
+        return;
       }
-      return;
+
+      pipelineResult = {
+        success: true,
+        gateResults: runGates(ctx.cwd),
+        duration_seconds: Math.round((Date.now() - new Date(state.started_at).getTime()) / 1000),
+        phases: [{ name: 'single', success: true }],
+      };
     }
 
-    if (result.status !== 0) {
+    // ── Post-pipeline (공통) ────────────────────────
+    if (!pipelineResult.success) {
       state.status = 'failed';
-      state.error = `Exit code ${result.status}`;
+      state.error = `Failed at phase: ${pipelineResult.failedAt}`;
+      state.completed_at = new Date().toISOString();
       await ctx.writeJSON('tasks/governor-state.json', state);
-
       await ctx.appendJSONL('tasks/pattern-log.jsonl', {
         ts: new Date().toISOString(),
         event: 'pipeline-failed',
         cycle_id: cycleId,
-        error: `Exit code ${result.status}`,
+        error: state.error,
       });
-
-      ctx.error(`Pipeline exited with code ${result.status}`);
+      ctx.error(`Pipeline failed at ${pipelineResult.failedAt} phase.`);
       return;
     }
 
-    // ── Verification gates (deterministic code, not AI) ──
-    ctx.log('');
-    ctx.log('--- Verification Gates ---');
+    // ── Final verification gates ────────────────────
+    ctx.log('\n--- Final Verification Gates ---');
 
-    const gateResults = runGates(ctx.cwd);
-
+    const gateResults = pipelineResult.gateResults;
     for (const check of gateResults.checks) {
       if (check.passed) {
         ctx.success(`[${check.rule}] ${check.detail}`);
@@ -200,18 +224,17 @@ registerCommand('run', {
     if (gateResults.checks.length === 0) {
       ctx.log(gateResults.summary);
     }
-
     ctx.log('');
 
     // ── Update state on completion ──────────────────
     const completedAt = new Date().toISOString();
-    const durationMs = Date.now() - new Date(state.started_at).getTime();
 
     state.status = gateResults.passed ? 'completed' : 'gate-warning';
     state.completed_at = completedAt;
     state.verification = gateResults;
+    state.pipeline_mode = pipelineResult.phases.length > 1 ? 'chained' : 'single';
+    state.phases = pipelineResult.phases.map(p => ({ name: p.name, success: p.success }));
 
-    // Detect ticket type for auto-version hook
     state.ticket_type = detectTicketType(request, state);
 
     await ctx.writeJSON('tasks/governor-state.json', state);
@@ -223,8 +246,11 @@ registerCommand('run', {
       agent: 'governor',
       request,
       ticket_type: state.ticket_type,
-      duration_seconds: Math.round(durationMs / 1000),
-      exit_code: 0,
+      pipeline_mode: state.pipeline_mode,
+      phases_total: pipelineResult.phases.length,
+      phases_passed: pipelineResult.phases.filter(p => p.success).length,
+      duration_seconds: pipelineResult.duration_seconds,
+      test_passed: pipelineResult.test_passed ?? null,
       verification: {
         passed: gateResults.passed,
         checks_run: gateResults.checks.length,
@@ -241,6 +267,7 @@ registerCommand('run', {
       ts: completedAt,
       event: gateResults.passed ? 'pipeline-complete' : 'pipeline-gate-warning',
       cycle_id: cycleId,
+      pipeline_mode: state.pipeline_mode,
       gate_summary: gateResults.summary,
     });
 
