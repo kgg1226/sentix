@@ -36,13 +36,14 @@ jobs:
       - name: Run evolve analysis
         id: evolve
         run: |
-          node bin/sentix.js evolve 2>&1 | tee /tmp/evolve-output.txt
+          node bin/sentix.js evolve > /tmp/evolve-output.txt 2>&1 || true
+          cat /tmp/evolve-output.txt
 
-          # 이슈 수 추출
-          ISSUES=$(grep -c "^    -" /tmp/evolve-output.txt 2>/dev/null || echo "0")
-          CRITICAL=$(grep -c "Critical:" /tmp/evolve-output.txt 2>/dev/null || echo "0")
-          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
-          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          # 이슈 수 추출 (grep 실패해도 0 반환)
+          ISSUES=$(grep -c "^    -" /tmp/evolve-output.txt || true)
+          CRITICAL=$(grep -c "Critical:" /tmp/evolve-output.txt || true)
+          echo "issues=${ISSUES:-0}" >> $GITHUB_OUTPUT
+          echo "critical=${CRITICAL:-0}" >> $GITHUB_OUTPUT
 
       - name: Check for actionable issues
         id: check
