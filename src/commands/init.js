@@ -19,7 +19,15 @@ registerCommand('init', {
 
     // ── 1. CLAUDE.md ────────────────────────────────
     if (ctx.exists('CLAUDE.md')) {
-      ctx.warn('CLAUDE.md already exists — skipping');
+      // CLAUDE.md가 이미 있지만 Sentix Governor 지시문이 없으면 주입
+      const existing = await ctx.readFile('CLAUDE.md');
+      if (!existing.includes('Sentix Governor') && !existing.includes('sentix') && !existing.includes('SENTIX')) {
+        const directive = generateGovernorDirective();
+        await ctx.writeFile('CLAUDE.md', existing + '\n' + directive);
+        ctx.success('CLAUDE.md updated — Sentix Governor directive injected');
+      } else {
+        ctx.warn('CLAUDE.md already has Sentix directives — skipping');
+      }
     } else {
       const claudeTemplate = `# CLAUDE.md — Sentix Governor 실행 지침
 
@@ -485,4 +493,63 @@ exit $?
   } catch { /* Windows 등에서 실패 가능 — 무시 */ }
 
   ctx.success('Installed git pre-commit hook (verification gates)');
+}
+
+// ── Governor 강제 지시문 (기존 CLAUDE.md에 주입) ─────────
+
+function generateGovernorDirective() {
+  return `
+---
+
+# Sentix Governor — 필수 준수 사항
+
+> **이 프로젝트는 Sentix 프레임워크로 관리된다.**
+> **아래 규칙은 어떤 역할(/frontend, /backend 등)에서든 반드시 따라야 한다.**
+> 상세 설계: FRAMEWORK.md, 세부 규칙: docs/
+
+## 코드 수정 전 필수 절차
+
+\`\`\`
+1. 코드 수정 요청을 받으면 → 반드시 Governor 파이프라인으로 진입
+2. 직접 코드를 수정하지 않는다 — 항상 아래 순서를 따른다:
+   → planner (티켓 생성) → dev (구현) → pr-review (검증) → security → roadmap
+3. 테스트 스냅샷 필수: 작업 전 npm test 또는 프로젝트 테스트 실행
+4. 티켓 없이 코드 수정 금지 — sentix ticket create 또는 sentix feature add 사용
+\`\`\`
+
+## 파괴 방지 하드 룰 6개
+
+1. 작업 전 테스트 스냅샷 필수
+2. 티켓 SCOPE 밖 파일 수정 금지
+3. 기존 export/API 삭제 금지
+4. 기존 테스트 삭제/약화 금지
+5. 순삭제 50줄 제한
+6. 기존 기능/핸들러 삭제 금지
+
+> 상세: .sentix/rules/hard-rules.md
+> 에이전트 범위: docs/agent-scopes.md
+> Severity 분기: docs/severity.md
+
+## 작업 완료 체크리스트
+
+\`\`\`
+□ 하드 룰 6개 위반 없음
+□ 검증 게이트 통과 (sentix run 시 자동 — scope, export, test, deletion)
+□ 테스트 통과
+□ 티켓 생성됨
+□ README.md 업데이트됨 (변경된 기능이 있다면)
+□ lessons.md 업데이트됨 (실패 패턴이 있었다면)
+\`\`\`
+
+## Sentix CLI
+
+\`\`\`bash
+sentix run "요청"              # Governor 파이프라인 실행
+sentix ticket create "설명"    # 버그 티켓 생성
+sentix feature add "설명"      # 기능 티켓 생성
+sentix status                  # 상태 확인
+sentix doctor                  # 설치 진단
+sentix update                  # 프레임워크 최신화
+\`\`\`
+`;
 }
