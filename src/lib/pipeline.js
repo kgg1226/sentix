@@ -14,6 +14,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { runGates } from './verify-gates.js';
 
 /**
@@ -191,27 +193,59 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   };
 }
 
+// ── 에이전트 이름 → phase 이름 매핑 ────────────────────
+
+const AGENT_MAP = {
+  plan: 'planner',
+  dev: 'dev',
+  review: 'pr-review',
+  finalize: null,  // finalize는 전용 에이전트 없음
+};
+
 // ── Phase 실행 ────────────────────────────────────────
 
 function runPhase(name, prompt, ctx) {
-  const result = spawnSync('claude', ['-p', prompt], {
+  const args = ['-p', prompt, '--output-format', 'json'];
+
+  // .claude/agents/ 에 에이전트가 있으면 --agent 플래그 추가
+  const agentName = AGENT_MAP[name];
+  if (agentName && existsSync(join(ctx.cwd, '.claude', 'agents', `${agentName}.md`))) {
+    args.push('--agent', agentName);
+  }
+
+  const result = spawnSync('claude', args, {
     cwd: ctx.cwd,
-    stdio: 'inherit',
-    timeout: 300_000, // 5분 per phase (전체 10분 대신)
+    encoding: 'utf-8',
+    stdio: 'pipe',
+    timeout: 300_000, // 5분 per phase
   });
 
   if (result.error) {
     ctx.error(`Phase ${name} failed: ${result.error.message}`);
-    return { success: false, error: result.error.message, exit_code: null };
+    return { success: false, error: result.error.message, exit_code: null, output: null };
   }
 
   if (result.status !== 0) {
     ctx.error(`Phase ${name} exited with code ${result.status}`);
-    return { success: false, error: `exit code ${result.status}`, exit_code: result.status };
+    // stderr가 있으면 출력
+    if (result.stderr?.trim()) {
+      ctx.log(result.stderr.slice(-500));
+    }
+    return { success: false, error: `exit code ${result.status}`, exit_code: result.status, output: null };
   }
 
-  ctx.success(`Phase ${name} completed`);
-  return { success: true, error: null, exit_code: 0 };
+  // JSON 출력 파싱
+  let output = null;
+  try {
+    output = JSON.parse(result.stdout);
+    ctx.success(`Phase ${name} completed (${output.usage?.output_tokens || '?'} tokens)`);
+  } catch {
+    // JSON 파싱 실패 — 텍스트 그대로 사용
+    output = { content: result.stdout };
+    ctx.success(`Phase ${name} completed`);
+  }
+
+  return { success: true, error: null, exit_code: 0, output };
 }
 
 // ── 최근 티켓 내용 가져오기 ───────────────────────────
