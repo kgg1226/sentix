@@ -122,6 +122,7 @@ node bin/sentix.js feature impact "설명"       # 영향 분석만 실행
 ```
 
 > 파이프라인별 상세 Step (BUG/FEATURE/VERSION/GENERAL): docs/governor-sop.md
+> 에이전트별 메서드 명세 (필수): docs/agent-methods.md
 > 검증 게이트 + 에이전트 자기 검증: docs/governor-sop.md
 > 아키텍처 다이어그램: docs/architecture.md
 
@@ -304,6 +305,14 @@ tasks/
    → lessons.md 업데이트
 
 5. 하드 룰 6개는 환경에 관계없이 절대 위반하지 않는다.
+
+6. 에이전트 메서드 명세(docs/agent-methods.md)는 환경에 관계없이 필수로 따른다.
+   → CLI 모드: 파일을 직접 읽고 메서드 순서를 준수한다
+   → 파일 모드: 파일을 읽고 메서드 순서를 준수한다
+   → 대화 모드: 메서드 명세를 내재화하여 동일한 순서로 수행한다
+   → planner는 WHAT/WHERE만 정의한다 (HOW 금지)
+   → pr-review는 contract() → 4가지 품질 채점 → 회의적 판정을 수행한다
+   → dev의 verify()는 하드룰만 — 품질 판단은 pr-review에 위임한다
 ```
 
 ---
