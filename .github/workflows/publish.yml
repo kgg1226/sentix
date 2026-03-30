@@ -1,9 +1,11 @@
 name: publish
-# main에 머지되면 자동으로 npm publish
+# main에 머지되면 자동으로 npm publish (OIDC Trusted Publisher)
 # 버전이 변경된 경우에만 퍼블리시 (중복 방지)
 #
-# 필요 Secret: NPM_TOKEN (Granular Access Token, publish 권한)
-# GitHub repo Settings → Secrets → NPM_TOKEN 등록
+# npm Trusted Publisher 설정 필요:
+#   npmjs.com → sentix → Settings → Trusted Publisher
+#   Workflow filename: publish.yml
+#   Environment name: npm-publish
 
 on:
   push:
@@ -13,6 +15,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write  # OIDC 토큰 발급에 필요
 
     steps:
       - name: Checkout
@@ -44,11 +50,9 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         run: npm test
 
-      - name: Publish to npm
+      - name: Publish to npm (provenance)
         if: steps.version.outputs.changed == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish
+        run: npm publish --provenance --access public
 
       - name: Log result
         if: steps.version.outputs.changed == 'true'
