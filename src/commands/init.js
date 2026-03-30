@@ -504,8 +504,16 @@ function generateGovernorDirective() {
 # Sentix Governor — 필수 준수 사항
 
 > **이 프로젝트는 Sentix 프레임워크로 관리된다.**
-> **아래 규칙은 어떤 역할(/frontend, /backend 등)에서든 반드시 따라야 한다.**
-> 상세 설계: FRAMEWORK.md, 세부 규칙: docs/
+> **아래 규칙은 어떤 역할(/frontend, /backend 등)에서든, 어떤 worktree에서든 반드시 따라야 한다.**
+
+## 세션 시작 시 필수 읽기 (순서대로)
+
+\`\`\`
+1. CLAUDE.md (이 파일)
+2. FRAMEWORK.md — 5-Layer 아키텍처, 에이전트 정의
+3. docs/agent-methods.md — 에이전트별 메서드 순서 (필수 준수)
+4. .sentix/rules/hard-rules.md — 파괴 방지 6개 규칙
+\`\`\`
 
 ## 코드 수정 전 필수 절차
 
@@ -515,6 +523,22 @@ function generateGovernorDirective() {
    → planner (티켓 생성) → dev (구현) → pr-review (검증) → security → roadmap
 3. 테스트 스냅샷 필수: 작업 전 npm test 또는 프로젝트 테스트 실행
 4. 티켓 없이 코드 수정 금지 — sentix ticket create 또는 sentix feature add 사용
+\`\`\`
+
+## 에이전트 메서드 순서 (docs/agent-methods.md 필수 참조)
+
+\`\`\`
+planner: analyze() → research() → scope() → estimate() → emit()
+  → WHAT/WHERE만 정의. HOW(구현 방법) 금지.
+
+dev: snapshot() → implement() → test() → verify() → report()
+  → 구현 방법은 dev가 결정. 품질 판단은 pr-review에 위임.
+
+pr-review: diff() → validate() → grade() → calibrate() → verdict()
+  → 회의적 판정. 의심스러우면 REJECTED.
+
+dev-fix: diagnose() → fix() → test() → learn() → report()
+  → LESSON_LEARNED 필수.
 \`\`\`
 
 ## 파괴 방지 하드 룰 6개
@@ -549,7 +573,7 @@ sentix ticket create "설명"    # 버그 티켓 생성
 sentix feature add "설명"      # 기능 티켓 생성
 sentix status                  # 상태 확인
 sentix doctor                  # 설치 진단
-sentix update                  # 프레임워크 최신화
+sentix update                  # 프레임워크 최신화 (worktree도 root 포함)
 \`\`\`
 `;
 }
