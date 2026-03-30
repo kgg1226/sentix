@@ -20,6 +20,8 @@
     "src/",
     "FRAMEWORK.md",
     ".sentix/rules/",
+    ".claude/settings.json",
+    ".claude/agents/",
     ".github/workflows/deploy.yml",
     ".github/workflows/security-scan.yml",
     "docs/",
