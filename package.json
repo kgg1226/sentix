@@ -22,6 +22,7 @@
     ".sentix/rules/",
     ".claude/settings.json",
     ".claude/agents/",
+    ".claude/rules/",
     ".github/workflows/deploy.yml",
     ".github/workflows/security-scan.yml",
     "docs/",

@@ -2,6 +2,7 @@
 .claude/*
 !.claude/settings.json
 !.claude/agents/
+!.claude/rules/
 !.claude/skills/
 node_modules/
 .env
