@@ -1,5 +1,6 @@
 name: publish
-# main 머지 시 자동: 버전 범프 → CHANGELOG → npm 배포
+# main 머지 시 자동: 커밋에서 버전 감지 → npm 배포
+# 버전은 CI에서 임시로 올리고 npm에만 배포 (git 커밋 안 함)
 # 필요 Secret: NPM_TOKEN
 
 on:
@@ -11,7 +12,6 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
 
     steps:
       - name: Checkout
@@ -28,8 +28,9 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Auto version bump + CHANGELOG
-        id: version
+      - name: Detect version + publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           node -e "
           const { execSync } = require('child_process');
@@ -40,7 +41,11 @@ jobs:
             catch { return ''; }
           }
 
-          // 커밋 수집 — 여러 방법 시도
+          // npm 현재 버전
+          const npmVer = run('npm view sentix version') || '0.0.0';
+          const [nmaj, nmin, npat] = npmVer.split('.').map(Number);
+
+          // 마지막 배포 이후 커밋 수집
           let commits = [];
           const lastTag = run('git describe --tags --abbrev=0');
           if (lastTag) {
@@ -52,7 +57,7 @@ jobs:
             if (log) commits = log.split('\n');
           }
           commits = commits.filter(Boolean);
-          console.log('Commits (' + commits.length + '):', commits.slice(0, 10).join(', '));
+          if (!commits.length) { console.log('No commits found — skip'); process.exit(0); }
 
           // bump type 감지
           let type = 'patch';
@@ -61,74 +66,28 @@ jobs:
             if (/^feat(\(.+?\))?:/.test(c)) type = 'minor';
           }
 
-          // 버전 계산
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          const old = pkg.version;
-          const [major, minor, patch] = old.split('.').map(Number);
+          // npm 버전 기준으로 bump (git의 package.json이 아닌 npm 기준)
           let nv;
-          if (type === 'major') nv = (major+1)+'.0.0';
-          else if (type === 'minor') nv = major+'.'+(minor+1)+'.0';
-          else nv = major+'.'+minor+'.'+(patch+1);
+          if (type === 'major') nv = (nmaj+1)+'.0.0';
+          else if (type === 'minor') nv = nmaj+'.'+(nmin+1)+'.0';
+          else nv = nmaj+'.'+nmin+'.'+(npat+1);
 
-          // npm 중복 확인
-          const npmVer = run('npm view sentix version') || '0.0.0';
           if (nv === npmVer) { console.log(nv + ' already on npm — skip'); process.exit(0); }
 
-          // package.json
+          console.log(npmVer + ' -> ' + nv + ' (' + type + ')');
+          console.log('Commits: ' + commits.length);
+
+          // package.json 버전만 임시로 변경 (npm publish용)
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           pkg.version = nv;
           fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 
-          // INTERFACE.md
-          if (fs.existsSync('INTERFACE.md')) {
-            let f = fs.readFileSync('INTERFACE.md', 'utf8');
-            fs.writeFileSync('INTERFACE.md', f.replace(/version: .+/, 'version: ' + nv));
-          }
+          // 테스트
+          console.log('Running tests...');
+          execSync('npm test', { stdio: 'inherit' });
 
-          // CHANGELOG
-          const date = new Date().toISOString().slice(0, 10);
-          const cats = { feat: [], fix: [], ci: [], docs: [], other: [] };
-          for (const c of commits) {
-            if (/^chore: (release|bump)/.test(c) || c.startsWith('Merge pull')) continue;
-            if (/^feat(\(.+?\))?:/.test(c)) cats.feat.push(c.replace(/^feat(\(.+?\))?:\s*/, ''));
-            else if (/^fix(\(.+?\))?:/.test(c)) cats.fix.push(c.replace(/^fix(\(.+?\))?:\s*/, ''));
-            else if (/^ci(\(.+?\))?:/.test(c)) cats.ci.push(c.replace(/^ci(\(.+?\))?:\s*/, ''));
-            else if (/^docs(\(.+?\))?:/.test(c)) cats.docs.push(c.replace(/^docs(\(.+?\))?:\s*/, ''));
-            else if (c.trim()) cats.other.push(c.replace(/^[a-z]+(\(.+?\))?:\s*/, ''));
-          }
-          let entry = '## [' + nv + '] - ' + date + '\n';
-          const labels = { feat: 'New Features', fix: 'Bug Fixes', ci: 'CI/CD', docs: 'Documentation', other: 'Improvements' };
-          for (const [k, items] of Object.entries(cats)) {
-            if (items.length) entry += '\n### ' + labels[k] + '\n\n' + [...new Set(items)].map(x => '- ' + x).join('\n') + '\n';
-          }
-          if (fs.existsSync('CHANGELOG.md')) {
-            let cl = fs.readFileSync('CHANGELOG.md', 'utf8');
-            fs.writeFileSync('CHANGELOG.md', cl.replace('# Changelog', '# Changelog\n\n' + entry + '\n---'));
-          } else {
-            fs.writeFileSync('CHANGELOG.md', '# Changelog\n\n' + entry + '\n---\n');
-          }
-
-          // output
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'new=' + nv + '\nold=' + old + '\ntype=' + type + '\n');
-          console.log(old + ' -> ' + nv + ' (' + type + ')');
+          // npm publish
+          console.log('Publishing sentix@' + nv + '...');
+          execSync('npm publish --access public', { stdio: 'inherit' });
+          console.log('Done: sentix@' + nv);
           "
-
-      - name: Run tests
-        if: steps.version.outputs.new
-        run: npm test
-
-      - name: Commit + tag + push
-        if: steps.version.outputs.new
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json CHANGELOG.md INTERFACE.md
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: release v${{ steps.version.outputs.new }}"
-          git tag -a "v${{ steps.version.outputs.new }}" -m "Release v${{ steps.version.outputs.new }}"
-          git push origin main --follow-tags
-
-      - name: Publish to npm
-        if: steps.version.outputs.new
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
