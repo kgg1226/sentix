@@ -20,14 +20,29 @@ const sentixRoot = resolve(__dirname, '..', '..');
 
 // 동기화 대상: 프레임워크 공통 파일 (모든 프로젝트가 동일해야 하는 것)
 const SYNC_FILES = [
+  // CI/CD
   { src: '.github/workflows/deploy.yml',        dst: '.github/workflows/deploy.yml' },
   { src: '.github/workflows/security-scan.yml',  dst: '.github/workflows/security-scan.yml' },
+
+  // 하드 룰 + 검증
   { src: '.sentix/rules/hard-rules.md',          dst: '.sentix/rules/hard-rules.md' },
+  { src: 'scripts/pre-commit.js',                dst: 'scripts/pre-commit.js' },
+
+  // 프레임워크 문서
   { src: 'FRAMEWORK.md',                         dst: 'FRAMEWORK.md' },
   { src: 'docs/governor-sop.md',                 dst: 'docs/governor-sop.md' },
   { src: 'docs/agent-scopes.md',                 dst: 'docs/agent-scopes.md' },
+  { src: 'docs/agent-methods.md',                dst: 'docs/agent-methods.md' },
   { src: 'docs/severity.md',                     dst: 'docs/severity.md' },
   { src: 'docs/architecture.md',                 dst: 'docs/architecture.md' },
+
+  // Claude Code 네이티브 에이전트
+  { src: '.claude/settings.json',                dst: '.claude/settings.json' },
+  { src: '.claude/agents/planner.md',            dst: '.claude/agents/planner.md' },
+  { src: '.claude/agents/dev.md',                dst: '.claude/agents/dev.md' },
+  { src: '.claude/agents/pr-review.md',          dst: '.claude/agents/pr-review.md' },
+  { src: '.claude/agents/dev-fix.md',            dst: '.claude/agents/dev-fix.md' },
+  { src: '.claude/agents/security.md',           dst: '.claude/agents/security.md' },
 ];
 
 registerCommand('update', {
