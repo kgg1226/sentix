@@ -1,11 +1,6 @@
 name: publish
-# main 머지 시 자동 실행:
-#   1. 커밋 메시지에서 bump type 감지 (feat→minor, fix→patch 등)
-#   2. 버전 범프 + CHANGELOG 생성
-#   3. npm 배포
-#   4. 버전 커밋을 main에 push
-#
-# 필요 Secret: NPM_TOKEN (Granular Access Token, publish + bypass 2FA)
+# main 머지 시 자동: 버전 범프 → CHANGELOG → npm 배포
+# 필요 Secret: NPM_TOKEN
 
 on:
   push:
@@ -16,7 +11,6 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # version bump 커밋의 재귀 실행 방지
     if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
 
     steps:
@@ -24,7 +18,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -32,134 +25,105 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Detect bump type from commits
-        id: bump
-        run: |
-          # 마지막 release 커밋 이후의 커밋 메시지 수집
-          LAST_RELEASE=$(git log --oneline --grep="^chore: release v" -1 --format="%H" 2>/dev/null || echo "")
-          if [ -n "$LAST_RELEASE" ]; then
-            COMMITS=$(git log ${LAST_RELEASE}..HEAD --pretty=format:"%s" 2>/dev/null)
-          else
-            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-            if [ -n "$LAST_TAG" ]; then
-              COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null)
-            else
-              COMMITS=$(git log -20 --pretty=format:"%s" 2>/dev/null)
-            fi
-          fi
-
-          echo "--- Commits since last release ---"
-          echo "$COMMITS"
-          echo "---"
-
-          # bump type 감지
-          TYPE="patch"
-          if echo "$COMMITS" | grep -qE "^feat!:|BREAKING CHANGE"; then
-            TYPE="major"
-          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
-            TYPE="minor"
-          fi
-
-          echo "type=$TYPE" >> $GITHUB_OUTPUT
-          echo "Detected bump type: $TYPE"
-
-      - name: Bump version
+      - name: Auto version bump + CHANGELOG
         id: version
         run: |
-          CURRENT=$(node -e "console.log(require('./package.json').version)")
-          NPM_VERSION=$(npm view sentix version 2>/dev/null || echo "0.0.0")
-
-          # semver bump 계산
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          case "${{ steps.bump.outputs.type }}" in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH + 1)) ;;
-          esac
-          NEW="${MAJOR}.${MINOR}.${PATCH}"
-
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          echo "new=$NEW" >> $GITHUB_OUTPUT
-          echo "npm=$NPM_VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $CURRENT → $NEW (npm: $NPM_VERSION)"
-
-          # package.json 업데이트
           node -e "
-            const pkg = JSON.parse(require('fs').readFileSync('package.json','utf8'));
-            pkg.version = '${NEW}';
-            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          const { execSync } = require('child_process');
+          const fs = require('fs');
+
+          // 마지막 릴리즈 이후 커밋 수집
+          let range = 'HEAD~30..HEAD';
+          try {
+            const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null', { encoding: 'utf-8' }).trim();
+            if (lastTag) range = lastTag + '..HEAD';
+          } catch {}
+
+          const commits = execSync('git log ' + range + ' --pretty=format:\"%s\"', { encoding: 'utf-8' })
+            .trim().split('\n').filter(Boolean);
+
+          // bump type 감지
+          let type = 'patch';
+          for (const c of commits) {
+            if (c.includes('BREAKING CHANGE') || /^[a-z]+!:/.test(c)) { type = 'major'; break; }
+            if (/^feat(\(.+?\))?:/.test(c)) type = 'minor';
+          }
+
+          // 버전 계산
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const [major, minor, patch] = pkg.version.split('.').map(Number);
+          let nv;
+          if (type === 'major') nv = (major+1)+'.0.0';
+          else if (type === 'minor') nv = major+'.'+(minor+1)+'.0';
+          else nv = major+'.'+minor+'.'+(patch+1);
+
+          // npm 버전 확인
+          let npmVer = '0.0.0';
+          try { npmVer = execSync('npm view sentix version 2>/dev/null', { encoding: 'utf-8' }).trim(); } catch {}
+          if (nv === npmVer) { console.log('Version ' + nv + ' already published'); process.exit(0); }
+
+          // package.json 업데이트
+          pkg.version = nv;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+
+          // INTERFACE.md 업데이트
+          if (fs.existsSync('INTERFACE.md')) {
+            let iface = fs.readFileSync('INTERFACE.md', 'utf8');
+            iface = iface.replace(/version: .+/, 'version: ' + nv);
+            fs.writeFileSync('INTERFACE.md', iface);
+          }
+
+          // CHANGELOG 생성
+          const date = new Date().toISOString().slice(0, 10);
+          const cats = { feat: [], fix: [], ci: [], docs: [], other: [] };
+          for (const c of commits) {
+            if (/^chore: (release|bump)/.test(c) || c.startsWith('Merge pull')) continue;
+            const clean = c.replace(/^\"|\"$/g, '');
+            if (/^feat(\(.+?\))?:/.test(clean)) cats.feat.push(clean.replace(/^feat(\(.+?\))?:\s*/, ''));
+            else if (/^fix(\(.+?\))?:/.test(clean)) cats.fix.push(clean.replace(/^fix(\(.+?\))?:\s*/, ''));
+            else if (/^ci(\(.+?\))?:/.test(clean)) cats.ci.push(clean.replace(/^ci(\(.+?\))?:\s*/, ''));
+            else if (/^docs(\(.+?\))?:/.test(clean)) cats.docs.push(clean.replace(/^docs(\(.+?\))?:\s*/, ''));
+            else if (clean.trim()) cats.other.push(clean.replace(/^[a-z]+(\(.+?\))?:\s*/, ''));
+          }
+
+          let entry = '## [' + nv + '] - ' + date + '\n';
+          if (cats.feat.length) entry += '\n### New Features\n\n' + cats.feat.map(x => '- ' + x).join('\n') + '\n';
+          if (cats.fix.length) entry += '\n### Bug Fixes\n\n' + cats.fix.map(x => '- ' + x).join('\n') + '\n';
+          if (cats.ci.length) entry += '\n### CI/CD\n\n' + cats.ci.map(x => '- ' + x).join('\n') + '\n';
+          if (cats.docs.length) entry += '\n### Documentation\n\n' + cats.docs.map(x => '- ' + x).join('\n') + '\n';
+          if (cats.other.length) entry += '\n### Improvements\n\n' + cats.other.map(x => '- ' + x).join('\n') + '\n';
+
+          if (fs.existsSync('CHANGELOG.md')) {
+            let cl = fs.readFileSync('CHANGELOG.md', 'utf8');
+            cl = cl.replace('# Changelog', '# Changelog\n\n' + entry + '\n---');
+            fs.writeFileSync('CHANGELOG.md', cl);
+          } else {
+            fs.writeFileSync('CHANGELOG.md', '# Changelog\n\n' + entry + '\n---\n');
+          }
+
+          // output
+          const output = 'new=' + nv + '\ncurrent=' + pkg.version + '\ntype=' + type;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, output + '\n');
+          console.log(pkg.version + ' -> ' + nv + ' (' + type + ')');
           "
 
-          # INTERFACE.md 업데이트
-          if [ -f INTERFACE.md ]; then
-            sed -i "s/version: .*/version: ${NEW}/" INTERFACE.md
-          fi
-
-      - name: Generate CHANGELOG
-        run: |
-          NEW=${{ steps.version.outputs.new }}
-          DATE=$(date +%Y-%m-%d)
-
-          # 커밋에서 CHANGELOG 엔트리 생성
-          LAST_RELEASE=$(git log --oneline --grep="^chore: release v" -1 --format="%H" 2>/dev/null || echo "")
-          if [ -n "$LAST_RELEASE" ]; then
-            RANGE="${LAST_RELEASE}..HEAD"
-          else
-            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-            if [ -n "$LAST_TAG" ]; then
-              RANGE="${LAST_TAG}..HEAD"
-            else
-              RANGE="HEAD~20..HEAD"
-            fi
-          fi
-
-          ENTRY="## [${NEW}] — ${DATE}"$'\n'
-
-          # 카테고리별 수집
-          FEATS=$(git log $RANGE --pretty=format:"%s" | grep -E "^feat(\(.+\))?:" | sed 's/^feat\(.*\)\?: //' | sed 's/^/- /' || true)
-          FIXES=$(git log $RANGE --pretty=format:"%s" | grep -E "^fix(\(.+\))?:" | sed 's/^fix\(.*\)\?: //' | sed 's/^/- /' || true)
-          CI=$(git log $RANGE --pretty=format:"%s" | grep -E "^ci(\(.+\))?:" | sed 's/^ci\(.*\)\?: //' | sed 's/^/- /' || true)
-          DOCS=$(git log $RANGE --pretty=format:"%s" | grep -E "^docs(\(.+\))?:" | sed 's/^docs\(.*\)\?: //' | sed 's/^/- /' || true)
-          CHORE=$(git log $RANGE --pretty=format:"%s" | grep -E "^(chore|refactor)(\(.+\))?:" | grep -v "^chore: release v" | grep -v "^chore: bump version" | sed 's/^[a-z]*\(.*\)\?: //' | sed 's/^/- /' || true)
-
-          [ -n "$FEATS" ] && ENTRY="${ENTRY}"$'\n'"### New Features"$'\n'$'\n'"${FEATS}"$'\n'
-          [ -n "$FIXES" ] && ENTRY="${ENTRY}"$'\n'"### Bug Fixes"$'\n'$'\n'"${FIXES}"$'\n'
-          [ -n "$CI" ] && ENTRY="${ENTRY}"$'\n'"### CI/CD"$'\n'$'\n'"${CI}"$'\n'
-          [ -n "$DOCS" ] && ENTRY="${ENTRY}"$'\n'"### Documentation"$'\n'$'\n'"${DOCS}"$'\n'
-          [ -n "$CHORE" ] && ENTRY="${ENTRY}"$'\n'"### Improvements"$'\n'$'\n'"${CHORE}"$'\n'
-
-          # CHANGELOG.md에 삽입
-          if [ -f CHANGELOG.md ]; then
-            # "# Changelog" 다음에 삽입
-            sed -i "/^# Changelog$/a\\
-\\
-${ENTRY}\\
----" CHANGELOG.md
-          else
-            echo -e "# Changelog\n\n${ENTRY}\n---\n" > CHANGELOG.md
-          fi
-
       - name: Run tests
+        if: steps.version.outputs.new
         run: npm test
 
-      - name: Commit version bump
+      - name: Commit + tag + push
+        if: steps.version.outputs.new
         run: |
-          NEW=${{ steps.version.outputs.new }}
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json CHANGELOG.md INTERFACE.md
-          git commit -m "chore: release v${NEW}" || echo "No changes to commit"
-          git tag -a "v${NEW}" -m "Release v${NEW}" || echo "Tag already exists"
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: release v${{ steps.version.outputs.new }}"
+          git tag -a "v${{ steps.version.outputs.new }}" -m "Release v${{ steps.version.outputs.new }}"
           git push origin main --follow-tags
 
       - name: Publish to npm
+        if: steps.version.outputs.new
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
-
-      - name: Summary
-        env:
-          NEW: ${{ steps.version.outputs.new }}
-          OLD: ${{ steps.version.outputs.current }}
-          TYPE: ${{ steps.bump.outputs.type }}
-        run: echo "Published sentix@${NEW} (${OLD} → ${NEW}, ${TYPE} bump)"
