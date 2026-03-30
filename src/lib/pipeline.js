@@ -29,12 +29,19 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   const phases = [];
   const startTime = Date.now();
 
-  // lessons.md, patterns.md 로드 (있으면)
+  // lessons.md, patterns.md, agent-methods.md 로드 (있으면)
   const lessons = ctx.exists('tasks/lessons.md')
     ? await ctx.readFile('tasks/lessons.md')
     : '';
   const patterns = ctx.exists('tasks/patterns.md')
     ? await ctx.readFile('tasks/patterns.md')
+    : '';
+  const agentMethods = ctx.exists('docs/agent-methods.md')
+    ? await ctx.readFile('docs/agent-methods.md')
+    : '';
+
+  const methodsDirective = agentMethods.trim()
+    ? `\n--- agent-methods.md (MANDATORY — follow method order strictly) ---\n${agentMethods}`
     : '';
 
   const learningContext = [
@@ -56,6 +63,8 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     '3. List the specific files that need to be changed (SCOPE)',
     '4. Estimate complexity (low/medium/high)',
     '5. DO NOT write any code. ONLY plan.',
+    '6. Define WHAT and WHERE only. DO NOT specify HOW (implementation details, function names, algorithms, library choices).',
+    methodsDirective,
     learningContext,
   ].filter(Boolean).join('\n'), ctx);
 
@@ -78,11 +87,14 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     'You are the DEV agent. Your job:',
     latestTicket ? `Ticket:\n${latestTicket}` : `Request: "${request}"`,
     '',
-    '1. Implement the changes described in the ticket',
-    '2. Write or update tests',
-    '3. Run: npm test — ensure all tests pass',
-    '4. Self-verify: check hard rules (no export deletion, no test deletion, scope compliance, <50 net deletions)',
-    '5. DO NOT update version, README, or CHANGELOG — that is the FINALIZE phase',
+    '1. Follow dev methods: snapshot() → implement() → test() → verify() → report()',
+    '2. Implement the changes described in the ticket — you decide HOW',
+    '3. Write or update tests',
+    '4. Run: npm test — ensure all tests pass',
+    '5. Self-verify: hard rules ONLY (no export deletion, no test deletion, scope compliance, <50 net deletions)',
+    '6. DO NOT judge code quality — that is pr-review\'s job',
+    '7. DO NOT update version, README, or CHANGELOG — that is the FINALIZE phase',
+    methodsDirective,
     learningContext,
   ].filter(Boolean).join('\n'), ctx);
 
@@ -135,12 +147,18 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     `Test results: ${testResult.status === 0 ? 'ALL PASSED' : 'SOME FAILED — fix them'}`,
     `Verification gates: ${midGateInfo}`,
     '',
-    '1. Review the git diff (run: git diff)',
-    '2. If tests failed, fix the failing tests (fix code, not tests)',
-    '3. If gate violations exist, fix them',
-    '4. Ensure code quality and hard rule compliance',
-    '5. Run: npm test — confirm all pass after fixes',
-  ].join('\n'), ctx);
+    '1. Follow pr-review methods: diff() → validate() → grade() → calibrate() → verdict()',
+    '2. Review the git diff (run: git diff)',
+    '3. Validate hard rules first — any violation = immediate REJECTED',
+    '4. Grade on 4 criteria: Correctness, Consistency, Simplicity, Test Coverage',
+    '   (skip grade() for low complexity — hard rule pass is sufficient)',
+    '5. Calibrate: check tasks/lessons.md for past missed issues — be skeptical, not generous',
+    '6. If tests failed, fix the failing tests (fix code, not tests)',
+    '7. If gate violations exist, fix them',
+    '8. Run: npm test — confirm all pass after fixes',
+    methodsDirective,
+    learningContext,
+  ].filter(Boolean).join('\n'), ctx);
 
   phases.push({ name: 'review', ...reviewResult });
 
