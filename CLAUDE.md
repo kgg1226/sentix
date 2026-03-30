@@ -80,6 +80,39 @@ deploy: env-profiles/active.toml 참조
 
 ---
 
+## 버전 관리 정책
+
+```
+형식: x.y.zz (major.minor.patch)
+  예: 2.0.21 → 2.0.22 → 2.0.23 → 2.1.0
+
+커밋 메시지 기반 자동 감지:
+  feat:     → minor bump (새 기능)
+  feat!:    → major bump (브레이킹 변경)
+  fix:      → patch bump
+  ci:       → patch bump
+  docs:     → patch bump
+  chore:    → patch bump
+  refactor: → patch bump
+
+버전 범프 명령:
+  sentix version bump           # auto — 커밋 메시지에서 자동 감지
+  sentix version bump auto      # 위와 동일
+  sentix version bump patch     # 수동 지정
+  sentix version bump minor     # 수동 지정
+  sentix version bump major     # 수동 지정
+
+CHANGELOG 자동 생성:
+  git log에서 conventional commit 파싱 → 카테고리별 분류
+  티켓(tasks/tickets/)의 resolved 항목도 포함
+  sentix version changelog      # 미리보기
+
+자동 배포:
+  main 머지 시 publish.yml이 버전 변경 감지 → npm 자동 배포
+```
+
+---
+
 ## Sentix CLI 도구
 
 CLI 모드에서는 직접 실행, 다른 모드에서는 사용자에게 실행을 안내한다.

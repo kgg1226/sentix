@@ -2,9 +2,40 @@
 
 ## [2.0.22] — 2026-03-30
 
+### New Features
+
+- native Claude Code agents + hooks + JSON pipeline output
+- sentix update syncs agents, hooks, methods to downstream projects
+
+### Improvements
+
+- `.claude/settings.json` — PostToolUse hook으로 Edit/Write 시 하드룰 실시간 검증
+- `.claude/agents/` — planner, dev, pr-review, dev-fix, security 5개 네이티브 에이전트
+- `pipeline.js` — `--output-format json` + `--agent` 자동 활용, 토큰 사용량 추적
+- `update.js` — 에이전트/hooks/agent-methods.md를 하위 프로젝트에 동기화
+
 ---
 
 ## [2.0.21] — 2026-03-30
+
+### New Features
+
+- `docs/agent-methods.md` — 에이전트별 메서드 수준 명세 (Anthropic Building Effective Agents 기반)
+
+### Improvements
+
+- Generator-Evaluator 분리 원칙 명문화
+- planner의 WHAT/WHERE만 정의, HOW 금지 규칙
+- pr-review에 4가지 품질 채점 기준 추가 (정확성/일관성/간결성/테스트)
+- Sprint Contract 패턴: dev 전 pr-review.contract() 사전 검증
+- 복잡도 기반 리뷰 강도 조절 (low/mid/high)
+- CLAUDE.md, FRAMEWORK.md에서 agent-methods.md 필수 참조
+- pipeline.js에서 모든 phase 프롬프트에 agent-methods.md 주입
+
+### CI/CD
+
+- npm publish를 NPM_TOKEN + workflow_dispatch로 전환
+- main 머지 시 버전 변경 감지 → 자동 npm 배포
 
 ---
 

@@ -6,14 +6,14 @@
  * sentix version changelog  — CHANGELOG 미리보기 생성
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { parseSemver, bumpSemver } from '../lib/semver.js';
-import { generateForVersion, prependToChangelog } from '../lib/changelog.js';
+import { generateForVersion, prependToChangelog, detectBumpType } from '../lib/changelog.js';
 
 registerCommand('version', {
   description: 'Manage project version (bump | current | changelog)',
-  usage: 'sentix version <bump|current|changelog> [major|minor|patch]',
+  usage: 'sentix version <bump|current|changelog> [auto|major|minor|patch]',
 
   async run(args, ctx) {
     const subcommand = args[0];
@@ -21,9 +21,13 @@ registerCommand('version', {
     if (!subcommand || subcommand === 'current') {
       await showCurrent(ctx);
     } else if (subcommand === 'bump') {
-      const type = args[1] || 'patch';
+      let type = args[1] || 'auto';
+      if (type === 'auto') {
+        type = autoDetectBumpType(ctx);
+        ctx.log(`Auto-detected bump type: ${type}\n`);
+      }
       if (!['major', 'minor', 'patch'].includes(type)) {
-        ctx.error(`Invalid bump type: ${type} (use major|minor|patch)`);
+        ctx.error(`Invalid bump type: ${type} (use auto|major|minor|patch)`);
         return;
       }
       await bumpVersion(type, ctx);
@@ -31,10 +35,36 @@ registerCommand('version', {
       await showChangelog(ctx);
     } else {
       ctx.error(`Unknown subcommand: ${subcommand}`);
-      ctx.log('Usage: sentix version <bump|current|changelog> [major|minor|patch]');
+      ctx.log('Usage: sentix version <bump|current|changelog> [auto|major|minor|patch]');
     }
   },
 });
+
+// ── Auto-detect bump type from commits ───────────────
+
+function autoDetectBumpType(ctx) {
+  try {
+    // Get commits since last tag
+    let range = '';
+    try {
+      const lastTag = execSync('git describe --tags --abbrev=0 HEAD~1 2>/dev/null', {
+        cwd: ctx.cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      if (lastTag) range = `${lastTag}..HEAD`;
+    } catch {
+      range = 'HEAD~20..HEAD';
+    }
+
+    const log = execSync(`git log ${range} --pretty=format:"%s" 2>/dev/null`, {
+      cwd: ctx.cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+
+    const messages = log ? log.split('\n') : [];
+    return detectBumpType(messages);
+  } catch {
+    return 'patch';
+  }
+}
 
 // ── sentix version current ────────────────────────────
 
