@@ -19,6 +19,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch tags
+        run: git fetch --tags origin
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -32,15 +35,24 @@ jobs:
           const { execSync } = require('child_process');
           const fs = require('fs');
 
-          // 마지막 릴리즈 이후 커밋 수집
-          let range = 'HEAD~30..HEAD';
-          try {
-            const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null', { encoding: 'utf-8' }).trim();
-            if (lastTag) range = lastTag + '..HEAD';
-          } catch {}
+          function run(cmd) {
+            try { return execSync(cmd, { encoding: 'utf-8', stdio: ['pipe','pipe','pipe'] }).trim(); }
+            catch { return ''; }
+          }
 
-          const commits = execSync('git log ' + range + ' --pretty=format:\"%s\"', { encoding: 'utf-8' })
-            .trim().split('\n').filter(Boolean);
+          // 커밋 수집 — 여러 방법 시도
+          let commits = [];
+          const lastTag = run('git describe --tags --abbrev=0');
+          if (lastTag) {
+            const log = run('git log ' + lastTag + '..HEAD --pretty=format:%s');
+            if (log) commits = log.split('\n');
+          }
+          if (!commits.length) {
+            const log = run('git log --pretty=format:%s -30');
+            if (log) commits = log.split('\n');
+          }
+          commits = commits.filter(Boolean);
+          console.log('Commits (' + commits.length + '):', commits.slice(0, 10).join(', '));
 
           // bump type 감지
           let type = 'patch';
@@ -51,60 +63,53 @@ jobs:
 
           // 버전 계산
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          const [major, minor, patch] = pkg.version.split('.').map(Number);
+          const old = pkg.version;
+          const [major, minor, patch] = old.split('.').map(Number);
           let nv;
           if (type === 'major') nv = (major+1)+'.0.0';
           else if (type === 'minor') nv = major+'.'+(minor+1)+'.0';
           else nv = major+'.'+minor+'.'+(patch+1);
 
-          // npm 버전 확인
-          let npmVer = '0.0.0';
-          try { npmVer = execSync('npm view sentix version 2>/dev/null', { encoding: 'utf-8' }).trim(); } catch {}
-          if (nv === npmVer) { console.log('Version ' + nv + ' already published'); process.exit(0); }
+          // npm 중복 확인
+          const npmVer = run('npm view sentix version') || '0.0.0';
+          if (nv === npmVer) { console.log(nv + ' already on npm — skip'); process.exit(0); }
 
-          // package.json 업데이트
+          // package.json
           pkg.version = nv;
           fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 
-          // INTERFACE.md 업데이트
+          // INTERFACE.md
           if (fs.existsSync('INTERFACE.md')) {
-            let iface = fs.readFileSync('INTERFACE.md', 'utf8');
-            iface = iface.replace(/version: .+/, 'version: ' + nv);
-            fs.writeFileSync('INTERFACE.md', iface);
+            let f = fs.readFileSync('INTERFACE.md', 'utf8');
+            fs.writeFileSync('INTERFACE.md', f.replace(/version: .+/, 'version: ' + nv));
           }
 
-          // CHANGELOG 생성
+          // CHANGELOG
           const date = new Date().toISOString().slice(0, 10);
           const cats = { feat: [], fix: [], ci: [], docs: [], other: [] };
           for (const c of commits) {
             if (/^chore: (release|bump)/.test(c) || c.startsWith('Merge pull')) continue;
-            const clean = c.replace(/^\"|\"$/g, '');
-            if (/^feat(\(.+?\))?:/.test(clean)) cats.feat.push(clean.replace(/^feat(\(.+?\))?:\s*/, ''));
-            else if (/^fix(\(.+?\))?:/.test(clean)) cats.fix.push(clean.replace(/^fix(\(.+?\))?:\s*/, ''));
-            else if (/^ci(\(.+?\))?:/.test(clean)) cats.ci.push(clean.replace(/^ci(\(.+?\))?:\s*/, ''));
-            else if (/^docs(\(.+?\))?:/.test(clean)) cats.docs.push(clean.replace(/^docs(\(.+?\))?:\s*/, ''));
-            else if (clean.trim()) cats.other.push(clean.replace(/^[a-z]+(\(.+?\))?:\s*/, ''));
+            if (/^feat(\(.+?\))?:/.test(c)) cats.feat.push(c.replace(/^feat(\(.+?\))?:\s*/, ''));
+            else if (/^fix(\(.+?\))?:/.test(c)) cats.fix.push(c.replace(/^fix(\(.+?\))?:\s*/, ''));
+            else if (/^ci(\(.+?\))?:/.test(c)) cats.ci.push(c.replace(/^ci(\(.+?\))?:\s*/, ''));
+            else if (/^docs(\(.+?\))?:/.test(c)) cats.docs.push(c.replace(/^docs(\(.+?\))?:\s*/, ''));
+            else if (c.trim()) cats.other.push(c.replace(/^[a-z]+(\(.+?\))?:\s*/, ''));
           }
-
           let entry = '## [' + nv + '] - ' + date + '\n';
-          if (cats.feat.length) entry += '\n### New Features\n\n' + cats.feat.map(x => '- ' + x).join('\n') + '\n';
-          if (cats.fix.length) entry += '\n### Bug Fixes\n\n' + cats.fix.map(x => '- ' + x).join('\n') + '\n';
-          if (cats.ci.length) entry += '\n### CI/CD\n\n' + cats.ci.map(x => '- ' + x).join('\n') + '\n';
-          if (cats.docs.length) entry += '\n### Documentation\n\n' + cats.docs.map(x => '- ' + x).join('\n') + '\n';
-          if (cats.other.length) entry += '\n### Improvements\n\n' + cats.other.map(x => '- ' + x).join('\n') + '\n';
-
+          const labels = { feat: 'New Features', fix: 'Bug Fixes', ci: 'CI/CD', docs: 'Documentation', other: 'Improvements' };
+          for (const [k, items] of Object.entries(cats)) {
+            if (items.length) entry += '\n### ' + labels[k] + '\n\n' + [...new Set(items)].map(x => '- ' + x).join('\n') + '\n';
+          }
           if (fs.existsSync('CHANGELOG.md')) {
             let cl = fs.readFileSync('CHANGELOG.md', 'utf8');
-            cl = cl.replace('# Changelog', '# Changelog\n\n' + entry + '\n---');
-            fs.writeFileSync('CHANGELOG.md', cl);
+            fs.writeFileSync('CHANGELOG.md', cl.replace('# Changelog', '# Changelog\n\n' + entry + '\n---'));
           } else {
             fs.writeFileSync('CHANGELOG.md', '# Changelog\n\n' + entry + '\n---\n');
           }
 
           // output
-          const output = 'new=' + nv + '\ncurrent=' + pkg.version + '\ntype=' + type;
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, output + '\n');
-          console.log(pkg.version + ' -> ' + nv + ' (' + type + ')');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'new=' + nv + '\nold=' + old + '\ntype=' + type + '\n');
+          console.log(old + ' -> ' + nv + ' (' + type + ')');
           "
 
       - name: Run tests
