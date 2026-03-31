@@ -37,6 +37,13 @@ const SYNC_FILES = [
   { src: 'docs/severity.md',                     dst: 'docs/severity.md' },
   { src: 'docs/architecture.md',                 dst: 'docs/architecture.md' },
 
+  // Claude Code 조건부 규칙 (paths frontmatter)
+  { src: '.claude/rules/hard-rules.md',          dst: '.claude/rules/hard-rules.md' },
+  { src: '.claude/rules/testing.md',             dst: '.claude/rules/testing.md' },
+  { src: '.claude/rules/ci-workflows.md',        dst: '.claude/rules/ci-workflows.md' },
+  { src: '.claude/rules/pipeline.md',            dst: '.claude/rules/pipeline.md' },
+  { src: '.claude/rules/versioning.md',          dst: '.claude/rules/versioning.md' },
+
   // Claude Code 네이티브 에이전트
   { src: '.claude/settings.json',                dst: '.claude/settings.json' },
   { src: '.claude/agents/planner.md',            dst: '.claude/agents/planner.md' },
