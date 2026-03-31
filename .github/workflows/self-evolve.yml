@@ -1,12 +1,10 @@
 name: self-evolve
-# sentix가 매일 자기 자신을 분석하고, 이슈 발견 시 GitHub Issue 생성
-# AI 비용 없음 — 정적 분석만. 수정은 로컬에서 sentix run으로.
-#
-# 공급망 보안: 모든 Action은 커밋 SHA 고정
+# 매일 정적 분석 → 이슈 발견 시 GitHub Issue 생성
+# AI 수정은 Claude Code /schedule로 실행 (구독, API 비용 없음)
 
 on:
   schedule:
-    - cron: '0 9 * * *'   # 매일 09:00 UTC
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -83,10 +81,9 @@ jobs:
           ${TEST_OUTPUT}
           \`\`\`
 
-          ### 수정 방법
-          \`\`\`bash
-          sentix run \"위 이슈 수정\"
-          \`\`\`
+          ### 자동 수정
+          로컬: \`sentix evolve --auto\`
+          또는 Claude Code: \`/self-evolve\`
 
           > 자동 생성: self-evolve.yml" \
               '{title: $title, body: $body, labels: $labels}')"

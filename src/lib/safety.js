@@ -12,15 +12,40 @@
  */
 
 import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const SAFETY_PATH = '.sentix/safety.toml';
+const CONFIG_PATH = '.sentix/config.toml';
 
 /** SHA-256 hash with a fixed salt to prevent rainbow table lookups */
 const SALT = 'sentix-safety-v1';
+const RECOVERY_SALT = 'sentix-recovery-v1';
 
 export function hashWord(word) {
   return createHash('sha256')
     .update(`${SALT}:${word.trim()}`)
+    .digest('hex');
+}
+
+/**
+ * Generate a recovery key from the safety word.
+ * 안전어와 다른 salt를 사용하여 독립적인 해시 생성.
+ * recovery key = 해시의 앞 16자 (사용자가 기록하기 쉽게)
+ */
+export function generateRecoveryKey(word) {
+  const hash = createHash('sha256')
+    .update(`${RECOVERY_SALT}:${word.trim()}`)
+    .digest('hex');
+  return hash.slice(0, 16);
+}
+
+/**
+ * Hash a recovery key for storage
+ */
+export function hashRecoveryKey(key) {
+  return createHash('sha256')
+    .update(`${RECOVERY_SALT}:${key.trim()}`)
     .digest('hex');
 }
 
@@ -39,28 +64,33 @@ export async function loadSafetyHash(ctx) {
 /**
  * Save the safety hash to .sentix/safety.toml
  */
-export async function saveSafetyHash(ctx, hash) {
-  const content = `# ┌─────────────────────────────────────────────────────┐
-# │  SENTIX SAFETY WORD — CONFIDENTIAL                  │
-# │                                                      │
-# │  이 파일은 PEM 키와 동일한 보안 수준으로 취급합니다.    │
-# │  !! 절대 git에 커밋하지 마세요 !!                      │
-# │  !! 절대 외부에 공유하지 마세요 !!                      │
-# │  !! 절대 AI 대화에 내용을 붙여넣지 마세요 !!            │
-# │                                                      │
-# │  This file is treated with PEM-key-level security.   │
-# │  !! NEVER commit to git !!                           │
-# │  !! NEVER share externally !!                        │
-# │  !! NEVER paste contents into AI conversations !!    │
-# │                                                      │
-# │  수정: sentix safety set <새 안전어>                   │
-# └─────────────────────────────────────────────────────┘
+export async function saveSafetyHash(ctx, hash, recoveryKeyHash = '') {
+  await setSafetyMarker(ctx, recoveryKeyHash);
+
+  const recoveryLine = recoveryKeyHash
+    ? `recovery_hash = "${recoveryKeyHash}"`
+    : '# recovery_hash = (not set)';
+
+  const content = `# SENTIX SAFETY WORD — CONFIDENTIAL
+# 절대 git 커밋 금지. 절대 외부 공유 금지. 절대 AI 대화에 붙여넣기 금지.
+# 잠금 해제: sentix safety unlock <recovery-key>
 
 [safety]
 hash = "${hash}"
+${recoveryLine}
 enabled = true
 `;
   await ctx.writeFile(SAFETY_PATH, content);
+}
+
+/**
+ * Load recovery hash from safety.toml
+ */
+export async function loadRecoveryHash(ctx) {
+  if (!ctx.exists(SAFETY_PATH)) return null;
+  const content = await ctx.readFile(SAFETY_PATH);
+  const match = content.match(/^recovery_hash\s*=\s*"([a-f0-9]{64})"/m);
+  return match ? match[1] : null;
 }
 
 /**
@@ -81,12 +111,80 @@ export async function isConfigured(ctx) {
 }
 
 /**
+ * Check if safety.toml was deleted after being configured (tampering detection).
+ *
+ * config.toml에 safety_enabled=true가 있는데 safety.toml이 없으면 → 침해.
+ * 이 상태에서는 모든 위험 작업이 차단되고, set도 불가능.
+ * 복구: safety.toml을 백업에서 복원하거나, config.toml의 safety_enabled를 수동 삭제.
+ *
+ * Returns: 'ok' | 'tampered' | 'not_configured'
+ */
+export async function checkTamper(ctx) {
+  const hasToml = ctx.exists(SAFETY_PATH);
+  const markerSet = hasSafetyMarker(ctx);
+
+  if (hasToml && markerSet) return 'ok';
+  if (!hasToml && markerSet) return 'tampered';
+  return 'not_configured';
+}
+
+/**
+ * Write safety_enabled marker to config.toml
+ * 한번 설정되면 safety.toml 삭제를 감지할 수 있다.
+ */
+export async function setSafetyMarker(ctx, recoveryKeyHash = '') {
+  if (!ctx.exists(CONFIG_PATH)) return;
+
+  let config = await ctx.readFile(CONFIG_PATH);
+
+  // 이미 있으면 recovery_hash만 업데이트
+  if (config.includes('safety_enabled')) {
+    if (recoveryKeyHash && !config.includes('recovery_key_hash')) {
+      config = config.replace(
+        /safety_enabled\s*=\s*true.*/,
+        `safety_enabled = true\nrecovery_key_hash = "${recoveryKeyHash}"`
+      );
+      await ctx.writeFile(CONFIG_PATH, config);
+    }
+    return;
+  }
+
+  const recoveryLine = recoveryKeyHash
+    ? `\nrecovery_key_hash = "${recoveryKeyHash}"`
+    : '';
+
+  const marker = `\n# ── Safety ───────────────────────────────────────────────
+[safety]
+safety_enabled = true           # safety.toml 삭제 감지용 (수동 삭제 금지)${recoveryLine}
+\n`;
+
+  if (config.includes('[version]')) {
+    config = config.replace('[version]', marker + '[version]');
+  } else {
+    config += marker;
+  }
+
+  await ctx.writeFile(CONFIG_PATH, config);
+}
+
+/**
+ * Check if config.toml has safety_enabled marker
+ */
+function hasSafetyMarker(ctx) {
+  if (!ctx.exists(CONFIG_PATH)) return false;
+  try {
+    const config = readFileSync(resolve(ctx.cwd, CONFIG_PATH), 'utf-8');
+    return /safety_enabled\s*=\s*true/i.test(config);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check if safety.toml is accidentally tracked by git
  */
 export function isGitignored(ctx) {
   if (!ctx.exists('.gitignore')) return false;
-  // Synchronous check — just verify the path appears in .gitignore
-  // Full verification happens via ctx.readFile in the command layer
   return true;
 }
 
