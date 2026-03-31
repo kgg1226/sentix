@@ -39,6 +39,16 @@ registerCommand('safety', {
       return await setCmd(word, ctx);
     }
 
+    if (sub === 'reset') {
+      const currentWord = args[1]?.trim();
+      const newWord = args.slice(2).join(' ').trim();
+      if (!currentWord || !newWord) {
+        ctx.error('Usage: sentix safety reset <현재 안전어> <새 안전어>');
+        return;
+      }
+      return await resetCmd(currentWord, newWord, ctx);
+    }
+
     if (sub === 'verify') {
       const word = args.slice(1).join(' ').trim();
       if (!word) {
@@ -49,15 +59,25 @@ registerCommand('safety', {
     }
 
     ctx.error(`Unknown subcommand: ${sub}`);
-    ctx.log('  sentix safety set <word>      안전어 설정');
-    ctx.log('  sentix safety verify <word>   안전어 검증');
-    ctx.log('  sentix safety status          설정 상태 확인');
+    ctx.log('  sentix safety set <word>         안전어 최초 설정');
+    ctx.log('  sentix safety reset <old> <new>  안전어 변경 (현재 안전어 필요)');
+    ctx.log('  sentix safety verify <word>      안전어 검증');
+    ctx.log('  sentix safety status             설정 상태 확인');
   },
 });
 
 // ── set ───────────────────────────────────────────
 
 async function setCmd(word, ctx) {
+  // 기존 안전어가 있으면 현재 안전어 검증 필요
+  const alreadyConfigured = await isConfigured(ctx);
+  if (alreadyConfigured) {
+    ctx.warn('Safety word already configured. To change it, you must verify the current one first.');
+    ctx.log('  Usage: sentix safety reset <현재 안전어> <새 안전어>');
+    ctx.log('  현재 안전어를 모르면 .sentix/safety.toml을 직접 삭제 후 다시 설정하세요.');
+    return;
+  }
+
   const hash = hashWord(word);
   await saveSafetyHash(ctx, hash);
 
@@ -88,8 +108,8 @@ async function setCmd(word, ctx) {
   ctx.log('  │  4. 절대 AI 대화에 붙여넣지 마세요            │');
   ctx.log('  │     (safety.toml 내용 포함)                  │');
   ctx.log('  │                                              │');
-  ctx.log('  │  5. 분실 시 재설정만 가능합니다               │');
-  ctx.log('  │     (sentix safety set <새 안전어>)           │');
+  ctx.log('  │  5. 변경 시 현재 안전어 검증 필수              │');
+  ctx.log('  │     (sentix safety reset <현재> <새것>)       │');
   ctx.log('  │                                              │');
   ctx.log('  └─────────────────────────────────────────────┘');
   ctx.log('');
@@ -106,6 +126,30 @@ async function setCmd(word, ctx) {
   ctx.log(`  Hash: ${hash.slice(0, 8)}****`);
   ctx.log('  검증: sentix safety verify <word>');
   ctx.log('');
+}
+
+// ── reset (현재 안전어 검증 후 변경) ──────────────
+
+async function resetCmd(currentWord, newWord, ctx) {
+  const result = await verifyWord(ctx, currentWord);
+
+  if (result === null) {
+    ctx.warn('Safety word not configured. Use: sentix safety set <word>');
+    return;
+  }
+
+  if (!result) {
+    ctx.error('DENIED — current safety word does not match. Cannot reset.');
+    process.exitCode = 1;
+    return;
+  }
+
+  // 현재 안전어 검증 통과 → 새 안전어로 교체
+  const hash = hashWord(newWord);
+  await saveSafetyHash(ctx, hash);
+  ctx.success('Safety word updated');
+  ctx.log(`  Hash: ${hash.slice(0, 8)}****`);
+  ctx.log('  검증: sentix safety verify <새 안전어>');
 }
 
 // ── verify ────────────────────────────────────────
