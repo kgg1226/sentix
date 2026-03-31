@@ -1,13 +1,13 @@
 name: self-evolve
-# sentix가 1시간마다 자기 자신을 분석하고 개선하는 워크플로우
-# 이슈 발견 시 자동으로 PR을 생성한다.
+# sentix가 매일 자기 자신을 분석하고, 이슈 발견 시 GitHub Issue 생성
+# AI 비용 없음 — 정적 분석만. 수정은 로컬에서 sentix run으로.
 #
 # 공급망 보안: 모든 Action은 커밋 SHA 고정
 
 on:
   schedule:
-    - cron: '0 * * * *'   # 매시 정각
-  workflow_dispatch:        # 수동 실행
+    - cron: '0 9 * * *'   # 매일 09:00 UTC
+  workflow_dispatch:
 
 concurrency:
   group: self-evolve
@@ -30,7 +30,7 @@ jobs:
       - name: Run tests
         id: tests
         run: |
-          npm test 2>&1 | tee /tmp/test-output.txt
+          npm test 2>&1 | tee /tmp/test-output.txt || true
           echo "exit_code=$?" >> $GITHUB_OUTPUT
 
       - name: Run evolve analysis
@@ -39,91 +39,54 @@ jobs:
           node bin/sentix.js evolve > /tmp/evolve-output.txt 2>&1 || true
           cat /tmp/evolve-output.txt
 
-          # 이슈 수 추출 (grep 실패해도 0 반환)
           ISSUES=$(grep -c "^    -" /tmp/evolve-output.txt || true)
           CRITICAL=$(grep -c "Critical:" /tmp/evolve-output.txt || true)
           echo "issues=${ISSUES:-0}" >> $GITHUB_OUTPUT
           echo "critical=${CRITICAL:-0}" >> $GITHUB_OUTPUT
 
-      - name: Check for actionable issues
-        id: check
-        env:
-          ISSUES: ${{ steps.evolve.outputs.issues }}
-          CRITICAL: ${{ steps.evolve.outputs.critical }}
-        run: |
-          if [ "$ISSUES" = "0" ] || [ "$ISSUES" = "" ]; then
-            echo "No issues found — sentix is healthy"
-            echo "needs_action=false" >> $GITHUB_OUTPUT
-          else
-            echo "Found $ISSUES issue(s), $CRITICAL critical"
-            echo "needs_action=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create improvement branch and PR
-        if: steps.check.outputs.needs_action == 'true'
+      - name: Create GitHub Issue
+        if: steps.evolve.outputs.issues > 0
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
-          BRANCH="sentix/self-evolve-$(date +%Y%m%d-%H%M)"
           EVOLVE_OUTPUT=$(cat /tmp/evolve-output.txt)
           TEST_OUTPUT=$(tail -20 /tmp/test-output.txt)
+          CRITICAL=${{ steps.evolve.outputs.critical }}
+          ISSUES=${{ steps.evolve.outputs.issues }}
+          DATE=$(date +%Y-%m-%d)
 
-          # 브랜치 생성
-          git checkout -b "$BRANCH"
+          if [ "$CRITICAL" -gt 0 ]; then
+            LABELS='["bug","critical","self-evolve"]'
+          else
+            LABELS='["self-evolve"]'
+          fi
 
-          # evolve 결과를 티켓으로 저장
-          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          cat > tasks/tickets/evolve-$(date +%Y%m%d%H%M).md << TICKET
-          # Self-Evolution Report — $TIMESTAMP
-
-          ## Analysis Output
-          \`\`\`
-          $EVOLVE_OUTPUT
-          \`\`\`
-
-          ## Test Output
-          \`\`\`
-          $TEST_OUTPUT
-          \`\`\`
-
-          ## Status: open
-          ## Type: self-evolve
-          ## Generated: $TIMESTAMP
-          TICKET
-
-          # 커밋 + 푸시
-          git config user.name "sentix-evolve"
-          git config user.email "evolve@noreply"
-          git add tasks/tickets/
-          git diff --staged --quiet && exit 0
-
-          git commit -m "chore: self-evolution report $(date +%Y-%m-%d-%H%M)"
-          git push origin "$BRANCH" || exit 0
-
-          # PR 생성
           curl -s -X POST \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${REPO}/pulls" \
+            "https://api.github.com/repos/${REPO}/issues" \
             -d "$(jq -n \
-              --arg title "evolve: self-improvement $(date +%Y-%m-%d %H:%M)" \
-              --arg body "## Self-Evolution Report
+              --arg title "self-evolve: ${ISSUES} issue(s) found (${DATE})" \
+              --argjson labels "$LABELS" \
+              --arg body "## Self-Evolution Report — ${DATE}
 
-          \`sentix evolve\` 분석 결과 개선이 필요한 항목이 발견되었습니다.
+          **${ISSUES} issue(s) found, ${CRITICAL} critical**
 
-          ### 분석 결과
+          ### Analysis
           \`\`\`
-          $(echo "$EVOLVE_OUTPUT" | tail -20)
-          \`\`\`
-
-          ### 테스트 상태
-          \`\`\`
-          $(echo "$TEST_OUTPUT" | tail -5)
+          ${EVOLVE_OUTPUT}
           \`\`\`
 
-          > 이 PR은 \`self-evolve.yml\` 워크플로우에 의해 자동 생성되었습니다.
-          > 리뷰 후 머지하거나, \`sentix run\`으로 자동 수정할 수 있습니다." \
-              --arg head "$BRANCH" \
-              --arg base "main" \
-              '{title: $title, body: $body, head: $head, base: $base}')"
+          ### Tests
+          \`\`\`
+          ${TEST_OUTPUT}
+          \`\`\`
+
+          ### 수정 방법
+          \`\`\`bash
+          sentix run \"위 이슈 수정\"
+          \`\`\`
+
+          > 자동 생성: self-evolve.yml" \
+              '{title: $title, body: $body, labels: $labels}')"
