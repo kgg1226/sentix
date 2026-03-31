@@ -23,6 +23,7 @@
     ".claude/settings.json",
     ".claude/agents/",
     ".claude/rules/",
+    ".claude/skills/",
     ".github/workflows/deploy.yml",
     ".github/workflows/security-scan.yml",
     "docs/",
