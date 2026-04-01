@@ -41,6 +41,28 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     ? `\n--- agent-methods.md (MANDATORY — follow method order strictly) ---\n${agentMethods}`
     : '';
 
+  // 크로스 프로젝트 컨텍스트 로드 (tasks/context/*/PROFILE.md)
+  let crossProjectContext = '';
+  try {
+    const contextDir = join(ctx.cwd, 'tasks', 'context');
+    if (existsSync(contextDir)) {
+      const { readdirSync, readFileSync } = await import('node:fs');
+      const projects = readdirSync(contextDir, { withFileTypes: true })
+        .filter(e => e.isDirectory());
+      const profiles = [];
+      for (const p of projects) {
+        const profilePath = join(contextDir, p.name, 'PROFILE.md');
+        if (existsSync(profilePath)) {
+          const content = readFileSync(profilePath, 'utf-8');
+          profiles.push(content.slice(0, 1500)); // 프로젝트당 1500자 제한
+        }
+      }
+      if (profiles.length > 0) {
+        crossProjectContext = `\n--- Cross-Project Context ---\n${profiles.join('\n---\n')}`;
+      }
+    }
+  } catch { /* context 디렉토리 없으면 무시 */ }
+
   const learningContext = [
     lessons.trim() ? `\n--- lessons.md ---\n${lessons.slice(0, 2000)}` : '',
     patterns.trim() ? `\n--- patterns.md ---\n${patterns.slice(0, 1000)}` : '',
@@ -62,8 +84,10 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     '5. DO NOT write any code. ONLY plan.',
     '6. Define WHAT and WHERE only. DO NOT specify HOW.',
     '7. If high complexity, include PARALLEL_HINT with subtask breakdown.',
+    '8. Check cross-project context for API dependencies or breaking changes.',
     methodsDirective,
     learningContext,
+    crossProjectContext,
   ].filter(Boolean).join('\n'), ctx);
 
   phases.push({ name: 'plan', ...planResult });

@@ -13,7 +13,7 @@
  */
 
 import { registerCommand } from '../registry.js';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
@@ -171,9 +171,12 @@ async function syncLocal(project, sourcePath, contextDir, fullMode, ctx) {
   ];
 
   if (fullMode) {
-    // --full: 주요 설정 파일도 포함
     const extraFiles = [
+      'CLAUDE.md',
       'package.json',
+      'pyproject.toml',
+      'go.mod',
+      'Cargo.toml',
       '.sentix/config.toml',
       'tasks/lessons.md',
     ];
@@ -192,7 +195,123 @@ async function syncLocal(project, sourcePath, contextDir, fullMode, ctx) {
     }
   }
 
+  // --full: 프로젝트 프로필 자동 생성
+  if (fullMode) {
+    const profile = generateProjectProfile(project, sourcePath);
+    if (profile) {
+      await ctx.writeFile(`${contextDir}/PROFILE.md`, profile);
+      ctx.success(`  PROFILE.md (auto-generated)`);
+      count++;
+    }
+  }
+
   return count;
+}
+
+// ── 프로젝트 프로필 자동 생성 ────────────────────────
+
+function generateProjectProfile(project, sourcePath) {
+  // readdirSync는 top-level import에서 가져옴
+
+  let profile = `# ${project.name} — Project Profile (auto-generated)\n\n`;
+
+  // 1. 기술 스택 추출 (CLAUDE.md에서)
+  const claudePath = resolve(sourcePath, 'CLAUDE.md');
+  if (existsSync(claudePath)) {
+    const claude = readFileSync(claudePath, 'utf-8');
+    const stackMatch = claude.match(/## 기술 스택[\s\S]*?```([\s\S]*?)```/);
+    if (stackMatch) {
+      profile += `## Tech Stack\n\n\`\`\`\n${stackMatch[1].trim()}\n\`\`\`\n\n`;
+    }
+  }
+
+  // 2. package.json에서 의존성 추출
+  const pkgPath = resolve(sourcePath, 'package.json');
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+      const deps = Object.keys(pkg.dependencies || {});
+      const devDeps = Object.keys(pkg.devDependencies || {});
+      if (deps.length > 0 || devDeps.length > 0) {
+        profile += `## Dependencies\n\n`;
+        if (deps.length) profile += `**Runtime**: ${deps.join(', ')}\n`;
+        if (devDeps.length) profile += `**Dev**: ${devDeps.join(', ')}\n`;
+        profile += '\n';
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 3. 디렉토리 구조 스캔 (2레벨)
+  profile += `## Directory Structure\n\n\`\`\`\n`;
+  try {
+    const entries = readdirSync(sourcePath, { withFileTypes: true })
+      .filter(e => !e.name.startsWith('.') && e.name !== 'node_modules' && e.name !== 'dist' && e.name !== 'build')
+      .sort((a, b) => {
+        if (a.isDirectory() && !b.isDirectory()) return -1;
+        if (!a.isDirectory() && b.isDirectory()) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        profile += `${entry.name}/\n`;
+        // 2레벨 스캔
+        try {
+          const sub = readdirSync(resolve(sourcePath, entry.name), { withFileTypes: true })
+            .filter(e => !e.name.startsWith('.'))
+            .slice(0, 10);
+          for (const s of sub) {
+            profile += `  ${s.name}${s.isDirectory() ? '/' : ''}\n`;
+          }
+          const total = readdirSync(resolve(sourcePath, entry.name)).filter(e => !e.startsWith('.')).length;
+          if (total > 10) profile += `  ... (${total} items)\n`;
+        } catch { /* permission denied */ }
+      } else {
+        profile += `${entry.name}\n`;
+      }
+    }
+  } catch { /* source not scannable */ }
+  profile += `\`\`\`\n\n`;
+
+  // 4. INTERFACE.md에서 API/Schema 추출
+  const ifacePath = resolve(sourcePath, 'INTERFACE.md');
+  if (existsSync(ifacePath)) {
+    const iface = readFileSync(ifacePath, 'utf-8');
+
+    const apiMatch = iface.match(/## Exported APIs[\s\S]*?```([\s\S]*?)```/);
+    if (apiMatch && !apiMatch[1].includes('없음')) {
+      profile += `## Exported APIs\n\n\`\`\`\n${apiMatch[1].trim()}\n\`\`\`\n\n`;
+    }
+
+    const schemaMatch = iface.match(/## Schemas[\s\S]*?```([\s\S]*?)```/);
+    if (schemaMatch && !schemaMatch[1].includes('없음')) {
+      profile += `## Schemas\n\n\`\`\`\n${schemaMatch[1].trim()}\n\`\`\`\n\n`;
+    }
+
+    const patternMatch = iface.match(/## Key Patterns[\s\S]*?```([\s\S]*?)```/);
+    if (patternMatch) {
+      profile += `## Key Patterns\n\n\`\`\`\n${patternMatch[1].trim()}\n\`\`\`\n\n`;
+    }
+  }
+
+  // 5. lessons.md 요약 (최근 3개)
+  const lessonsPath = resolve(sourcePath, 'tasks/lessons.md');
+  if (existsSync(lessonsPath)) {
+    const lessons = readFileSync(lessonsPath, 'utf-8');
+    const sections = lessons.split(/^## /m).filter(s => s.trim()).slice(0, 3);
+    if (sections.length > 0) {
+      profile += `## Recent Lessons (from this project)\n\n`;
+      for (const s of sections) {
+        const firstLine = s.split('\n')[0].trim();
+        if (firstLine && !firstLine.startsWith('#')) {
+          profile += `- ${firstLine}\n`;
+        }
+      }
+      profile += '\n';
+    }
+  }
+
+  return profile;
 }
 
 // ── GitHub 동기화 ────────────────────────────────────
