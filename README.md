@@ -447,31 +447,109 @@ Node.js 내장 테스트 러너를 사용합니다. `__tests__/` 디렉토리에
 
 업데이트는 **2단계**입니다: ① sentix 패키지 자체를 최신으로 올린 다음 ② 프로젝트의 프레임워크 파일을 동기화합니다.
 
-### Step 1: sentix 패키지 업데이트
+### 환경별 업데이트 방법
+
+#### CLI (Claude Code / Cursor / Windsurf)
+
+가장 완전한 업데이트 경로입니다. 패키지 + 프레임워크 파일 모두 자동 처리됩니다.
 
 ```bash
-# 현재 버전 확인
-sentix --version
-
-# 최신 버전으로 업데이트
+# Step 1: sentix 패키지 자체를 최신으로
 npm install -g sentix@latest
 
-# 업데이트 확인
-sentix --version
+# Step 2: 프로젝트 프레임워크 파일 동기화
+cd /path/to/your-project
+sentix update          # 실제 적용
+sentix update --dry    # 미리보기만
+
+# 확인
+sentix --version       # 패키지 버전 확인
+sentix doctor          # 프로젝트 상태 확인
 ```
 
 > **`sentix update`를 했는데 구버전이 계속 올라온다면?**
 > `sentix update`는 프레임워크 파일만 동기화하는 명령입니다.
 > sentix 패키지 자체는 `npm install -g sentix@latest`로 먼저 업데이트해야 합니다.
 
-### Step 2: 프로젝트 프레임워크 파일 동기화
+> **npx로 사용 중이라면?** npx는 매번 최신 버전을 가져오지만, 캐시 때문에 구버전이 실행될 수 있습니다:
+> ```bash
+> npx sentix@latest update    # 최신 버전 강제 사용
+> ```
 
-```bash
-sentix update          # 실제 적용
-sentix update --dry    # 미리보기만
+#### claude.ai 웹 (Project Knowledge)
+
+웹에서는 npm 명령을 사용할 수 없습니다. 대신 파일을 직접 교체합니다.
+
+```
+1. GitHub에서 최신 파일을 다운로드합니다:
+   https://github.com/kgg1226/sentix → Releases → Latest
+
+2. claude.ai → 해당 프로젝트 → Project Knowledge
+
+3. 기존에 올렸던 파일을 삭제하고 최신 파일로 다시 업로드합니다:
+   - CLAUDE.md (필수)
+   - FRAMEWORK.md (권장)
+   - tasks/lessons.md (있다면)
+
+4. 새 대화를 시작하면 최신 Governor 규칙이 적용됩니다.
 ```
 
-### 방법 2: 독립 스크립트 (구형 sentix에서도 동작)
+> Project Knowledge는 기존 대화에 소급 적용되지 않습니다. 업데이트 후 **새 대화**를 시작하세요.
+
+#### Claude 모바일 앱
+
+모바일에서는 파일 업로드가 불가능합니다. CLAUDE.md 내용을 직접 전달합니다.
+
+```
+1. GitHub에서 최신 CLAUDE.md의 Raw 내용을 복사합니다:
+   https://github.com/kgg1226/sentix → CLAUDE.md → Raw
+
+2. 새 대화를 시작하고 첫 메시지에 붙여넣습니다:
+   "아래 CLAUDE.md를 읽고 Governor로서 행동해줘.
+
+   [최신 CLAUDE.md 내용 붙여넣기]"
+
+3. 그 다음부터 평소처럼 요청합니다.
+```
+
+> 매번 붙여넣기가 번거로우면, 자주 쓰는 내용을 메모 앱에 저장해두세요.
+
+#### Claude API / MCP 서버
+
+시스템 프롬프트에 포함된 CLAUDE.md를 교체합니다.
+
+```python
+# 방법 1: 로컬 파일에서 읽기 (sentix update 후 자동 반영)
+with open("CLAUDE.md") as f:
+    system_prompt = f.read()
+
+# 방법 2: GitHub에서 직접 가져오기 (항상 최신)
+import urllib.request
+url = "https://raw.githubusercontent.com/kgg1226/sentix/main/CLAUDE.md"
+system_prompt = urllib.request.urlopen(url).read().decode()
+
+# API 호출
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    system=system_prompt,
+    messages=[...],
+)
+```
+
+> MCP 서버를 사용 중이면, 서버가 읽는 CLAUDE.md 파일 경로에 `sentix update`가 반영되는지 확인하세요.
+
+### 환경별 요약
+
+| 환경 | 패키지 업데이트 | 프레임워크 동기화 | 반영 시점 |
+|---|---|---|---|
+| **CLI** (Claude Code 등) | `npm install -g sentix@latest` | `sentix update` | 즉시 |
+| **claude.ai 웹** | 해당 없음 | Project Knowledge 파일 교체 | 새 대화 시작 시 |
+| **모바일 앱** | 해당 없음 | CLAUDE.md Raw 복사 → 붙여넣기 | 붙여넣은 대화부터 |
+| **API / MCP** | 해당 없음 (또는 npm) | CLAUDE.md 파일 교체 또는 URL fetch | 다음 API 호출 시 |
+
+### 기타 업데이트 방법
+
+#### 독립 스크립트 (구형 sentix에서도 동작)
 
 ```bash
 # sentix 버전에 관계없이 항상 동작합니다
@@ -481,7 +559,7 @@ curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-do
 curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash -s -- --dry
 ```
 
-### 방법 3: 자동 동기화 (registry 등록 시)
+#### 자동 동기화 (registry 등록 시)
 
 sentix의 `registry.md`에 등록된 프로젝트는 프레임워크 파일 변경 시 자동으로 PR을 받습니다.
 
