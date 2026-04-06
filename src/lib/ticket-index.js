@@ -130,6 +130,7 @@ export function createTicketEntry({ id, type, title, severity, description }) {
     status: 'open',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    pipeline_status: 'pending',
     description_hash: descriptionHash(description || title),
     related_cycle: null,
     file_path: `tasks/tickets/${id}.md`,

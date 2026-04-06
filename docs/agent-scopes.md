@@ -9,11 +9,11 @@
 
 | 에이전트 | 쓰기 허용 | 금지 |
 |---------|----------|------|
-| dev / dev-fix / dev-worker | `src/**`, `bin/**`, `scripts/**`, `__tests__/**`, `docs/**`, `app/**`, `lib/**`, `components/**` | `.github/**`, `FRAMEWORK.md`, `CLAUDE.md` |
+| dev / dev-fix / dev-worker | `src/**`, `bin/**`, `scripts/**`, `__tests__/**`, `docs/**`, `app/**`, `lib/**`, `components/**` | `.github/**`, `FRAMEWORK.md`, `CLAUDE.md`, `Dockerfile`, `docker-compose.yml` |
+| devops | `scripts/deploy.sh`, `Dockerfile`, `docker-compose.yml`, `entrypoint.sh` | 소스코드 수정 일체 (`src/**`, `app/**`, `lib/**`, `components/**`) |
 | planner | 없음 (티켓만 생성) | 코드 파일 수정 일체 |
 | pr-review | 없음 | 코드 수정. `git merge` 명령만 |
 | security | 없음 | 코드 수정 일체. 읽기 전용 |
-| devops | `scripts/deploy.sh` 실행 | Governor가 실행 |
 | Governor | `tasks/governor-state.json` (자신의 상태만) | 코드 직접 수정 (반드시 에이전트를 통해서) |
 
 ---

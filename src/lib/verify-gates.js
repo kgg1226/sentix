@@ -12,6 +12,8 @@
  */
 
 import { execSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * Run all verification gates against the current git diff.
@@ -249,6 +251,105 @@ function checkNetDeletion(diff, limit = 50) {
   }
 
   result.detail = `Net: +${diff.totalAdded} -${diff.totalDeleted} (net ${netDeletions > 0 ? '+' : ''}${-netDeletions})`;
+
+  return result;
+}
+
+// ══════════════════════════════════════════════════════
+// Pre-execution gates — run BEFORE pipeline starts
+// ══════════════════════════════════════════════════════
+
+/**
+ * Run pre-execution gates.
+ * @param {string} cwd - Working directory
+ * @param {object} [options]
+ * @param {boolean} [options.skipTicketCheck] - Skip ticket gate (e.g. hotfix auto-creates)
+ * @returns {object} Gate results
+ */
+export function runPreGates(cwd, options = {}) {
+  const results = {
+    passed: true,
+    checks: [],
+    violations: [],
+    summary: '',
+  };
+
+  // Pre-Gate 1: "No ticket, no code"
+  const ticketResult = checkTicketExists(cwd, options);
+  results.checks.push(ticketResult);
+  if (!ticketResult.passed) {
+    results.passed = false;
+    results.violations.push(...ticketResult.violations);
+  }
+
+  // Pre-Gate 2: Test snapshot exists
+  const snapshotResult = checkTestSnapshot(cwd);
+  results.checks.push(snapshotResult);
+  // Snapshot is a warning, not a hard block
+  if (!snapshotResult.passed) {
+    results.violations.push(...snapshotResult.violations);
+  }
+
+  const passCount = results.checks.filter(c => c.passed).length;
+  results.summary = `Pre-gates: ${passCount}/${results.checks.length} passed`;
+  return results;
+}
+
+// ── Pre-Gate 1: Ticket existence ────────────────────
+
+function checkTicketExists(cwd, options) {
+  const result = { rule: 'ticket-required', passed: true, violations: [], detail: '' };
+
+  if (options.skipTicketCheck) {
+    result.detail = 'Ticket check skipped (hotfix mode)';
+    return result;
+  }
+
+  try {
+    const indexPath = resolve(cwd, 'tasks/tickets/index.json');
+    if (!existsSync(indexPath)) {
+      result.detail = 'No ticket index — skipped';
+      return result;
+    }
+
+    const index = JSON.parse(readFileSync(indexPath, 'utf-8'));
+    const activeTickets = index.filter(t =>
+      t.status === 'open' || t.status === 'in_progress'
+    );
+
+    if (activeTickets.length === 0) {
+      result.passed = false;
+      result.violations.push({
+        rule: 'ticket-required',
+        message: 'No active ticket. Create one first: sentix ticket create "description"',
+      });
+      result.detail = 'No active tickets';
+    } else {
+      result.detail = `${activeTickets.length} active ticket(s)`;
+    }
+  } catch {
+    result.detail = 'Ticket index read failed — skipped';
+  }
+
+  return result;
+}
+
+// ── Pre-Gate 2: Test snapshot ────────────────────────
+
+function checkTestSnapshot(cwd) {
+  const result = { rule: 'test-snapshot', passed: true, violations: [], detail: '' };
+
+  const snapshotPath = resolve(cwd, 'tasks/.pre-fix-test-results.json');
+  if (existsSync(snapshotPath)) {
+    result.detail = 'Pre-fix snapshot exists';
+  } else {
+    result.passed = false;
+    result.violations.push({
+      rule: 'test-snapshot',
+      message: 'Pre-fix test snapshot not found. Run tests before code changes.',
+    });
+    result.detail = 'No test snapshot — tests should run first';
+  }
 
   return result;
 }
