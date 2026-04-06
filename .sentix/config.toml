@@ -3,6 +3,9 @@
 # 각 Layer를 프로젝트 필요에 맞게 활성화/비활성화한다.
 # 비활성화된 Layer의 파일은 생성되지 않고, 에이전트가 참조하지 않는다.
 
+[runtime]
+mode = "framework"              # framework: Claude Code 의존 (무료) / engine: 직접 API 호출 (유료)
+
 [framework]
 version = "2.0.0"
 

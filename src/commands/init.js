@@ -19,7 +19,15 @@ registerCommand('init', {
 
     // ── 1. CLAUDE.md ────────────────────────────────
     if (ctx.exists('CLAUDE.md')) {
-      ctx.warn('CLAUDE.md already exists — skipping');
+      // CLAUDE.md가 이미 있지만 Sentix Governor 지시문이 없으면 주입
+      const existing = await ctx.readFile('CLAUDE.md');
+      if (!existing.includes('Sentix Governor') && !existing.includes('sentix') && !existing.includes('SENTIX')) {
+        const directive = generateGovernorDirective();
+        await ctx.writeFile('CLAUDE.md', existing + '\n' + directive);
+        ctx.success('CLAUDE.md updated — Sentix Governor directive injected');
+      } else {
+        ctx.warn('CLAUDE.md already has Sentix directives — skipping');
+      }
     } else {
       const claudeTemplate = `# CLAUDE.md — Sentix Governor 실행 지침
 
@@ -313,6 +321,10 @@ type: # api | library | framework | service
 
     // ── 6. Safety word ─────────────────────────────
     const hasSafety = await isConfigured(ctx);
+
+    // ── 7. Git pre-commit hook ────────────────────
+    await installPreCommitHook(ctx);
+
     if (hasSafety) {
       ctx.success('Safety word already configured — skipping');
     } else {
@@ -338,18 +350,39 @@ type: # api | library | framework | service
     }
 
     // ── Done ────────────────────────────────────────
+    // init 완료 후 자동으로 update 실행 (FRAMEWORK.md 등 동기화)
+    ctx.log('\n--- Syncing framework files ---\n');
+    try {
+      const { getCommand } = await import('../registry.js');
+      const updateCmd = getCommand('update');
+      if (updateCmd) {
+        await updateCmd.run([], ctx);
+      }
+    } catch {
+      ctx.warn('Auto-update skipped (run manually: sentix update)');
+    }
+
     ctx.log('\n=== Sentix initialized ===');
     ctx.log('');
     if (techStack.detected) {
       ctx.success(`Detected: ${techStack.runtime} / ${techStack.packageManager}${techStack.framework !== '# 프로젝트에 맞게 설정' ? ' / ' + techStack.framework : ''}`);
     }
-    ctx.log('Next steps:');
-    ctx.log('  1. Edit CLAUDE.md → 기술 스택을 프로젝트에 맞게 확인');
+
+    // init 끝에 자동으로 doctor 실행
+    ctx.log('\n--- Health Check ---\n');
+    try {
+      const { getCommand } = await import('../registry.js');
+      const doctorCmd = getCommand('doctor');
+      if (doctorCmd) {
+        await doctorCmd.run([], ctx);
+      }
+    } catch {
+      ctx.warn('Auto-check skipped (run manually: sentix doctor)');
+    }
+
     if (!hasSafety) {
-      ctx.log('  2. Run: sentix safety set <안전어>');
-      ctx.log('  3. Run: sentix doctor');
-    } else {
-      ctx.log('  2. Run: sentix doctor');
+      ctx.log('');
+      ctx.log('Optional: sentix safety set <안전어>  (LLM 인젝션 방지)');
     }
     ctx.log('');
   },
@@ -483,4 +516,140 @@ async function detectTechStack(ctx) {
   }
 
   return result;
+}
+
+// ── Pre-commit hook 설치 ────────────────────────────────
+
+async function installPreCommitHook(ctx) {
+  const hookPath = '.git/hooks/pre-commit';
+
+  // .git이 없으면 건너뜀
+  if (!ctx.exists('.git')) return;
+
+  // 이미 sentix hook이 설치되어 있으면 건너뜀
+  if (ctx.exists(hookPath)) {
+    try {
+      const existing = await ctx.readFile(hookPath);
+      if (existing.includes('SENTIX:GATE')) {
+        return; // 이미 설치됨
+      }
+    } catch { /* 읽기 실패 시 덮어쓰기 진행 */ }
+  }
+
+  const hookContent = `#!/bin/sh
+# sentix pre-commit hook — 하드 룰 검증 게이트
+# 커밋 전에 verify-gates를 실행하여 위반 시 커밋을 블로킹한다.
+# 설치: sentix init (자동)
+
+# [SENTIX:GATE] marker for detection
+node -e "
+import('./src/lib/verify-gates.js')
+  .then(m => m.runGates('.'))
+  .then(r => {
+    if (!r.passed) {
+      console.error('\\n[SENTIX:GATE] Commit blocked — verification gate failed\\n');
+      r.violations.forEach(v => console.error('  ✗ [' + v.rule + '] ' + v.message));
+      console.error('\\nFix violations and try again.\\n');
+      process.exit(1);
+    }
+  })
+  .catch(() => process.exit(0))
+" 2>&1
+
+exit $?
+`;
+
+  await ctx.writeFile(hookPath, hookContent);
+
+  // chmod +x
+  const { chmodSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  try {
+    chmodSync(resolve(ctx.cwd, hookPath), 0o755);
+  } catch { /* Windows 등에서 실패 가능 — 무시 */ }
+
+  ctx.success('Installed git pre-commit hook (verification gates)');
+}
+
+// ── Governor 강제 지시문 (기존 CLAUDE.md에 주입) ─────────
+
+function generateGovernorDirective() {
+  return `
+---
+
+# Sentix Governor — 필수 준수 사항
+
+> **이 프로젝트는 Sentix 프레임워크로 관리된다.**
+> **아래 규칙은 어떤 역할(/frontend, /backend 등)에서든, 어떤 worktree에서든 반드시 따라야 한다.**
+
+## 세션 시작 시 필수 읽기 (순서대로)
+
+\`\`\`
+1. CLAUDE.md (이 파일)
+2. FRAMEWORK.md — 5-Layer 아키텍처, 에이전트 정의
+3. docs/agent-methods.md — 에이전트별 메서드 순서 (필수 준수)
+4. .sentix/rules/hard-rules.md — 파괴 방지 6개 규칙
+\`\`\`
+
+## 코드 수정 전 필수 절차
+
+\`\`\`
+1. 코드 수정 요청을 받으면 → 반드시 Governor 파이프라인으로 진입
+2. 직접 코드를 수정하지 않는다 — 항상 아래 순서를 따른다:
+   → planner (티켓 생성) → dev (구현) → pr-review (검증) → security → roadmap
+3. 테스트 스냅샷 필수: 작업 전 npm test 또는 프로젝트 테스트 실행
+4. 티켓 없이 코드 수정 금지 — sentix ticket create 또는 sentix feature add 사용
+\`\`\`
+
+## 에이전트 메서드 순서 (docs/agent-methods.md 필수 참조)
+
+\`\`\`
+planner: analyze() → research() → scope() → estimate() → emit()
+  → WHAT/WHERE만 정의. HOW(구현 방법) 금지.
+
+dev: snapshot() → implement() → test() → verify() → report()
+  → 구현 방법은 dev가 결정. 품질 판단은 pr-review에 위임.
+
+pr-review: diff() → validate() → grade() → calibrate() → verdict()
+  → 회의적 판정. 의심스러우면 REJECTED.
+
+dev-fix: diagnose() → fix() → test() → learn() → report()
+  → LESSON_LEARNED 필수.
+\`\`\`
+
+## 파괴 방지 하드 룰 6개
+
+1. 작업 전 테스트 스냅샷 필수
+2. 티켓 SCOPE 밖 파일 수정 금지
+3. 기존 export/API 삭제 금지
+4. 기존 테스트 삭제/약화 금지
+5. 순삭제 50줄 제한
+6. 기존 기능/핸들러 삭제 금지
+
+> 상세: .sentix/rules/hard-rules.md
+> 에이전트 범위: docs/agent-scopes.md
+> Severity 분기: docs/severity.md
+
+## 작업 완료 체크리스트
+
+\`\`\`
+□ 하드 룰 6개 위반 없음
+□ 검증 게이트 통과 (sentix run 시 자동 — scope, export, test, deletion)
+□ 테스트 통과
+□ 티켓 생성됨
+□ README.md 업데이트됨 (변경된 기능이 있다면)
+□ lessons.md 업데이트됨 (실패 패턴이 있었다면)
+\`\`\`
+
+## Sentix CLI
+
+\`\`\`bash
+sentix run "요청"              # Governor 파이프라인 실행
+sentix ticket create "설명"    # 버그 티켓 생성
+sentix feature add "설명"      # 기능 티켓 생성
+sentix status                  # 상태 확인
+sentix doctor                  # 설치 진단
+sentix update                  # 프레임워크 최신화 (worktree도 root 포함)
+\`\`\`
+`;
 }

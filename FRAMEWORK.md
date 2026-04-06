@@ -218,6 +218,8 @@ tasks/.pre-fix-test-results.json — npm run test --json 결과
 > 에이전트는 Governor가 준 컨텍스트만 본다.
 > 에이전트는 결과를 Governor에게만 반환한다.
 > 에이전트끼리 직접 통신하지 않는다.
+> **메서드 수준 명세: docs/agent-methods.md (필수 준수)**
+> 아래는 입출력 요약이다. 각 에이전트의 메서드 실행 순서와 세부 규칙은 agent-methods.md를 따른다.
 
 ### planner
 

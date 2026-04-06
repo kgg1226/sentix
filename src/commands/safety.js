@@ -15,6 +15,10 @@ import {
   verifyWord,
   isConfigured,
   loadSafetyHash,
+  checkTamper,
+  generateRecoveryKey,
+  hashRecoveryKey,
+  loadRecoveryHash,
 } from '../lib/safety.js';
 
 registerCommand('safety', {
@@ -39,6 +43,25 @@ registerCommand('safety', {
       return await setCmd(word, ctx);
     }
 
+    if (sub === 'unlock') {
+      const key = args.slice(1).join(' ').trim();
+      if (!key) {
+        ctx.error('Usage: sentix safety unlock <recovery-key>');
+        return;
+      }
+      return await unlockCmd(key, ctx);
+    }
+
+    if (sub === 'reset') {
+      const currentWord = args[1]?.trim();
+      const newWord = args.slice(2).join(' ').trim();
+      if (!currentWord || !newWord) {
+        ctx.error('Usage: sentix safety reset <현재 안전어> <새 안전어>');
+        return;
+      }
+      return await resetCmd(currentWord, newWord, ctx);
+    }
+
     if (sub === 'verify') {
       const word = args.slice(1).join(' ').trim();
       if (!word) {
@@ -49,17 +72,43 @@ registerCommand('safety', {
     }
 
     ctx.error(`Unknown subcommand: ${sub}`);
-    ctx.log('  sentix safety set <word>      안전어 설정');
-    ctx.log('  sentix safety verify <word>   안전어 검증');
-    ctx.log('  sentix safety status          설정 상태 확인');
+    ctx.log('  sentix safety set <word>         안전어 최초 설정');
+    ctx.log('  sentix safety reset <old> <new>  안전어 변경 (현재 안전어 필요)');
+    ctx.log('  sentix safety verify <word>      안전어 검증');
+    ctx.log('  sentix safety status             설정 상태 확인');
   },
 });
 
 // ── set ───────────────────────────────────────────
 
 async function setCmd(word, ctx) {
+  // tamper 감지: config.toml에 마커가 있는데 safety.toml이 없으면 → 잠금
+  const tamperStatus = await checkTamper(ctx);
+  if (tamperStatus === 'tampered') {
+    ctx.error('LOCKDOWN — safety.toml이 삭제된 것이 감지되었습니다.');
+    ctx.error('config.toml에 safety_enabled=true가 있지만 safety.toml이 없습니다.');
+    ctx.log('');
+    ctx.log('  이것은 보안 침해일 수 있습니다.');
+    ctx.log('  새 안전어 설정이 차단됩니다.');
+    ctx.log('');
+    ctx.log('  복구 방법:');
+    ctx.log('  1. sentix safety unlock <recovery-key>');
+    ctx.log('  2. recovery key가 없으면 .sentix/config.toml에서 [safety] 섹션을 수동 삭제 후 재설정');
+    return;
+  }
+
+  // 기존 안전어가 있으면 현재 안전어 검증 필요
+  const alreadyConfigured = await isConfigured(ctx);
+  if (alreadyConfigured) {
+    ctx.warn('Safety word already configured. To change it, you must verify the current one first.');
+    ctx.log('  Usage: sentix safety reset <현재 안전어> <새 안전어>');
+    return;
+  }
+
   const hash = hashWord(word);
-  await saveSafetyHash(ctx, hash);
+  const recoveryKey = generateRecoveryKey(word);
+  const recoveryHash = hashRecoveryKey(recoveryKey);
+  await saveSafetyHash(ctx, hash, recoveryHash);
 
   // Verify .gitignore protection
   let gitignoreOk = false;
@@ -88,8 +137,8 @@ async function setCmd(word, ctx) {
   ctx.log('  │  4. 절대 AI 대화에 붙여넣지 마세요            │');
   ctx.log('  │     (safety.toml 내용 포함)                  │');
   ctx.log('  │                                              │');
-  ctx.log('  │  5. 분실 시 재설정만 가능합니다               │');
-  ctx.log('  │     (sentix safety set <새 안전어>)           │');
+  ctx.log('  │  5. 변경: sentix safety reset <현재> <새것>    │');
+  ctx.log('  │  6. 잠금 해제: sentix safety unlock <key>     │');
   ctx.log('  │                                              │');
   ctx.log('  └─────────────────────────────────────────────┘');
   ctx.log('');
@@ -106,6 +155,86 @@ async function setCmd(word, ctx) {
   ctx.log(`  Hash: ${hash.slice(0, 8)}****`);
   ctx.log('  검증: sentix safety verify <word>');
   ctx.log('');
+  ctx.warn('  ┌─────────────────────────────────────────────┐');
+  ctx.warn('  │  RECOVERY KEY — 이것을 안전한 곳에 기록하세요  │');
+  ctx.warn('  ├─────────────────────────────────────────────┤');
+  ctx.warn(`  │  ${recoveryKey}                              │`);
+  ctx.warn('  ├─────────────────────────────────────────────┤');
+  ctx.warn('  │  safety.toml이 삭제되면 이 키로만 복구 가능    │');
+  ctx.warn('  │  sentix safety unlock <위 키>                │');
+  ctx.warn('  │  이 키는 다시 보여주지 않습니다                │');
+  ctx.warn('  └─────────────────────────────────────────────┘');
+  ctx.log('');
+}
+
+// ── unlock (recovery key로 잠금 해제) ─────────────
+
+async function unlockCmd(key, ctx) {
+  const tamperStatus = await checkTamper(ctx);
+
+  if (tamperStatus !== 'tampered') {
+    ctx.log('잠금 상태가 아닙니다. unlock이 필요 없습니다.');
+    return;
+  }
+
+  // config.toml에서 recovery_hash 확인할 수 없음 (safety.toml이 삭제됨)
+  // recovery_hash는 config.toml에도 백업 저장
+  const configRecoveryHash = await loadConfigRecoveryHash(ctx);
+
+  if (!configRecoveryHash) {
+    ctx.error('Recovery key hash가 config.toml에 없습니다.');
+    ctx.log('  .sentix/config.toml에서 [safety] 섹션을 수동 삭제 후 재설정하세요.');
+    return;
+  }
+
+  const inputHash = hashRecoveryKey(key);
+  if (inputHash !== configRecoveryHash) {
+    ctx.error('DENIED — recovery key가 일치하지 않습니다.');
+    process.exitCode = 1;
+    return;
+  }
+
+  // 잠금 해제: config.toml에서 safety_enabled 제거
+  if (ctx.exists('.sentix/config.toml')) {
+    let config = await ctx.readFile('.sentix/config.toml');
+    config = config.replace(/\n# ── Safety[^\[]*\[safety\][^[]*safety_enabled\s*=\s*true[^\n]*\n?/s, '\n');
+    config = config.replace(/recovery_key_hash\s*=\s*"[a-f0-9]*"\n?/g, '');
+    await ctx.writeFile('.sentix/config.toml', config);
+  }
+
+  ctx.success('UNLOCKED — 잠금 해제되었습니다.');
+  ctx.log('  이제 sentix safety set <새 안전어>로 재설정하세요.');
+}
+
+async function loadConfigRecoveryHash(ctx) {
+  if (!ctx.exists('.sentix/config.toml')) return null;
+  const config = await ctx.readFile('.sentix/config.toml');
+  const match = config.match(/recovery_key_hash\s*=\s*"([a-f0-9]{64})"/);
+  return match ? match[1] : null;
+}
+
+// ── reset (현재 안전어 검증 후 변경) ──────────────
+
+async function resetCmd(currentWord, newWord, ctx) {
+  const result = await verifyWord(ctx, currentWord);
+
+  if (result === null) {
+    ctx.warn('Safety word not configured. Use: sentix safety set <word>');
+    return;
+  }
+
+  if (!result) {
+    ctx.error('DENIED — current safety word does not match. Cannot reset.');
+    process.exitCode = 1;
+    return;
+  }
+
+  // 현재 안전어 검증 통과 → 새 안전어로 교체
+  const hash = hashWord(newWord);
+  await saveSafetyHash(ctx, hash);
+  ctx.success('Safety word updated');
+  ctx.log(`  Hash: ${hash.slice(0, 8)}****`);
+  ctx.log('  검증: sentix safety verify <새 안전어>');
 }
 
 // ── verify ────────────────────────────────────────
@@ -130,6 +259,21 @@ async function verifyCmd(word, ctx) {
 
 async function statusCmd(ctx) {
   ctx.log('=== Safety Word Status ===\n');
+
+  // tamper 감지
+  const tamperStatus = await checkTamper(ctx);
+  if (tamperStatus === 'tampered') {
+    ctx.error('!! LOCKDOWN — safety.toml 삭제 감지 !!');
+    ctx.error('config.toml에 safety_enabled=true가 있지만 safety.toml이 없습니다.');
+    ctx.log('');
+    ctx.log('  모든 위험 작업이 차단됩니다.');
+    ctx.log('  sentix safety set도 차단됩니다.');
+    ctx.log('');
+    ctx.log('  복구: .sentix/config.toml에서 [safety] 섹션을 수동 삭제 후 재설정');
+    ctx.log('  또는: sentix safety unlock <recovery-key>');
+    ctx.log('');
+    return;
+  }
 
   const configured = await isConfigured(ctx);
 

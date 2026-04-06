@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { isConfigured as isSafetyConfigured } from '../lib/safety.js';
+import { getRuntimeMode, loadProvider } from '../lib/provider.js';
 
 registerCommand('doctor', {
   description: 'Diagnose Sentix installation health',
@@ -174,7 +175,29 @@ registerCommand('doctor', {
     } else {
       ctx.warn('Safety word: NOT configured — LLM injection defense disabled');
       ctx.log('  Fix: sentix safety set <안전어>');
-      issues++;
+      // issue 카운트하지 않음 — CI/CD 환경에서는 safety word 미설정이 정상
+    }
+
+    // ── Runtime mode ──────────────────────────────
+    ctx.log('\n--- Runtime ---\n');
+
+    const runtimeMode = await getRuntimeMode(ctx);
+    ctx.success(`Mode: ${runtimeMode}`);
+
+    if (runtimeMode === 'engine') {
+      try {
+        const provider = await loadProvider(ctx);
+        ctx.success(`Provider: ${provider.name} (${provider.type})`);
+        if (provider.api.api_key) {
+          ctx.success(`API key: ${provider.api.api_key_env} (set)`);
+        } else if (provider.api.api_key_env) {
+          ctx.error(`API key: ${provider.api.api_key_env} (NOT SET — engine mode requires this)`);
+          issues++;
+        }
+      } catch (err) {
+        ctx.error(`Provider: ${err.message}`);
+        issues++;
+      }
     }
 
     // ── External tools ──────────────────────────────

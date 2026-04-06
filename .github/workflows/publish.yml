@@ -1,0 +1,93 @@
+name: publish
+# main 머지 시 자동: 커밋에서 버전 감지 → npm 배포
+# 버전은 CI에서 임시로 올리고 npm에만 배포 (git 커밋 안 함)
+# 필요 Secret: NPM_TOKEN
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags origin
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Detect version + publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node -e "
+          const { execSync } = require('child_process');
+          const fs = require('fs');
+
+          function run(cmd) {
+            try { return execSync(cmd, { encoding: 'utf-8', stdio: ['pipe','pipe','pipe'] }).trim(); }
+            catch { return ''; }
+          }
+
+          // npm 현재 버전
+          const npmVer = run('npm view sentix version') || '0.0.0';
+          const [nmaj, nmin, npat] = npmVer.split('.').map(Number);
+
+          // 마지막 배포 이후 커밋 수집
+          let commits = [];
+          const lastTag = run('git describe --tags --abbrev=0');
+          if (lastTag) {
+            const log = run('git log ' + lastTag + '..HEAD --pretty=format:%s');
+            if (log) commits = log.split('\n');
+          }
+          if (!commits.length) {
+            const log = run('git log --pretty=format:%s -30');
+            if (log) commits = log.split('\n');
+          }
+          commits = commits.filter(Boolean);
+          if (!commits.length) { console.log('No commits found — skip'); process.exit(0); }
+
+          // bump type 감지
+          let type = 'patch';
+          for (const c of commits) {
+            if (c.includes('BREAKING CHANGE') || /^[a-z]+!:/.test(c)) { type = 'major'; break; }
+            if (/^feat(\(.+?\))?:/.test(c)) type = 'minor';
+          }
+
+          // npm 버전 기준으로 bump (git의 package.json이 아닌 npm 기준)
+          let nv;
+          if (type === 'major') nv = (nmaj+1)+'.0.0';
+          else if (type === 'minor') nv = nmaj+'.'+(nmin+1)+'.0';
+          else nv = nmaj+'.'+nmin+'.'+(npat+1);
+
+          if (nv === npmVer) { console.log(nv + ' already on npm — skip'); process.exit(0); }
+
+          console.log(npmVer + ' -> ' + nv + ' (' + type + ')');
+          console.log('Commits: ' + commits.length);
+
+          // package.json 버전만 임시로 변경 (npm publish용)
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.version = nv;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+
+          // 테스트
+          console.log('Running tests...');
+          execSync('npm test', { stdio: 'inherit' });
+
+          // npm publish
+          console.log('Publishing sentix@' + nv + '...');
+          execSync('npm publish --access public', { stdio: 'inherit' });
+          console.log('Done: sentix@' + nv);
+          "

@@ -1,4 +1,9 @@
-.claude/
+# .claude/ — 개인 파일은 무시, 공유 파일은 추적
+.claude/*
+!.claude/settings.json
+!.claude/agents/
+!.claude/rules/
+!.claude/skills/
 node_modules/
 .env
 .env.local

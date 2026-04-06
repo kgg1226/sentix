@@ -1,0 +1,89 @@
+name: self-evolve
+# 매일 정적 분석 → 이슈 발견 시 GitHub Issue 생성
+# AI 수정은 Claude Code /schedule로 실행 (구독, API 비용 없음)
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: self-evolve
+  cancel-in-progress: true
+
+jobs:
+  evolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - name: Run tests
+        id: tests
+        run: |
+          npm test 2>&1 | tee /tmp/test-output.txt || true
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Run evolve analysis
+        id: evolve
+        run: |
+          node bin/sentix.js evolve > /tmp/evolve-output.txt 2>&1 || true
+          cat /tmp/evolve-output.txt
+
+          ISSUES=$(grep -c "^    -" /tmp/evolve-output.txt || true)
+          CRITICAL=$(grep -c "Critical:" /tmp/evolve-output.txt || true)
+          echo "issues=${ISSUES:-0}" >> $GITHUB_OUTPUT
+          echo "critical=${CRITICAL:-0}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issue
+        if: steps.evolve.outputs.issues > 0
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          EVOLVE_OUTPUT=$(cat /tmp/evolve-output.txt)
+          TEST_OUTPUT=$(tail -20 /tmp/test-output.txt)
+          CRITICAL=${{ steps.evolve.outputs.critical }}
+          ISSUES=${{ steps.evolve.outputs.issues }}
+          DATE=$(date +%Y-%m-%d)
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            LABELS='["bug","critical","self-evolve"]'
+          else
+            LABELS='["self-evolve"]'
+          fi
+
+          curl -s -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${REPO}/issues" \
+            -d "$(jq -n \
+              --arg title "self-evolve: ${ISSUES} issue(s) found (${DATE})" \
+              --argjson labels "$LABELS" \
+              --arg body "## Self-Evolution Report — ${DATE}
+
+          **${ISSUES} issue(s) found, ${CRITICAL} critical**
+
+          ### Analysis
+          \`\`\`
+          ${EVOLVE_OUTPUT}
+          \`\`\`
+
+          ### Tests
+          \`\`\`
+          ${TEST_OUTPUT}
+          \`\`\`
+
+          ### 자동 수정
+          로컬: \`sentix evolve --auto\`
+          또는 Claude Code: \`/self-evolve\`
+
+          > 자동 생성: self-evolve.yml" \
+              '{title: $title, body: $body, labels: $labels}')"

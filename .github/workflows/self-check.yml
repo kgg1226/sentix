@@ -1,0 +1,45 @@
+name: self-check
+# sentix가 자기 자신을 검증하는 워크플로우
+# PR마다 doctor + test + verify-gates 실행
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run doctor
+        run: node bin/sentix.js doctor
+
+      - name: Run verification gates
+        run: |
+          node -e "
+          import('./src/lib/verify-gates.js')
+            .then(m => {
+              const r = m.runGates('.');
+              console.log(JSON.stringify(r, null, 2));
+              if (!r.passed) {
+                console.error('Gate violations found:');
+                r.violations.forEach(v => console.error('  -', v.message));
+                process.exit(1);
+              }
+              console.log('All gates passed');
+            })
+          "

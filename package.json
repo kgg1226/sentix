@@ -1,6 +1,6 @@
 {
   "name": "sentix",
-  "version": "2.0.1",
+  "version": "2.0.21",
   "description": "Autonomous multi-agent DevSecOps pipeline CLI",
   "type": "module",
   "bin": {
@@ -17,7 +17,18 @@
   },
   "files": [
     "bin/",
-    "src/"
+    "src/",
+    "FRAMEWORK.md",
+    ".sentix/rules/",
+    ".claude/settings.json",
+    ".claude/agents/",
+    ".claude/rules/",
+    ".claude/skills/",
+    ".github/workflows/deploy.yml",
+    ".github/workflows/security-scan.yml",
+    "docs/",
+    "scripts/update-downstream.sh",
+    "scripts/pre-commit.js"
   ],
   "keywords": [
     "devops",
