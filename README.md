@@ -445,9 +445,26 @@ Node.js 내장 테스트 러너를 사용합니다. `__tests__/` 디렉토리에
 
 ## 업데이트 방법
 
-Sentix가 업데이트되면 (보안 강화, 워크플로우 개선 등), 이미 설치된 프로젝트에도 적용해야 합니다.
+업데이트는 **2단계**입니다: ① sentix 패키지 자체를 최신으로 올린 다음 ② 프로젝트의 프레임워크 파일을 동기화합니다.
 
-### 방법 1: sentix update (최신 sentix 설치 시)
+### Step 1: sentix 패키지 업데이트
+
+```bash
+# 현재 버전 확인
+sentix --version
+
+# 최신 버전으로 업데이트
+npm install -g sentix@latest
+
+# 업데이트 확인
+sentix --version
+```
+
+> **`sentix update`를 했는데 구버전이 계속 올라온다면?**
+> `sentix update`는 프레임워크 파일만 동기화하는 명령입니다.
+> sentix 패키지 자체는 `npm install -g sentix@latest`로 먼저 업데이트해야 합니다.
+
+### Step 2: 프로젝트 프레임워크 파일 동기화
 
 ```bash
 sentix update          # 실제 적용
