@@ -114,6 +114,42 @@ registerCommand('doctor', {
       }
     }
 
+    // ── Tech stack consistency ───────────────────────
+    if (ctx.exists('package.json') && ctx.exists('CLAUDE.md')) {
+      try {
+        const pkg = await ctx.readJSON('package.json');
+        const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+        const claude = await ctx.readFile('CLAUDE.md');
+
+        const dbMap = {
+          'pg': 'PostgreSQL', 'postgres': 'PostgreSQL',
+          'sqlite3': 'SQLite', 'better-sqlite3': 'SQLite',
+          'mysql2': 'MySQL', 'mysql': 'MySQL',
+          'mongodb': 'MongoDB', 'mongoose': 'MongoDB',
+        };
+        const ormMap = {
+          '@prisma/client': 'Prisma', 'prisma': 'Prisma',
+          'sequelize': 'Sequelize', 'typeorm': 'TypeORM',
+          'drizzle-orm': 'Drizzle', 'knex': 'Knex',
+        };
+
+        for (const [pkg, name] of Object.entries(dbMap)) {
+          if (deps[pkg] && !claude.includes(name)) {
+            ctx.warn(`CLAUDE.md에 ${name} (${pkg}) 미반영 — 기술 스택 업데이트 필요`);
+            issues++;
+            break;
+          }
+        }
+        for (const [pkg, name] of Object.entries(ormMap)) {
+          if (deps[pkg] && !claude.includes(name)) {
+            ctx.warn(`CLAUDE.md에 ${name} (${pkg}) 미반영 — 기술 스택 업데이트 필요`);
+            issues++;
+            break;
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
     // ── Multi-project files ─────────────────────────
     ctx.log('\n--- Multi-Project ---\n');
 

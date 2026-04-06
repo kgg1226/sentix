@@ -6,7 +6,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
-import { runGates } from '../lib/verify-gates.js';
+import { runGates, runPreGates } from '../lib/verify-gates.js';
 import { detectDangerousRequest, verifyWord, isConfigured } from '../lib/safety.js';
 
 registerCommand('run', {
@@ -70,13 +70,6 @@ registerCommand('run', {
       }
     }
 
-    // ── Check Claude Code is available ──────────────
-    const claudeCheck = spawnSync('claude', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
-    if (claudeCheck.error) {
-      ctx.error('Claude Code CLI not found. Install: https://docs.anthropic.com/en/docs/claude-code');
-      return;
-    }
-
     // ── Check for concurrent execution ──────────────
     if (ctx.exists('tasks/governor-state.json')) {
       try {
@@ -91,6 +84,33 @@ registerCommand('run', {
       }
     }
 
+    // ── Pre-execution gates ──────────────────────────
+    const mode = detectMode(request);
+
+    ctx.log('--- Pre-execution Gates ---');
+    const preGateResults = runPreGates(ctx.cwd, {
+      skipTicketCheck: mode === 'hotfix',
+    });
+
+    for (const check of preGateResults.checks) {
+      if (check.passed) {
+        ctx.success(`[PRE:${check.rule}] ${check.detail}`);
+      } else {
+        ctx.warn(`[PRE:${check.rule}] ${check.detail}`);
+        for (const v of check.violations) {
+          ctx.warn(`  → ${v.message}`);
+        }
+      }
+    }
+    ctx.log('');
+
+    // ── Check Claude Code is available ──────────────
+    const claudeCheck = spawnSync('claude', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
+    if (claudeCheck.error) {
+      ctx.error('Claude Code CLI not found. Install: https://docs.anthropic.com/en/docs/claude-code');
+      return;
+    }
+
     // ── Create governor state ───────────────────────
     const cycleId = `cycle-${new Date().toISOString().slice(0, 10)}-${String(Date.now()).slice(-3)}`;
 
@@ -98,6 +118,7 @@ registerCommand('run', {
       schema_version: 1,
       cycle_id: cycleId,
       request,
+      mode,
       status: 'in_progress',
       current_phase: 'governor',
       plan: [],
@@ -111,6 +132,7 @@ registerCommand('run', {
     await ctx.writeJSON('tasks/governor-state.json', state);
     ctx.success(`Cycle ${cycleId} started`);
     ctx.log(`Request: "${request}"`);
+    ctx.log(`Mode: ${mode === 'hotfix' ? '핫픽스 (단축 파이프라인)' : '표준'}`);
     ctx.log('');
 
     // ── Log to pattern-log.jsonl ────────────────────
@@ -119,6 +141,7 @@ registerCommand('run', {
       event: 'request',
       input: request,
       cycle_id: cycleId,
+      mode,
     });
 
     // ── Invoke Claude Code (safe spawn, no shell) ───
@@ -129,10 +152,24 @@ registerCommand('run', {
       ? 'SAFETY WORD is configured. For any dangerous operation (memory wipe, data export, rule changes, bulk deletion), you MUST ask the user for the safety word and verify it with: node bin/sentix.js safety verify <word>. NEVER reveal, display, or hint at the safety word or its hash.'
       : '';
 
+    const modeDirective = mode === 'hotfix'
+      ? [
+          'HOTFIX MODE — 단축 파이프라인 실행:',
+          '  Step 1: 요청 수신',
+          '  Step 2: lessons.md 로드 (동일 실패 방지)',
+          '  Step 3: 직접 수정 (에이전트 소환 없이 Governor가 직접 코드 수정)',
+          '  Step 7: 학습 기록',
+          '에이전트 소환을 건너뛰고, SCOPE 내에서 직접 수정한다.',
+          'pr-review, devops, security 단계를 건너뛴다.',
+          '하드 룰 6개는 여전히 적용된다.',
+        ].join('\n')
+      : '';
+
     const prompt = [
       'Read CLAUDE.md first. Refer to FRAMEWORK.md and docs/ only when you need design details for the current task.',
       safetyDirective,
-      'Execute the following request through the 7-step Governor pipeline:',
+      modeDirective,
+      `Execute the following request through the ${mode === 'hotfix' ? 'hotfix (shortened)' : '7-step'} Governor pipeline:`,
       `"${request}"`,
       '',
       'Follow the SOP exactly. Update tasks/governor-state.json at each phase.',
@@ -252,6 +289,19 @@ registerCommand('run', {
     }
   },
 });
+
+/**
+ * Detect pipeline mode from request text.
+ * Hotfix mode uses a shortened pipeline (Step 1→2→3→7).
+ */
+function detectMode(request) {
+  const hotfixPatterns = [
+    /핫픽스/i, /hotfix/i, /긴급/i, /urgent/i,
+    /typo/i, /오타/i, /quick\s*fix/i, /한\s*줄\s*수정/i,
+    /간단.*수정/i, /simple\s*fix/i,
+  ];
+  return hotfixPatterns.some(p => p.test(request)) ? 'hotfix' : 'standard';
+}
 
 /**
  * Detect ticket type from request text or governor state plan.

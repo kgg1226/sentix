@@ -62,3 +62,26 @@ planner가 정의한 SCOPE 내 파일만 수정할 수 있다.
 기능 삭제가 진짜 필요한 경우 (deprecated 등):
 → Governor에게 "기능 삭제 필요 — planner 경유 요청" 반환
 → planner가 별도 티켓으로 분리 (삭제 영향 범위 사전 분석)
+
+---
+
+## 실행 게이트 3개 (Enforcement Gates)
+
+하드 룰과 별도로, 파이프라인 실행 전후에 강제되는 게이트:
+
+### Gate 1: No Ticket, No Code (티켓 없이 코드 없다)
+
+파이프라인 실행 전, 활성 티켓(open/in_progress)이 존재해야 한다.
+티켓이 없으면 → 경고 출력 + Governor가 자동 생성 권장.
+핫픽스 모드에서는 이 게이트를 건너뛴다.
+
+### Gate 2: No Test, No Merge (테스트 없이 머지 없다)
+
+에이전트 작업 전, pre-fix test snapshot이 존재해야 한다.
+스냅샷이 없으면 → 경고 출력 (테스트 먼저 실행 권고).
+
+### Gate 3: No Review, No Deploy (리뷰 없이 배포 없다)
+
+pr-review가 APPROVED를 반환해야만 devops가 실행된다.
+REJECTED 시 → dev에게 사유 전달 → 재수정 → 재리뷰.
+이 게이트는 Governor SOP 내에서 강제된다 (CLAUDE.md 지시 레벨).

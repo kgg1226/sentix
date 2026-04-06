@@ -108,17 +108,57 @@ node bin/sentix.js feature list                # 기능 목록
 node bin/sentix.js feature impact "설명"       # 영향 분석만 실행
 ```
 
+### 파이프라인 관리
+```bash
+node bin/sentix.js resume                      # 중단된 파이프라인 재개
+node bin/sentix.js status                      # Governor 상태 조회
+```
+
 ---
 
 ## Governor SOP — 요청 유형별 자동 판단
 
-모든 환경에서 동일한 판단 로직을 따른다.
+### Step 0: 세션 복구 확인
+
+```
+모든 파이프라인 실행 전에 먼저 확인:
+  1. tasks/governor-state.json 읽기
+  2. status가 'in_progress'이면 → 중단된 파이프라인 재개
+  3. plan[]에서 마지막 완료 phase 다음부터 진행
+  4. CLI: sentix resume / 대화: [SENTIX:RESUME] 태그
+```
+
+### 요청 유형 판단
 
 ```
 요청에 "버그", "에러", "수정", "fix", "crash", "안됨" 포함 → BUG 파이프라인
 요청에 "추가", "기능", "feature", "만들어", "구현" 포함   → FEATURE 파이프라인
 요청에 "버전", "릴리즈", "배포", "version", "release" 포함 → VERSION 파이프라인
 그 외                                                     → GENERAL 파이프라인
+```
+
+### 핫픽스 경로 (Hotfix Pipeline)
+
+```
+요청에 "핫픽스", "hotfix", "긴급", "urgent", "typo", "오타",
+      "한 줄 수정", "quick fix", "간단 수정" 포함 → 단축 파이프라인
+
+  Step 1: 요청 수신
+  Step 2: lessons.md 로드 (동일 실패 패턴 방지)
+  Step 3: 직접 수정 (에이전트 소환 없이 Governor가 코드 직접 수정)
+  Step 7: 학습 기록 (pattern-log + lessons.md 업데이트)
+
+건너뛰는 단계: planner 티켓 생성, 에이전트 소환, pr-review, devops, security
+적용되는 규칙: 하드 룰 6개 전부 적용 (핫픽스도 예외 없음)
+검증 게이트: sentix run 종료 시 동일하게 실행
+```
+
+### 실행 게이트 (Enforcement Gates)
+
+```
+1. No Ticket, No Code: 파이프라인 실행 전 활성 티켓 필수 (없으면 자동 생성 권장)
+2. No Test, No Merge: 테스트 통과 없이 작업 완료 불가
+3. No Review, No Deploy: pr-review APPROVED 없이 devops 실행 불가
 ```
 
 > 파이프라인별 상세 Step (BUG/FEATURE/VERSION/GENERAL): docs/governor-sop.md
@@ -239,7 +279,8 @@ CLI 모드:
 
 | 에이전트 | 쓰기 | 금지 |
 |---------|------|------|
-| dev / dev-fix | `app/**`, `lib/**`, `__tests__/**` | `.github/**`, `CLAUDE.md` |
+| dev / dev-fix | `app/**`, `lib/**`, `__tests__/**`, `scripts/**` | `.github/**`, `CLAUDE.md`, `Dockerfile`, `docker-compose.yml` |
+| devops | `scripts/deploy.sh`, `Dockerfile`, `docker-compose.yml`, `entrypoint.sh` | 소스코드 수정 |
 | planner / security | 없음 | 코드 수정 일체 |
 | Governor | `tasks/governor-state.json` | 코드 직접 수정 |
 
