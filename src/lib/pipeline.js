@@ -18,6 +18,7 @@ import { spawn, spawnSync, execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { runGates } from './verify-gates.js';
+import { promoteRepeatedLessons } from './lesson-promoter.js';
 
 /**
  * 체인 파이프라인 실행 (Framework mode)
@@ -119,13 +120,18 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
       'You are the DEV agent. Your job:',
       latestTicket ? `Ticket:\n${latestTicket}` : `Request: "${request}"`,
       '',
-      '1. Follow dev methods: snapshot() → implement() → test() → verify() → report()',
+      '1. Follow dev methods: snapshot() → implement() → test() → verify() → refine() → report()',
       '2. Implement the changes described in the ticket — you decide HOW',
       '3. Write or update tests',
       '4. Run: npm test — ensure all tests pass',
       '5. Self-verify: hard rules ONLY (no export deletion, no test deletion, scope compliance, <50 net deletions)',
-      '6. DO NOT judge code quality — that is pr-review\'s job',
-      '7. DO NOT update version, README, or CHANGELOG — that is the FINALIZE phase',
+      '6. refine() — BEFORE reporting, challenge your own work:',
+      '   - "Is there a more elegant way?" — if non-trivial',
+      '   - "If this feels hacky, knowing everything I know now, what would the elegant solution be?"',
+      '   - For simple/obvious fixes, skip refine() — don\'t over-engineer',
+      '   - If you find a clearly better approach, apply it and re-run tests',
+      '7. DO NOT judge code quality — refine() is self-challenge, not grading (that is pr-review\'s job)',
+      '8. DO NOT update version, README, or CHANGELOG — that is the FINALIZE phase',
       methodsDirective,
       learningContext,
     ].filter(Boolean).join('\n'), ctx);
@@ -166,32 +172,99 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     ? 'All verification gates passed.'
     : `Gate violations: ${midGate.violations.map(v => v.message).join('; ')}`;
 
-  // ── Phase 3: REVIEW ───────────────────────────────
+  // ── Phase 3: REVIEW (재시도 + 재계획 트리거) ────────
   ctx.log('\n=== Phase 3: REVIEW ===\n');
   state.current_phase = 'review';
   await ctx.writeJSON('tasks/governor-state.json', state);
 
-  const reviewResult = runPhase('review', [
-    'Read CLAUDE.md first.',
-    'You are the PR-REVIEW agent. Your job:',
-    '',
-    `Test results: ${testResult.status === 0 ? 'ALL PASSED' : 'SOME FAILED — fix them'}`,
-    `Verification gates: ${midGateInfo}`,
-    '',
-    '1. Follow pr-review methods: diff() → validate() → grade() → calibrate() → verdict()',
-    '2. Review the git diff (run: git diff)',
-    '3. Validate hard rules first — any violation = immediate REJECTED',
-    '4. Grade on 4 criteria: Correctness, Consistency, Simplicity, Test Coverage',
-    '   (skip grade() for low complexity — hard rule pass is sufficient)',
-    '5. Calibrate: check tasks/lessons.md for past missed issues — be skeptical, not generous',
-    '6. If tests failed, fix the failing tests (fix code, not tests)',
-    '7. If gate violations exist, fix them',
-    '8. Run: npm test — confirm all pass after fixes',
-    methodsDirective,
-    learningContext,
-  ].filter(Boolean).join('\n'), ctx);
+  const MAX_REVIEW_RETRIES = 3;
+  let reviewResult = null;
+  let reviewAttempt = 0;
+  let needsReplan = false;
 
-  phases.push({ name: 'review', ...reviewResult });
+  while (reviewAttempt < MAX_REVIEW_RETRIES) {
+    reviewAttempt++;
+    ctx.log(`Review attempt ${reviewAttempt}/${MAX_REVIEW_RETRIES}`);
+
+    reviewResult = runPhase('review', [
+      'Read CLAUDE.md first.',
+      'You are the PR-REVIEW agent. Your job:',
+      '',
+      `Test results: ${testResult.status === 0 ? 'ALL PASSED' : 'SOME FAILED — fix them'}`,
+      `Verification gates: ${midGateInfo}`,
+      `Attempt: ${reviewAttempt}/${MAX_REVIEW_RETRIES}`,
+      '',
+      '1. Follow pr-review methods: diff() → validate() → grade() → calibrate() → verdict()',
+      '2. Review the git diff (run: git diff)',
+      '3. Validate hard rules first — any violation = immediate REJECTED',
+      '4. Grade on 4 criteria: Correctness, Consistency, Simplicity, Test Coverage',
+      '   (skip grade() for low complexity — hard rule pass is sufficient)',
+      '5. Calibrate: check tasks/lessons.md for past missed issues — be skeptical, not generous',
+      '6. If tests failed, fix the failing tests (fix code, not tests)',
+      '7. If gate violations exist, fix them',
+      '8. Run: npm test — confirm all pass after fixes',
+      '9. If this is your 3rd attempt and still REJECTED, output "NEEDS_REPLAN" to trigger planner re-summoning',
+      methodsDirective,
+      learningContext,
+    ].filter(Boolean).join('\n'), ctx);
+
+    phases.push({ name: `review-${reviewAttempt}`, ...reviewResult });
+
+    // 성공 또는 REPLAN 요청 감지
+    if (reviewResult.success) {
+      const output = reviewResult.output?.content || '';
+      if (output.includes('NEEDS_REPLAN')) {
+        needsReplan = true;
+        ctx.warn('Review requested re-planning');
+      }
+      break;
+    }
+
+    if (reviewAttempt >= MAX_REVIEW_RETRIES) {
+      ctx.warn(`Review failed ${MAX_REVIEW_RETRIES} times — triggering re-plan`);
+      needsReplan = true;
+    }
+  }
+
+  // ── Re-plan Trigger: "If something goes sideways, STOP and re-plan" ──
+  if (needsReplan) {
+    ctx.log('\n=== Re-Plan Triggered ===\n');
+    state.current_phase = 'replan';
+    state.retries = state.retries || {};
+    state.retries.replan = (state.retries.replan || 0) + 1;
+    await ctx.writeJSON('tasks/governor-state.json', state);
+
+    if (state.retries.replan > 1) {
+      ctx.error('Re-plan loop detected — escalating to human');
+      state.human_intervention_requested = true;
+      await ctx.writeJSON('tasks/governor-state.json', state);
+      return { success: false, phases, failedAt: 'replan-loop', needsHuman: true };
+    }
+
+    // planner 재소환 — 이전 실패 컨텍스트 포함
+    const replanResult = runPhase('plan', [
+      'Read CLAUDE.md first.',
+      'You are the PLANNER agent. PREVIOUS PLAN FAILED. Re-plan with new approach.',
+      `Original request: "${request}"`,
+      '',
+      'Previous attempt failed review 3 times. Analyze why and create a NEW approach:',
+      '1. What went wrong? (read tasks/lessons.md + recent git diff)',
+      '2. What constraints did we miss?',
+      '3. Create a NEW ticket with different SCOPE or approach',
+      '4. Mark previous ticket as SUPERSEDED',
+      methodsDirective,
+      learningContext,
+      crossProjectContext,
+    ].filter(Boolean).join('\n'), ctx);
+
+    phases.push({ name: 'replan', ...replanResult });
+
+    if (!replanResult.success) {
+      return { success: false, phases, failedAt: 'replan' };
+    }
+
+    ctx.warn('Re-plan completed. Pipeline will finalize with new plan — run again to execute.');
+  }
 
   // ── Phase 4: FINALIZE ─────────────────────────────
   ctx.log('\n=== Phase 4: FINALIZE ===\n');
@@ -209,6 +282,19 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   ].join('\n'), ctx);
 
   phases.push({ name: 'finalize', ...finalResult });
+
+  // ── Auto-promote repeated lessons to rules ─────────
+  try {
+    const promoted = promoteRepeatedLessons(ctx.cwd);
+    if (promoted.length > 0) {
+      ctx.success(`Auto-promoted ${promoted.length} lesson pattern(s) to .claude/rules/`);
+      for (const p of promoted) {
+        ctx.log(`  → ${p.path} (${p.keyword}, ${p.count}x)`);
+      }
+    }
+  } catch (e) {
+    ctx.warn(`Lesson promotion skipped: ${e.message}`);
+  }
 
   // ── Final gate ────────────────────────────────────
   const finalGate = runGates(ctx.cwd);
@@ -247,13 +333,14 @@ async function runDevSwarm(request, ticket, methodsDirective, learningContext, o
       'You are the DEV agent. Your job:',
       `Ticket:\n${ticket}`,
       '',
-      '1. Follow dev methods: snapshot() → implement() → test() → verify() → report()',
+      '1. Follow dev methods: snapshot() → implement() → test() → verify() → refine() → report()',
       '2. Implement the changes described in the ticket — you decide HOW',
       '3. Write or update tests',
       '4. Run: npm test — ensure all tests pass',
       '5. Self-verify: hard rules ONLY',
-      '6. DO NOT judge code quality — that is pr-review\'s job',
-      '7. DO NOT update version, README, or CHANGELOG',
+      '6. refine() — for non-trivial changes, ask "is there a more elegant way?" Skip for obvious fixes.',
+      '7. DO NOT judge code quality — refine is self-challenge, pr-review does grading',
+      '8. DO NOT update version, README, or CHANGELOG',
       methodsDirective,
       learningContext,
     ].filter(Boolean).join('\n'), ctx);
