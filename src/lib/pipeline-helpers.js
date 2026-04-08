@@ -83,7 +83,7 @@ export function buildLearningContext(lessons, patterns) {
 }
 
 /**
- * tasks/context/*/PROFILE.md 를 로드해서 cross-project context 블록 생성.
+ * tasks/context/<project>/PROFILE.md 를 로드해서 cross-project context 블록 생성.
  * 각 프로젝트당 1500자 제한.
  */
 export function loadCrossProjectContext(cwd) {
