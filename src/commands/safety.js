@@ -20,6 +20,7 @@ import {
   hashRecoveryKey,
   loadRecoveryHash,
 } from '../lib/safety.js';
+import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
 
 registerCommand('safety', {
   description: 'Manage safety word for LLM injection defense',
@@ -258,50 +259,88 @@ async function verifyCmd(word, ctx) {
 // ── status ────────────────────────────────────────
 
 async function statusCmd(ctx) {
-  ctx.log('=== Safety Word Status ===\n');
+  const { dim, bold, red, green, yellow, cyan } = colors;
+  const borders = makeBorders();
 
-  // tamper 감지
+  ctx.log('');
+  ctx.log(bold(cyan(' Sentix Safety')) + dim('  ·  안전어 상태'));
+  ctx.log('');
+
+  // ── tamper 감지 (LOCKDOWN 우선) ────────────────────
   const tamperStatus = await checkTamper(ctx);
   if (tamperStatus === 'tampered') {
-    ctx.error('!! LOCKDOWN — safety.toml 삭제 감지 !!');
-    ctx.error('config.toml에 safety_enabled=true가 있지만 safety.toml이 없습니다.');
+    ctx.log(`  ${dim('상태')}  ${red('LOCKDOWN')}`);
+    ctx.log(`  ${dim('원인')}  ${red('safety.toml 삭제 감지')}`);
     ctx.log('');
-    ctx.log('  모든 위험 작업이 차단됩니다.');
-    ctx.log('  sentix safety set도 차단됩니다.');
+
+    ctx.log(borders.top);
+    ctx.log(cardTitle('잠금 상태', red('3✗')));
+    ctx.log(borders.mid);
+    ctx.log(cardLine(`${red('✗')} safety.toml 누락`));
+    ctx.log(cardLine(`${red('✗')} 모든 위험 작업 차단`));
+    ctx.log(cardLine(`${red('✗')} sentix safety set 차단`));
+    ctx.log(borders.bottom);
     ctx.log('');
-    ctx.log('  복구: .sentix/config.toml에서 [safety] 섹션을 수동 삭제 후 재설정');
-    ctx.log('  또는: sentix safety unlock <recovery-key>');
+
+    ctx.log(`  ${bold('복구 방법')}`);
+    ctx.log(`    ${green('→')} ${dim('sentix safety unlock <recovery-key>')}`);
+    ctx.log(`    ${green('→')} ${dim('또는 .sentix/config.toml [safety] 섹션 수동 삭제 후 재설정')}`);
     ctx.log('');
     return;
   }
 
   const configured = await isConfigured(ctx);
+  let gitignoreOk = false;
+  if (configured && ctx.exists('.gitignore')) {
+    const gi = await ctx.readFile('.gitignore');
+    gitignoreOk = gi.includes('.sentix/safety.toml');
+  }
 
+  // ── 핵심 요약 ──────────────────────────────────────
   if (configured) {
-    ctx.success('Safety word: configured');
-    ctx.log('  .sentix/safety.toml → enabled');
-    ctx.log('');
-
-    // Check .gitignore protection
-    let gitignoreOk = false;
-    if (ctx.exists('.gitignore')) {
-      const gi = await ctx.readFile('.gitignore');
-      gitignoreOk = gi.includes('.sentix/safety.toml');
-    }
-
-    if (gitignoreOk) {
-      ctx.success('.gitignore: 보호됨 (git 추적 제외)');
-    } else {
-      ctx.error('.gitignore: 보호 안 됨! safety.toml이 git에 노출될 수 있습니다');
-      ctx.log('  Fix: echo ".sentix/safety.toml" >> .gitignore');
-    }
+    ctx.log(`  ${dim('상태')}  ${green('설정됨')}`);
+    ctx.log(`  ${dim('파일')}  ${dim('.sentix/safety.toml')}`);
+    ctx.log(`  ${dim('보호')}  ${gitignoreOk ? green('gitignore 보호 활성') : red('gitignore 보호 누락')}`);
   } else {
-    ctx.warn('Safety word: NOT configured');
-    ctx.log('');
-    ctx.log('  안전어가 설정되지 않았습니다.');
-    ctx.log('  LLM 인젝션 방지를 위해 설정을 권장합니다.');
-    ctx.log('');
-    ctx.log('  설정: sentix safety set <나만의 안전어>');
+    ctx.log(`  ${dim('상태')}  ${yellow('미설정')}`);
+    ctx.log(`  ${dim('영향')}  ${dim('LLM 인젝션 방어 비활성')}`);
   }
   ctx.log('');
+
+  // ── 카드: 안전어 ──────────────────────────────────
+  if (configured) {
+    const passCount = 1 + (gitignoreOk ? 1 : 0) + 1; // configured + gitignore + tamper-ok
+    const failCount = gitignoreOk ? 0 : 1;
+    const stats = [
+      passCount > 0 ? green(`${passCount}✓`) : null,
+      failCount > 0 ? red(`${failCount}✗`) : null,
+    ].filter(Boolean).join('  ');
+
+    ctx.log(borders.top);
+    ctx.log(cardTitle('안전어', stats));
+    ctx.log(borders.mid);
+    ctx.log(cardLine(`${green('✓')} 설정됨 ${dim('(SHA-256 해시 저장)')}`));
+    if (gitignoreOk) {
+      ctx.log(cardLine(`${green('✓')} .gitignore 보호 활성`));
+    } else {
+      ctx.log(cardLine(`${red('✗')} .gitignore 에 ${dim('.sentix/safety.toml')} 누락`));
+      ctx.log(cardLine(`  ${dim('└')} ${dim('echo ".sentix/safety.toml" >> .gitignore')}`));
+    }
+    ctx.log(cardLine(`${green('✓')} tamper 감지 정상`));
+    ctx.log(borders.bottom);
+    ctx.log('');
+
+    ctx.log(`  ${dim('변경:')} ${dim('sentix safety reset <현재> <새것>')}`);
+    ctx.log(`  ${dim('검증:')} ${dim('sentix safety verify <단어>')}`);
+    ctx.log('');
+  } else {
+    ctx.log(borders.top);
+    ctx.log(cardTitle('안전어', yellow('1⚠')));
+    ctx.log(borders.mid);
+    ctx.log(cardLine(`${yellow('⚠')} 안전어 미설정`));
+    ctx.log(cardLine(`  ${dim('└')} ${dim('sentix safety set <단어>')}`));
+    ctx.log(cardLine(`${dim('·')} ${dim('LLM 인젝션 방어를 위해 권장')}`));
+    ctx.log(borders.bottom);
+    ctx.log('');
+  }
 }
