@@ -20,6 +20,7 @@ registerCommand('name', {
 |------|--------|------|
 | `init.js` | `sentix init` | 프로젝트 초기화 |
 | `run.js` | `sentix run "요청"` | Governor 파이프라인 실행 (카드 출력) |
+| `resume.js` | `sentix resume` | 중단된 파이프라인 재개 |
 | `doctor.js` | `sentix doctor` | 설치 진단 카드 + 건강도 막대 |
 | `status.js` | `sentix status` | Governor 상태 대시보드 (파이프라인 다이어그램 + 카드) |
 | `config.js` | `sentix config` | 분산된 설정을 한 곳에서 (get/set/list) |
@@ -33,7 +34,7 @@ registerCommand('name', {
 | `plugin.js` | `sentix plugin` | 플러그인 관리 |
 | `evolve.js` | `sentix evolve` | 자가 분석/개선 (Layer 5) |
 | `context.js` | `sentix context` | 멀티 프로젝트 컨텍스트 |
-| `version.js` | `sentix version` | 버전 관리 |
+| `version.js` | `sentix version` | 버전 관리 (bump/current/changelog) |
 
 파일은 알파벳순으로 자동 로드됨.
 

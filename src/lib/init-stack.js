@@ -22,6 +22,8 @@ export async function detectTechStack(ctx) {
     language: '# 프로젝트에 맞게 설정',
     packageManager: '# 프로젝트에 맞게 설정',
     framework: '# 프로젝트에 맞게 설정',
+    database: 'N/A',
+    orm: 'N/A',
     test: '# 프로젝트에 맞게 설정',
     lint: '# 프로젝트에 맞게 설정',
     build: '# 프로젝트에 맞게 설정',
@@ -54,6 +56,19 @@ export async function detectTechStack(ctx) {
       else if (deps['vue']) result.framework = 'Vue';
       else if (deps['svelte']) result.framework = 'Svelte';
 
+      // Database / ORM detection (from main ec1f0a8)
+      if (deps['@prisma/client'] || deps['prisma']) result.orm = 'Prisma';
+      else if (deps['sequelize']) result.orm = 'Sequelize';
+      else if (deps['typeorm']) result.orm = 'TypeORM';
+      else if (deps['drizzle-orm']) result.orm = 'Drizzle';
+      else if (deps['knex']) result.orm = 'Knex';
+      else if (deps['mongoose']) { result.orm = 'Mongoose'; result.database = 'MongoDB'; }
+
+      if (deps['pg'] || deps['postgres']) result.database = 'PostgreSQL';
+      else if (deps['sqlite3'] || deps['better-sqlite3']) result.database = 'SQLite';
+      else if (deps['mysql2'] || deps['mysql']) result.database = 'MySQL';
+      else if (deps['mongodb'] || deps['mongoose']) result.database = 'MongoDB';
+
       const scripts = pkg.scripts || {};
       const pm = result.packageManager;
       result.test = scripts.test ? `${pm} run test` : `# ${pm} run test`;
@@ -77,6 +92,19 @@ export async function detectTechStack(ctx) {
     result.test = 'pytest';
     result.lint = 'ruff check .';
     result.build = '# 프로젝트에 맞게 설정';
+
+    // Database / ORM detection (scan dependency files as text)
+    try {
+      const depFile = ctx.exists('pyproject.toml') ? 'pyproject.toml' : 'requirements.txt';
+      const content = await ctx.readFile(depFile);
+      if (/sqlalchemy/i.test(content)) result.orm = 'SQLAlchemy';
+      else if (/django/i.test(content)) result.orm = 'Django ORM';
+      if (/psycopg/i.test(content)) result.database = 'PostgreSQL';
+      else if (/pymongo/i.test(content)) result.database = 'MongoDB';
+      else if (/sqlite/i.test(content)) result.database = 'SQLite';
+      else if (/mysql/i.test(content)) result.database = 'MySQL';
+    } catch { /* ignore — dependency file read failure is non-fatal */ }
+
     return result;
   }
 

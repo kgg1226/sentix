@@ -11,19 +11,26 @@ import { colors, makeBorders, cardLine, cardTitle } from './ui-box.js';
 const { dim, bold, red, green, yellow, cyan } = colors;
 
 /** 시작 배너: Sentix Run · Governor 파이프라인 */
-export function renderStartBanner(ctx, { cycleId, request }) {
+export function renderStartBanner(ctx, { cycleId, request, mode }) {
   ctx.log('');
   ctx.log(` ${bold(cyan('Sentix Run'))}  ${dim('·')}  ${dim('Governor 파이프라인')}`);
   ctx.log('');
   ctx.log(`  ${dim('cycle  ')}  ${cyan(cycleId)}`);
   ctx.log(`  ${dim('요청   ')}  "${request}"`);
+  if (mode === 'hotfix') {
+    ctx.log(`  ${dim('모드   ')}  ${yellow('핫픽스')}  ${dim('단축 파이프라인 (Step 1→2→3→7)')}`);
+  }
   ctx.log('');
 }
 
-/** Pipeline mode 라인 (chained / single) */
+/** Pipeline mode 라인 (chained / hotfix / single) */
 export function renderModeLine(ctx, mode) {
   if (mode === 'chained') {
     ctx.log(`  ${dim('모드   ')}  ${green('chained')}  ${dim('PLAN → DEV → GATE → REVIEW → FINALIZE')}`);
+  } else if (mode === 'hotfix') {
+    ctx.log(`  ${dim('모드   ')}  ${yellow('hotfix')}   ${dim('Step 1 → 2 → 3 → 7 (단축)')}`);
+    ctx.log('');
+    ctx.log(`  ${dim('Claude Code Governor 호출 중 (direct fix)...')}`);
   } else {
     ctx.log(`  ${dim('모드   ')}  ${yellow('single')}  ${dim('(legacy)')}`);
     ctx.log('');

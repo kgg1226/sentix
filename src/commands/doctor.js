@@ -17,6 +17,7 @@ import { isConfigured as isSafetyConfigured } from '../lib/safety.js';
 import { getRuntimeMode, loadProvider } from '../lib/provider.js';
 import { colors, makeBorders, cardLine, cardTitle, renderBar } from '../lib/ui-box.js';
 import { checkHooks } from '../lib/doctor-hooks-check.js';
+import { checkTechStack } from '../lib/doctor-tech-stack-check.js';
 
 const { dim, bold, red, green, yellow, cyan } = colors;
 const { top: BORDER_TOP, mid: BORDER_MID, bottom: BORDER_BOTTOM } = makeBorders();
@@ -208,6 +209,9 @@ async function checkRuntime(ctx, out) {
 async function checkCleanup(ctx, out) {
   // Sentix enforcement hooks (Claude Code settings)
   await checkHooks(ctx, out);
+
+  // Tech stack consistency (DB/ORM vs CLAUDE.md)
+  await checkTechStack(ctx, out);
 
   // deprecated files
   const deprecated = [
