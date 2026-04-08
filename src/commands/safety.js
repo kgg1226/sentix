@@ -20,6 +20,10 @@ import {
   hashRecoveryKey,
   loadRecoveryHash,
 } from '../lib/safety.js';
+import { colors } from '../lib/ui-box.js';
+import { renderStatusCard, renderSetSuccessNotice } from '../lib/safety-render.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('safety', {
   description: 'Manage safety word for LLM injection defense',
@@ -117,54 +121,7 @@ async function setCmd(word, ctx) {
     gitignoreOk = gi.includes('.sentix/safety.toml');
   }
 
-  ctx.success('Safety word configured');
-  ctx.log('');
-  ctx.log('  ┌─────────────────────────────────────────────┐');
-  ctx.log('  │  SECURITY NOTICE — 보안 안내                  │');
-  ctx.log('  ├─────────────────────────────────────────────┤');
-  ctx.log('  │                                              │');
-  ctx.log('  │  안전어는 PEM 키와 동일한 보안 수준입니다.     │');
-  ctx.log('  │                                              │');
-  ctx.log('  │  1. 평문은 어디에도 저장되지 않습니다          │');
-  ctx.log('  │     (SHA-256 해시만 로컬에 저장)              │');
-  ctx.log('  │                                              │');
-  ctx.log('  │  2. 절대 git에 커밋하지 마세요                │');
-  ctx.log('  │     (.gitignore에 자동 등록됨)               │');
-  ctx.log('  │                                              │');
-  ctx.log('  │  3. 절대 외부에 공유하지 마세요               │');
-  ctx.log('  │     (Slack, 이메일, 메신저, 문서 등)          │');
-  ctx.log('  │                                              │');
-  ctx.log('  │  4. 절대 AI 대화에 붙여넣지 마세요            │');
-  ctx.log('  │     (safety.toml 내용 포함)                  │');
-  ctx.log('  │                                              │');
-  ctx.log('  │  5. 변경: sentix safety reset <현재> <새것>    │');
-  ctx.log('  │  6. 잠금 해제: sentix safety unlock <key>     │');
-  ctx.log('  │                                              │');
-  ctx.log('  └─────────────────────────────────────────────┘');
-  ctx.log('');
-
-  if (gitignoreOk) {
-    ctx.success('.gitignore: .sentix/safety.toml 보호됨');
-  } else {
-    ctx.warn('.gitignore에 .sentix/safety.toml이 없습니다!');
-    ctx.log('  아래 줄을 .gitignore에 추가하세요:');
-    ctx.log('  .sentix/safety.toml');
-    ctx.log('');
-  }
-
-  ctx.log(`  Hash: ${hash.slice(0, 8)}****`);
-  ctx.log('  검증: sentix safety verify <word>');
-  ctx.log('');
-  ctx.warn('  ┌─────────────────────────────────────────────┐');
-  ctx.warn('  │  RECOVERY KEY — 이것을 안전한 곳에 기록하세요  │');
-  ctx.warn('  ├─────────────────────────────────────────────┤');
-  ctx.warn(`  │  ${recoveryKey}                              │`);
-  ctx.warn('  ├─────────────────────────────────────────────┤');
-  ctx.warn('  │  safety.toml이 삭제되면 이 키로만 복구 가능    │');
-  ctx.warn('  │  sentix safety unlock <위 키>                │');
-  ctx.warn('  │  이 키는 다시 보여주지 않습니다                │');
-  ctx.warn('  └─────────────────────────────────────────────┘');
-  ctx.log('');
+  renderSetSuccessNotice(ctx, { hash, recoveryKey, gitignoreOk });
 }
 
 // ── unlock (recovery key로 잠금 해제) ─────────────
@@ -258,50 +215,14 @@ async function verifyCmd(word, ctx) {
 // ── status ────────────────────────────────────────
 
 async function statusCmd(ctx) {
-  ctx.log('=== Safety Word Status ===\n');
-
-  // tamper 감지
   const tamperStatus = await checkTamper(ctx);
-  if (tamperStatus === 'tampered') {
-    ctx.error('!! LOCKDOWN — safety.toml 삭제 감지 !!');
-    ctx.error('config.toml에 safety_enabled=true가 있지만 safety.toml이 없습니다.');
-    ctx.log('');
-    ctx.log('  모든 위험 작업이 차단됩니다.');
-    ctx.log('  sentix safety set도 차단됩니다.');
-    ctx.log('');
-    ctx.log('  복구: .sentix/config.toml에서 [safety] 섹션을 수동 삭제 후 재설정');
-    ctx.log('  또는: sentix safety unlock <recovery-key>');
-    ctx.log('');
-    return;
+  const configured = tamperStatus === 'tampered' ? false : await isConfigured(ctx);
+
+  let gitignoreOk = false;
+  if (configured && ctx.exists('.gitignore')) {
+    const gi = await ctx.readFile('.gitignore');
+    gitignoreOk = gi.includes('.sentix/safety.toml');
   }
 
-  const configured = await isConfigured(ctx);
-
-  if (configured) {
-    ctx.success('Safety word: configured');
-    ctx.log('  .sentix/safety.toml → enabled');
-    ctx.log('');
-
-    // Check .gitignore protection
-    let gitignoreOk = false;
-    if (ctx.exists('.gitignore')) {
-      const gi = await ctx.readFile('.gitignore');
-      gitignoreOk = gi.includes('.sentix/safety.toml');
-    }
-
-    if (gitignoreOk) {
-      ctx.success('.gitignore: 보호됨 (git 추적 제외)');
-    } else {
-      ctx.error('.gitignore: 보호 안 됨! safety.toml이 git에 노출될 수 있습니다');
-      ctx.log('  Fix: echo ".sentix/safety.toml" >> .gitignore');
-    }
-  } else {
-    ctx.warn('Safety word: NOT configured');
-    ctx.log('');
-    ctx.log('  안전어가 설정되지 않았습니다.');
-    ctx.log('  LLM 인젝션 방지를 위해 설정을 권장합니다.');
-    ctx.log('');
-    ctx.log('  설정: sentix safety set <나만의 안전어>');
-  }
-  ctx.log('');
+  renderStatusCard(ctx, { tamperStatus, configured, gitignoreOk });
 }

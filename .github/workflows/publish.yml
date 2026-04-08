@@ -12,6 +12,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -25,7 +28,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Detect version + publish
@@ -66,7 +69,7 @@ jobs:
             if (/^feat(\(.+?\))?:/.test(c)) type = 'minor';
           }
 
-          // npm 버전 기준으로 bump (git의 package.json이 아닌 npm 기준)
+          // npm 버전 기준으로 bump
           let nv;
           if (type === 'major') nv = (nmaj+1)+'.0.0';
           else if (type === 'minor') nv = nmaj+'.'+(nmin+1)+'.0';
@@ -75,9 +78,8 @@ jobs:
           if (nv === npmVer) { console.log(nv + ' already on npm — skip'); process.exit(0); }
 
           console.log(npmVer + ' -> ' + nv + ' (' + type + ')');
-          console.log('Commits: ' + commits.length);
 
-          // package.json 버전만 임시로 변경 (npm publish용)
+          // package.json 버전 임시 변경
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           pkg.version = nv;
           fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
@@ -86,8 +88,8 @@ jobs:
           console.log('Running tests...');
           execSync('npm test', { stdio: 'inherit' });
 
-          // npm publish
-          console.log('Publishing sentix@' + nv + '...');
-          execSync('npm publish --access public', { stdio: 'inherit' });
+          // npm publish with provenance (Node 24 — OIDC bug fixed)
+          console.log('Publishing sentix@' + nv + ' with provenance...');
+          execSync('npm publish --provenance --access public', { stdio: 'inherit' });
           console.log('Done: sentix@' + nv);
           "

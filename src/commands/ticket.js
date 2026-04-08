@@ -13,6 +13,19 @@ import {
   nextTicketId, classifySeverity, sortBySeverity, createTicketEntry,
 } from '../lib/ticket-index.js';
 import { findBestMatch } from '../lib/similarity.js';
+import { colors } from '../lib/ui-box.js';
+import { runTicketDebug } from '../lib/ticket-debug.js';
+import {
+  severityBadge,
+  statusBadge,
+  computeTicketStats,
+  renderEmptyTickets,
+  renderNoMatch,
+  renderTicketSummary,
+  renderTicketTable,
+} from '../lib/ticket-render.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('ticket', {
   description: 'Manage bug/issue tickets (create | list | debug)',
@@ -61,9 +74,10 @@ async function createTicket(args, ctx) {
   }
 
   // Auto-classify severity if not specified
+  let autoClassified = false;
   if (!severity) {
     severity = classifySeverity(description);
-    ctx.log(`Auto-classified severity: ${severity}`);
+    autoClassified = true;
   }
 
   // Duplicate detection
@@ -114,49 +128,48 @@ ${description}
     title,
   });
 
-  ctx.success(`Created ${id}: ${title}`);
-  ctx.log(`  Severity: ${severity}`);
-  ctx.log(`  File:     ${entry.file_path}`);
+  ctx.log('');
+  ctx.log(`  ${green('●')} ${bold('티켓 생성')}  ${cyan(id)}`);
+  ctx.log(`  ${dim('제목')}      ${title}`);
+  ctx.log(`  ${dim('심각도')}    ${severityBadge(severity)}${autoClassified ? '  ' + dim('(자동 분류)') : ''}`);
+  ctx.log(`  ${dim('파일')}      ${dim(entry.file_path)}`);
+  ctx.log('');
 }
 
 // ── sentix ticket list ────────────────────────────────
 
 async function listTickets(args, ctx) {
-  ctx.log('=== Tickets ===\n');
+  ctx.log('');
+  ctx.log(bold(cyan(' Sentix Tickets')) + dim('  ·  버그/이슈 티켓'));
+  ctx.log('');
 
   let entries = await loadIndex(ctx);
-
-  if (entries.length === 0) {
-    ctx.log('  (no tickets)');
-    ctx.log('\n  Create one: sentix ticket create "description"');
-    return;
-  }
+  const totalAll = entries.length;
 
   // Parse filters
   const statusIdx = args.indexOf('--status');
-  if (statusIdx !== -1 && args[statusIdx + 1]) {
-    const status = args[statusIdx + 1];
-    entries = entries.filter(e => e.status === status);
-  }
+  const statusFilter = statusIdx !== -1 ? args[statusIdx + 1] : null;
+  if (statusFilter) entries = entries.filter((e) => e.status === statusFilter);
 
   const sevIdx = args.indexOf('--severity');
-  if (sevIdx !== -1 && args[sevIdx + 1]) {
-    const sev = args[sevIdx + 1];
-    entries = entries.filter(e => e.severity === sev);
+  const severityFilter = sevIdx !== -1 ? args[sevIdx + 1] : null;
+  if (severityFilter) entries = entries.filter((e) => e.severity === severityFilter);
+
+  if (totalAll === 0) {
+    renderEmptyTickets(ctx);
+    return;
+  }
+
+  if (entries.length === 0) {
+    renderNoMatch(ctx, { statusFilter, severityFilter, totalAll });
+    return;
   }
 
   entries = sortBySeverity(entries);
+  const stats = computeTicketStats(entries);
 
-  // Table header
-  ctx.log(`  ${'ID'.padEnd(12)} ${'SEVERITY'.padEnd(12)} ${'STATUS'.padEnd(14)} TITLE`);
-  ctx.log(`  ${'─'.repeat(12)} ${'─'.repeat(12)} ${'─'.repeat(14)} ${'─'.repeat(30)}`);
-
-  for (const e of entries) {
-    const sev = e.severity ? e.severity.padEnd(12) : '-'.padEnd(12);
-    ctx.log(`  ${e.id.padEnd(12)} ${sev} ${e.status.padEnd(14)} ${e.title}`);
-  }
-
-  ctx.log(`\n  Total: ${entries.length} ticket(s)`);
+  renderTicketSummary(ctx, { entries, totalAll, stats });
+  renderTicketTable(ctx, entries);
 }
 
 // ── sentix ticket debug ───────────────────────────────
@@ -192,135 +205,8 @@ async function debugTicket(ticketId, ctx) {
     } catch { /* safe to proceed */ }
   }
 
-  // 4. Update ticket status
-  await updateTicket(ctx, ticketId, { status: 'in_progress' });
-  ctx.log(`Debugging ${ticketId}: ${ticket.title}`);
-  ctx.log(`Severity: ${ticket.severity}\n`);
-
-  // 5. Read ticket markdown
-  let ticketContent = '';
-  if (ctx.exists(ticket.file_path)) {
-    ticketContent = await ctx.readFile(ticket.file_path);
-  }
-
-  // 6. Read lessons for context
-  let lessons = '';
-  if (ctx.exists('tasks/lessons.md')) {
-    lessons = await ctx.readFile('tasks/lessons.md');
-  }
-
-  // 7. Determine retry limit by severity
-  const retryLimits = { critical: 3, warning: 10, suggestion: 0 };
-  const retryLimit = retryLimits[ticket.severity] || 3;
-
-  // 8. Create governor state
-  const cycleId = `debug-${ticketId}-${String(Date.now()).slice(-3)}`;
-  const state = {
-    schema_version: 1,
-    cycle_id: cycleId,
-    request: `DEBUG: ${ticket.title}`,
-    status: 'in_progress',
-    current_phase: 'dev-fix',
-    plan: [{ agent: 'dev-fix', status: 'running', result_ref: null }],
-    retries: { 'dev-fix': 0 },
-    cross_judgments: [],
-    started_at: new Date().toISOString(),
-    completed_at: null,
-    human_intervention_requested: false,
-    ticket_id: ticketId,
-    ticket_type: 'bug',
-  };
-  await ctx.writeJSON('tasks/governor-state.json', state);
-
-  // 9. Log event
-  await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-    ts: new Date().toISOString(),
-    event: 'ticket:debug',
-    id: ticketId,
-    severity: ticket.severity,
-    cycle_id: cycleId,
-  });
-
-  // 10. Invoke Claude Code with debug prompt
-  const prompt = [
-    'Read CLAUDE.md and FRAMEWORK.md first.',
-    '',
-    `DEBUG MODE — Ticket: ${ticketId}`,
-    '',
-    '## Ticket Content',
-    ticketContent,
-    '',
-    '## Known Lessons',
-    lessons.slice(0, 2000),
-    '',
-    '## Instructions',
-    '1. Analyze the bug described in the ticket',
-    '2. Identify root cause',
-    '3. Implement fix within SCOPE (respect hard rules)',
-    '4. Run tests to verify fix',
-    '5. Generate LESSON_LEARNED and append to tasks/lessons.md',
-    `6. Update ${ticket.file_path} with root cause analysis`,
-    '7. Update tasks/governor-state.json at each phase',
-    '',
-    `Severity: ${ticket.severity} (retry limit: ${retryLimit})`,
-  ].join('\n');
-
-  ctx.log('Invoking Claude Code for debugging...\n');
-
-  const result = spawnSync('claude', ['-p', prompt], {
-    cwd: ctx.cwd,
-    stdio: 'inherit',
-    timeout: 600_000,
-  });
-
-  // 11. Handle result
-  if (result.error || result.status !== 0) {
-    state.status = 'failed';
-    state.error = result.error?.message || `Exit code ${result.status}`;
-    await ctx.writeJSON('tasks/governor-state.json', state);
-
-    await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-      ts: new Date().toISOString(),
-      event: 'ticket:debug:failed',
-      id: ticketId,
-      cycle_id: cycleId,
-      error: state.error,
-    });
-
-    // Escalate critical failures to roadmap
-    if (ticket.severity === 'critical') {
-      ctx.warn('Critical ticket debug failed — escalating to roadmap');
-      if (ctx.exists('tasks/roadmap.md')) {
-        const roadmap = await ctx.readFile('tasks/roadmap.md');
-        const escalation = `\n- **[ESCALATED]** ${ticketId}: ${ticket.title} (debug failed, needs manual review)\n`;
-        await ctx.writeFile('tasks/roadmap.md', roadmap + escalation);
-      }
-    }
-
-    await updateTicket(ctx, ticketId, { status: 'open' });
-    ctx.error(`Debug failed for ${ticketId}`);
-    return;
-  }
-
-  // 12. Success
-  state.status = 'completed';
-  state.completed_at = new Date().toISOString();
-  state.plan[0].status = 'done';
-  await ctx.writeJSON('tasks/governor-state.json', state);
-
-  await updateTicket(ctx, ticketId, {
-    status: 'review',
-    related_cycle: cycleId,
-  });
-
-  await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-    ts: new Date().toISOString(),
-    event: 'ticket:debug:complete',
-    id: ticketId,
-    cycle_id: cycleId,
-  });
-
-  ctx.success(`Debug completed for ${ticketId} — status: review`);
+  // 4. Delegate to lib
+  await runTicketDebug(ticket, ctx);
 }
 
 // ── Helpers ───────────────────────────────────────────

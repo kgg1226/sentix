@@ -254,7 +254,100 @@ bash install-sentix.sh /path/to/your-project
 .\install-sentix.ps1 -Target C:\path\to\your-project
 ```
 
-**수동 복사:**
+현재 어떤 단계를 실행 중인지, 티켓 상태, 학습 데이터가 얼마나 쌓였는지 **정제된 카드 UI**로 보여줍니다:
+
+```
+ Sentix Status  ·  Governor 대시보드
+
+  phase        idle           활성 티켓      0
+  다음 액션    sentix run     블로커         없음
+
+┌──────────────── 파이프라인 ────────────────┐
+│ ○ planner → ○ dev → ○ gate → ○ pr-review → ○ finalize │
+└────────────────────────────────────────────┘
+
+  ● 준비 완료  sentix run "<요청>" 으로 새 작업 시작
+```
+
+다른 주요 명령도 동일한 카드 언어를 공유합니다:
+
+| 명령 | 시각 요소 |
+|---|---|
+| `sentix` (인자 없음) | 친화적 진입점 — 상황별 권장 액션 자동 추천 |
+| `sentix doctor` | 건강도 바 (`████████████████  96%`) + 경고 리스트 |
+| `sentix metrics` | 통과율/성공률 **막대 그래프** + phase별 재시도 통계 |
+| `sentix config` / `profile` / `layer` | 분산 설정을 **카드 한 장**에 집약 |
+| `sentix evolve` | 총 이슈 / 테스트 / 게이트 / 과대 파일 한 번에 검사 |
+
+---
+
+## CLI 명령어 전체 목록
+
+> 모든 주요 명령은 **통일된 카드 UX**(건강도 바, 파이프라인 다이어그램, 정제된 요약)로 출력됩니다. 어느 명령을 써도 같은 시각 언어라 탐색이 쉽습니다.
+
+### 기본
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix` | **친화적 진입점** — 현재 상태 요약 + 권장 다음 액션 자동 추천 |
+| `sentix init` | 프로젝트에 Sentix 설치 (자동으로 기술 스택 감지) |
+| `sentix run "요청"` | AI 파이프라인 실행 |
+| `sentix status` | Governor 대시보드 (phase / 활성 티켓 / 파이프라인 다이어그램) |
+| `sentix doctor` | 설치 진단 (건강도 바 + 경고 리스트) |
+| `sentix metrics` | AI 성공률/재시도 통계 + 막대 그래프 시각화 |
+| `sentix evolve` | 자기 분석 — 과대 파일/테스트/게이트 이슈 스캔 |
+| `sentix update` | 프레임워크 파일을 최신 sentix로 업데이트 |
+| `sentix update --dry` | 업데이트 미리보기 (변경 없이 확인만) |
+| `sentix context` | 연동 프로젝트 컨텍스트 가져오기 |
+| `sentix context --list` | 연동 프로젝트 접근 상태 확인 |
+
+### 설정/환경 관리
+
+기존엔 `.sentix/config.toml`, `agent-profiles/`, `env-profiles/`, `.claude/` 4곳에 설정이 흩어져 있어 매번 파일을 직접 편집해야 했습니다. 이제 CLI로 한 번에:
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix config` | 분산된 설정을 한 카드에서 확인 |
+| `sentix config set <key> <value>` | TOML 직접 편집 없이 설정 변경 |
+| `sentix profile` | 현재 환경 프로필 + 목록 |
+| `sentix profile use <name>` | 프로필 빠른 전환 (env-profiles/active.toml 갱신) |
+| `sentix layer` | 진화 레이어 상태 (Layer 1~5 토글) |
+| `sentix layer enable <n>` / `disable <n>` | 레이어 켜기/끄기 |
+| `sentix safety status` | 안전어 설정 상태 |
+| `sentix safety set <word>` | 안전어 설정/변경 |
+
+### 버전 관리
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix version current` | 현재 버전 + git tag 확인 |
+| `sentix version bump [major\|minor\|patch]` | 버전 올림 + CHANGELOG + git tag |
+| `sentix version changelog` | CHANGELOG 미리보기 |
+
+### 버그/이슈 티켓
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix ticket create "설명"` | 버그 티켓 생성 (severity 자동 분류) |
+| `sentix ticket list` | 티켓 목록 (필터링 가능) |
+| `sentix ticket debug <id>` | AI가 자동으로 디버깅 |
+
+### 기능 추가
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix feature add "설명"` | 기능 티켓 + 복잡도 평가 + 영향 분석 |
+| `sentix feature list` | 기능 목록 |
+| `sentix feature impact "설명"` | 영향 분석만 실행 |
+
+### 플러그인
+
+| 명령어 | 하는 일 |
+|---|---|
+| `sentix plugin list` | 플러그인 목록 보기 |
+| `sentix plugin create 이름` | 나만의 플러그인 만들기 |
+
+각 명령어에 `--help`를 붙이면 상세 설명이 나옵니다:
 
 ```bash
 cp FRAMEWORK.md CLAUDE.md /path/to/your-project/
@@ -267,7 +360,69 @@ mkdir -p /path/to/your-project/tasks/tickets
 <details>
 <summary>기타 업데이트 방법 (독립 스크립트 / 자동 동기화)</summary>
 
-**독립 스크립트** (구형 sentix에서도 동작):
+```
+내 프로젝트/
+├── FRAMEWORK.md          ← 설계 문서 (사람이 읽는 전체 구조 설명)
+├── CLAUDE.md             ← AI가 읽는 실행 인덱스 (환경 자동 적응 + 상세는 docs/ 참조)
+├── INTERFACE.md          ← 다른 프로젝트와 연결할 때 쓰는 계약서
+├── registry.md           ← 연결된 프로젝트 목록
+│
+├── docs/                 ← 상세 규칙 (CLAUDE.md에서 참조, 필요할 때만 로드)
+│   ├── governor-sop.md   ← 파이프라인별 SOP 상세 + 실행 예시
+│   ├── agent-scopes.md   ← 에이전트별 파일 범위 매트릭스
+│   ├── severity.md       ← severity 분기 로직
+│   └── architecture.md   ← Mermaid 아키텍처 다이어그램
+│
+├── .sentix/              ← 설정 폴더
+│   ├── config.toml       ← 기능 켜기/끄기 + 자동 버전 범프 설정
+│   ├── providers/        ← AI 선택 (Claude, OpenAI, Ollama)
+│   └── rules/            ← 절대 어기면 안 되는 규칙 6개
+│
+├── scripts/hooks/        ← Claude Code Hooks (P23 — 실질적 강제)
+│   ├── session-start.sh       ← SessionStart: Governor 역할 자동 주입
+│   ├── user-prompt-reminder.sh ← UserPromptSubmit: 매 요청 리마인더
+│   └── require-ticket.js      ← PreToolUse: 직접 Write/Edit 차단
+│
+├── .claude/
+│   ├── settings.json     ← 훅 등록 (SessionStart / UserPromptSubmit / PreToolUse)
+│   ├── agents/           ← planner, dev, pr-review, dev-fix, security
+│   └── rules/            ← 조건부 규칙 (frontmatter paths 패턴)
+│
+├── tasks/                ← AI가 학습하는 폴더 (자동으로 채워짐)
+│   ├── lessons.md        ← 실패에서 배운 것
+│   ├── patterns.md       ← 사용자 행동 패턴
+│   ├── roadmap.md        ← 앞으로 할 일 계획
+│   └── tickets/          ← 작업 티켓 + index.json (자동 관리)
+│
+└── (기존 프로젝트 파일들은 그대로)
+```
+
+**기존 프로젝트 파일은 건드리지 않습니다.** 새 파일만 추가됩니다.
+
+---
+
+## AI는 어떤 걸 쓸 수 있나요?
+
+`.sentix/providers/` 폴더에서 설정합니다:
+
+| AI | 파일 | 특징 |
+|---|---|---|
+| **Claude** (기본) | `claude.toml` | 가장 정확함. Claude Code 필요 |
+| **OpenAI** | `openai.toml` | GPT-4o 사용. API 키 필요 |
+| **Ollama** | `ollama.toml` | 인터넷 없이 로컬에서 실행 가능 |
+
+---
+
+## 배포는 어떻게 하나요?
+
+`env-profiles/` 폴더에 환경을 설정하면, AI가 알아서 배포합니다.
+
+| 환경 | 설정값 | 설명 |
+|---|---|---|
+| AWS EC2 | `method = "ssm"` | AWS 명령어로 자동 배포 |
+| NAS/서버 | `method = "ssh"` | SSH로 자동 배포 |
+| VPN 내부 | `method = "manual"` | 스크립트만 만들어줌 (직접 실행) |
+| 내 컴퓨터 | `method = "local"` | Docker로 바로 실행 |
 
 ```bash
 curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash
@@ -322,6 +477,107 @@ AI 작업 완료
 ```
 
 검증 결과는 `sentix metrics`에서 확인할 수 있습니다.
+
+---
+
+## Claude Code Hooks — 실질적 강제
+
+### 왜 훅이 필요한가
+
+예전 Sentix는 **"문서 기반 강제"** 였습니다. CLAUDE.md에 규칙을 써두고 "Claude가 읽고 따를 것이다" 라고 믿는 방식.
+
+문제는 이것이 **실제로는 자주 무시된다는 것** 입니다. 실제 사례:
+
+```
+사용자: "블로그 사이트 하나 만들어줘"
+Claude: (CLAUDE.md의 Governor SOP를 무시하고 바로 Next.js 프로젝트를 생성)
+```
+
+Claude Code의 기본 시스템 프롬프트에 있는 `output efficiency` 같은 지침이
+프로젝트 CLAUDE.md보다 강하게 작용해서, **"간단한 요청"** 으로 판단되면 Sentix
+파이프라인을 건너뛰고 바로 파일 생성으로 직행해버립니다.
+
+### 해결: 3계층 훅
+
+Claude Code의 Hooks 시스템을 사용해 **실행 시점에** Sentix를 강제합니다.
+
+| 훅 | 시점 | 역할 |
+|---|---|---|
+| `SessionStart` | 세션 시작 1회 | Governor 역할 + 하드 룰 6 + 파이프라인 정의를 Claude 컨텍스트에 **자동 주입**. Claude가 "문서를 읽어야 함" 이 아니라 "이미 읽힌 상태" 로 세션을 시작합니다. |
+| `UserPromptSubmit` | 매 사용자 프롬프트 | 짧은 Sentix 리마인더 주입. 세션이 길어질수록 망각되는 Governor 역할을 매 턴 상기시킵니다. |
+| `PreToolUse` (`Write \| Edit \| MultiEdit`) | 도구 호출 직전 | 활성 Governor 사이클이 없으면 **exit 2로 차단**. 에이전트 우회 + 직접 Write/Edit을 실행 단계에서 막습니다. |
+
+### 훅이 차단하는 것 / 허용하는 것
+
+`scripts/hooks/require-ticket.js` 가 다음 로직으로 판단합니다:
+
+| 경로 | 판정 |
+|---|---|
+| `tasks/`, `.sentix/`, `__tests__/`, `scripts/hooks/`, `.claude/rules/` | ✓ 항상 허용 (로그/설정/부트스트랩) |
+| `README.md`, `CHANGELOG.md`, `lessons.md`, `patterns.md`, `handoff.md` | ✓ 항상 허용 (사용자 facing 문서) |
+| 그 외 모든 경로 (`src/`, `docs/`, `bin/`, 프로젝트 코드) | ⛔ `tasks/governor-state.json` 에 `status="in_progress"` 가 없으면 차단 |
+
+차단 시 Claude는 다음 메시지를 받습니다:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  [SENTIX:BLOCKED] Direct Write/Edit 차단됨                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+  대상:  src/components/Login.tsx
+  이유:  Governor 사이클이 없습니다 (tasks/governor-state.json 없음)
+
+  해결:
+    1. 새 요청으로 사이클 시작:   sentix run "<요청 내용>"
+    2. 기존 버그 수정:           sentix ticket create "<버그>"
+    3. 새 기능:                  sentix feature add "<기능>"
+```
+
+### 활성화 방법
+
+새로 `sentix init` 한 프로젝트는 자동 설치됩니다. 기존 프로젝트는:
+
+```bash
+sentix update        # scripts/hooks/*.sh, require-ticket.js 동기화
+```
+
+`.claude/settings.json` 에 아래 세 훅이 등록되어 있어야 합니다 (sentix update가 자동 반영):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "bash scripts/hooks/session-start.sh"}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "bash scripts/hooks/user-prompt-reminder.sh"}]}],
+    "PreToolUse": [{
+      "matcher": "Write|Edit|MultiEdit",
+      "hooks": [{"type": "command", "command": "node scripts/hooks/require-ticket.js"}]
+    }]
+  }
+}
+```
+
+### 설치 검증
+
+```bash
+sentix doctor
+```
+
+"권장 정리" 카드에 다음 6개 항목이 모두 `✓` 여야 합니다:
+
+```
+┌────────── 권장 정리  9✓ ──────────┐
+│ ✓ SessionStart 훅 (Governor 역할 자동 주입)
+│ ✓ UserPromptSubmit 훅 (매 요청 리마인더)
+│ ✓ PreToolUse 훅 (티켓 없는 Write/Edit 차단)
+│ ✓ 훅 스크립트: scripts/hooks/session-start.sh
+│ ✓ 훅 스크립트: scripts/hooks/user-prompt-reminder.sh
+│ ✓ 훅 스크립트: scripts/hooks/require-ticket.js
+└──────────────────────────────────┘
+```
+
+### 안전장치: Fail-Open
+
+훅 자체에 버그가 있거나 `governor-state.json` 이 파손되면 작업을 **차단하지 않고 통과**시킵니다 (로그만 남김). 훅 개발 실수가 전체 개발을 막으면 안 되기 때문입니다.
 
 ---
 
@@ -475,7 +731,61 @@ CLAUDE.md (경량 인덱스, ~100줄)
 
 ---
 
-## 설치하면 생기는 파일들
+## 테스트
+
+```bash
+npm test
+```
+
+Node.js 내장 테스트 러너를 사용합니다. `__tests__/` 디렉토리에 테스트 파일이 있습니다.
+
+---
+
+## 업데이트 방법
+
+Sentix가 업데이트되면 (보안 강화, 워크플로우 개선 등), 이미 설치된 프로젝트에도 적용해야 합니다.
+
+### 방법 1: sentix update (최신 sentix 설치 시)
+
+```bash
+sentix update          # 실제 적용
+sentix update --dry    # 미리보기만
+```
+
+### 방법 2: 독립 스크립트 (구형 sentix에서도 동작)
+
+```bash
+# sentix 버전에 관계없이 항상 동작합니다
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash
+
+# 미리보기
+curl -sL https://raw.githubusercontent.com/kgg1226/sentix/main/scripts/update-downstream.sh | bash -s -- --dry
+```
+
+### 방법 3: 자동 동기화 (registry 등록 시)
+
+sentix의 `registry.md`에 등록된 프로젝트는 프레임워크 파일 변경 시 자동으로 PR을 받습니다.
+
+### 무엇이 업데이트되나요?
+
+| 업데이트 됨 (프레임워크 공통) | 안 됨 (프로젝트 고유) |
+|---|---|
+| `.github/workflows/deploy.yml` | `CLAUDE.md` |
+| `.github/workflows/security-scan.yml` | `.sentix/config.toml` |
+| `.sentix/rules/hard-rules.md` | `.sentix/providers/` |
+| `FRAMEWORK.md` | `env-profiles/`, `tasks/` |
+| `docs/*.md` (SOP, scopes, methods, severity, architecture) | 폴더별 `CLAUDE.md` |
+| `scripts/hooks/*` (session-start, user-prompt, require-ticket) | `.claude/settings.json` (수동 등록 필요) |
+| `.claude/agents/*` (planner, dev, pr-review, dev-fix, security) | |
+| `.claude/rules/*.md` (조건부 규칙) | |
+
+**프로젝트 고유 설정은 절대 덮어쓰지 않습니다.**
+
+---
+
+## 여러 프로젝트를 연결하면?
+
+프로젝트 A의 API를 바꿀 때, 프로젝트 B가 그 API를 쓰고 있으면:
 
 ```
 내 프로젝트/
