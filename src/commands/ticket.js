@@ -13,6 +13,9 @@ import {
   nextTicketId, classifySeverity, sortBySeverity, createTicketEntry,
 } from '../lib/ticket-index.js';
 import { findBestMatch } from '../lib/similarity.js';
+import { colors, makeBorders, cardLine, cardTitle, visualWidth } from '../lib/ui-box.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('ticket', {
   description: 'Manage bug/issue tickets (create | list | debug)',
@@ -61,9 +64,10 @@ async function createTicket(args, ctx) {
   }
 
   // Auto-classify severity if not specified
+  let autoClassified = false;
   if (!severity) {
     severity = classifySeverity(description);
-    ctx.log(`Auto-classified severity: ${severity}`);
+    autoClassified = true;
   }
 
   // Duplicate detection
@@ -114,49 +118,128 @@ ${description}
     title,
   });
 
-  ctx.success(`Created ${id}: ${title}`);
-  ctx.log(`  Severity: ${severity}`);
-  ctx.log(`  File:     ${entry.file_path}`);
+  ctx.log('');
+  ctx.log(`  ${green('●')} ${bold('티켓 생성')}  ${cyan(id)}`);
+  ctx.log(`  ${dim('제목')}      ${title}`);
+  ctx.log(`  ${dim('심각도')}    ${severityBadge(severity)}${autoClassified ? '  ' + dim('(자동 분류)') : ''}`);
+  ctx.log(`  ${dim('파일')}      ${dim(entry.file_path)}`);
+  ctx.log('');
+}
+
+function severityBadge(severity) {
+  if (severity === 'critical')   return red(severity);
+  if (severity === 'warning')    return yellow(severity);
+  if (severity === 'suggestion') return cyan(severity);
+  return dim(severity || '-');
 }
 
 // ── sentix ticket list ────────────────────────────────
 
 async function listTickets(args, ctx) {
-  ctx.log('=== Tickets ===\n');
+  const borders = makeBorders();
+
+  ctx.log('');
+  ctx.log(bold(cyan(' Sentix Tickets')) + dim('  ·  버그/이슈 티켓'));
+  ctx.log('');
 
   let entries = await loadIndex(ctx);
-
-  if (entries.length === 0) {
-    ctx.log('  (no tickets)');
-    ctx.log('\n  Create one: sentix ticket create "description"');
-    return;
-  }
+  const totalAll = entries.length;
 
   // Parse filters
   const statusIdx = args.indexOf('--status');
+  let statusFilter = null;
   if (statusIdx !== -1 && args[statusIdx + 1]) {
-    const status = args[statusIdx + 1];
-    entries = entries.filter(e => e.status === status);
+    statusFilter = args[statusIdx + 1];
+    entries = entries.filter((e) => e.status === statusFilter);
   }
 
   const sevIdx = args.indexOf('--severity');
+  let severityFilter = null;
   if (sevIdx !== -1 && args[sevIdx + 1]) {
-    const sev = args[sevIdx + 1];
-    entries = entries.filter(e => e.severity === sev);
+    severityFilter = args[sevIdx + 1];
+    entries = entries.filter((e) => e.severity === severityFilter);
+  }
+
+  // ── 빈 상태 ────────────────────────────────────────
+  if (totalAll === 0) {
+    ctx.log(`  ${dim('상태')}  ${yellow('없음')}`);
+    ctx.log('');
+    ctx.log(borders.top);
+    ctx.log(cardTitle('TICKETS'));
+    ctx.log(borders.mid);
+    ctx.log(cardLine(`${dim('· 아직 생성된 티켓이 없습니다')}`));
+    ctx.log(cardLine(`  ${dim('└')} ${dim('sentix ticket create "<설명>"')}`));
+    ctx.log(borders.bottom);
+    ctx.log('');
+    return;
+  }
+
+  if (entries.length === 0) {
+    ctx.log(`  ${dim('필터')}  ${dim((statusFilter || '') + ' ' + (severityFilter || ''))}`);
+    ctx.log(`  ${dim('결과')}  ${yellow('일치하는 티켓 없음')} ${dim(`(전체 ${totalAll}개)`)}`);
+    ctx.log('');
+    return;
   }
 
   entries = sortBySeverity(entries);
 
-  // Table header
-  ctx.log(`  ${'ID'.padEnd(12)} ${'SEVERITY'.padEnd(12)} ${'STATUS'.padEnd(14)} TITLE`);
-  ctx.log(`  ${'─'.repeat(12)} ${'─'.repeat(12)} ${'─'.repeat(14)} ${'─'.repeat(30)}`);
-
+  // ── 통계 요약 ─────────────────────────────────────
+  const counts = { open: 0, in_progress: 0, closed: 0, other: 0 };
   for (const e of entries) {
-    const sev = e.severity ? e.severity.padEnd(12) : '-'.padEnd(12);
-    ctx.log(`  ${e.id.padEnd(12)} ${sev} ${e.status.padEnd(14)} ${e.title}`);
+    if (counts[e.status] !== undefined) counts[e.status]++;
+    else counts.other++;
+  }
+  const sevCounts = { critical: 0, warning: 0, suggestion: 0, other: 0 };
+  for (const e of entries) {
+    if (sevCounts[e.severity] !== undefined) sevCounts[e.severity]++;
+    else sevCounts.other++;
   }
 
-  ctx.log(`\n  Total: ${entries.length} ticket(s)`);
+  ctx.log(`  ${dim('총   ')}  ${entries.length}${entries.length < totalAll ? dim(` / ${totalAll} (필터됨)`) : ''}`);
+  const statusLine = [
+    counts.open        > 0 ? `${yellow('open')} ${counts.open}` : null,
+    counts.in_progress > 0 ? `${cyan('in_progress')} ${counts.in_progress}` : null,
+    counts.closed      > 0 ? `${dim('closed')} ${counts.closed}` : null,
+  ].filter(Boolean).join('  ');
+  if (statusLine) ctx.log(`  ${dim('상태 ')}  ${statusLine}`);
+  const sevLine = [
+    sevCounts.critical   > 0 ? `${red('critical')} ${sevCounts.critical}` : null,
+    sevCounts.warning    > 0 ? `${yellow('warning')} ${sevCounts.warning}` : null,
+    sevCounts.suggestion > 0 ? `${cyan('suggestion')} ${sevCounts.suggestion}` : null,
+  ].filter(Boolean).join('  ');
+  if (sevLine) ctx.log(`  ${dim('심각도')} ${sevLine}`);
+  ctx.log('');
+
+  // ── 카드: 티켓 리스트 ─────────────────────────────
+  ctx.log(borders.top);
+  ctx.log(cardTitle('TICKETS', dim(`${entries.length}`)));
+  ctx.log(borders.mid);
+
+  // 가장 긴 ID 측정
+  const idWidth = Math.max(8, ...entries.map((e) => e.id.length));
+
+  for (const e of entries) {
+    const id = e.id.padEnd(idWidth);
+    const sev = severityBadge(e.severity);
+    const sevPad = ' '.repeat(Math.max(0, 11 - (e.severity?.length || 1)));
+    const status = statusBadge(e.status);
+    const statusPad = ' '.repeat(Math.max(0, 13 - (e.status?.length || 1)));
+
+    // 제목은 남는 공간에 절단
+    ctx.log(cardLine(`${cyan(id)}  ${sev}${sevPad} ${status}${statusPad} ${e.title}`));
+  }
+
+  ctx.log(borders.bottom);
+  ctx.log('');
+  ctx.log(`  ${dim('상세:')} ${dim('sentix ticket debug <id>')}`);
+  ctx.log('');
+}
+
+function statusBadge(status) {
+  if (status === 'open')        return yellow(status);
+  if (status === 'in_progress') return cyan(status);
+  if (status === 'closed')      return dim(status);
+  return dim(status || '-');
 }
 
 // ── sentix ticket debug ───────────────────────────────
@@ -194,8 +277,12 @@ async function debugTicket(ticketId, ctx) {
 
   // 4. Update ticket status
   await updateTicket(ctx, ticketId, { status: 'in_progress' });
-  ctx.log(`Debugging ${ticketId}: ${ticket.title}`);
-  ctx.log(`Severity: ${ticket.severity}\n`);
+  ctx.log('');
+  ctx.log(` ${bold(cyan('Sentix Debug'))}  ${dim('·')}  ${dim('티켓 디버깅')}`);
+  ctx.log('');
+  ctx.log(`  ${dim('티켓  ')}  ${cyan(ticketId)}  ${dim('— ' + ticket.title)}`);
+  ctx.log(`  ${dim('심각도')}  ${severityBadge(ticket.severity)}`);
+  ctx.log('');
 
   // 5. Read ticket markdown
   let ticketContent = '';
@@ -265,7 +352,8 @@ async function debugTicket(ticketId, ctx) {
     `Severity: ${ticket.severity} (retry limit: ${retryLimit})`,
   ].join('\n');
 
-  ctx.log('Invoking Claude Code for debugging...\n');
+  ctx.log(`  ${dim('Claude Code 호출 중...')}`);
+  ctx.log('');
 
   const result = spawnSync('claude', ['-p', prompt], {
     cwd: ctx.cwd,
