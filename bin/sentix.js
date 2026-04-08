@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getAllCommands, getCommand, runHooks } from '../src/registry.js';
 import { createContext } from '../src/context.js';
 import { VERSION } from '../src/version.js';
+import { colors } from '../src/lib/ui-box.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -68,13 +69,7 @@ Run 'sentix <command> --help' for details on a specific command.
 
 // ── Entry Screen (sentix without args) ───────────────────
 
-const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
-const c = (code, text) => useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
-const dim    = (t) => c('2',  t);
-const bold   = (t) => c('1',  t);
-const green  = (t) => c('32', t);
-const yellow = (t) => c('33', t);
-const cyan   = (t) => c('36', t);
+const { dim, bold, green, yellow, cyan } = colors;
 
 /**
  * 인자 없이 `sentix` 만 입력했을 때 보여줄 친화적 진입점.

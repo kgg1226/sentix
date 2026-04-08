@@ -10,82 +10,10 @@
 
 import { registerCommand } from '../registry.js';
 import { loadIndex } from '../lib/ticket-index.js';
+import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
 
-// ── ANSI 색상 (NO_COLOR / non-TTY 대응) ─────────────────
-const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
-const c = (code, text) => useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
-const dim    = (t) => c('2',  t);
-const bold   = (t) => c('1',  t);
-const red    = (t) => c('31', t);
-const green  = (t) => c('32', t);
-const yellow = (t) => c('33', t);
-const blue   = (t) => c('34', t);
-const cyan   = (t) => c('36', t);
-
-// ── 레이아웃 상수 ───────────────────────────────────────
-const CARD_WIDTH = 64;
-const BORDER_TOP    = '┌' + '─'.repeat(CARD_WIDTH - 2) + '┐';
-const BORDER_MID    = '├' + '─'.repeat(CARD_WIDTH - 2) + '┤';
-const BORDER_BOTTOM = '└' + '─'.repeat(CARD_WIDTH - 2) + '┘';
-
-/** 박스 안에 라인 추가 (패딩/절단 포함, ANSI·전각 대응) */
-function cardLine(text) {
-  const visible = stripAnsi(text);
-  const width = visualWidth(visible);
-  const inner = CARD_WIDTH - 4; // 좌우 '│ ' ' │'
-  if (width > inner) {
-    text = truncateToWidth(visible, inner - 1) + '…';
-  } else {
-    text = text + ' '.repeat(inner - width);
-  }
-  return `│ ${text} │`;
-}
-
-function stripAnsi(s) {
-  // eslint-disable-next-line no-control-regex
-  return s.replace(/\x1b\[[0-9;]*m/g, '');
-}
-
-function cardTitle(label) {
-  const inner = CARD_WIDTH - 4;
-  const pad = inner - visualWidth(label);
-  return `│ ${bold(label)}${' '.repeat(Math.max(0, pad))} │`;
-}
-
-/** East Asian wide characters take 2 terminal cells */
-function visualWidth(str) {
-  let w = 0;
-  for (const ch of str) {
-    const code = ch.codePointAt(0);
-    if (
-      (code >= 0x1100 && code <= 0x115F) || // Hangul Jamo
-      (code >= 0x2E80 && code <= 0x9FFF) || // CJK + radicals + Hiragana/Katakana
-      (code >= 0xA000 && code <= 0xA4CF) || // Yi
-      (code >= 0xAC00 && code <= 0xD7A3) || // Hangul Syllables
-      (code >= 0xF900 && code <= 0xFAFF) || // CJK Compat
-      (code >= 0xFE30 && code <= 0xFE4F) || // CJK Compat Forms
-      (code >= 0xFF00 && code <= 0xFF60) || // Fullwidth
-      (code >= 0xFFE0 && code <= 0xFFE6)
-    ) {
-      w += 2;
-    } else {
-      w += 1;
-    }
-  }
-  return w;
-}
-
-function truncateToWidth(str, max) {
-  let w = 0;
-  let out = '';
-  for (const ch of str) {
-    const cw = visualWidth(ch);
-    if (w + cw > max) break;
-    out += ch;
-    w += cw;
-  }
-  return out;
-}
+const { dim, bold, red, green, yellow, cyan } = colors;
+const { top: BORDER_TOP, mid: BORDER_MID, bottom: BORDER_BOTTOM } = makeBorders();
 
 // ── 파이프라인 다이어그램 ───────────────────────────────
 const PIPELINE_STEPS = ['planner', 'dev', 'gate', 'pr-review', 'finalize'];

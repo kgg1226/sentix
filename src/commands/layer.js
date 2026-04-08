@@ -19,15 +19,9 @@
 import { registerCommand } from '../registry.js';
 import { CONFIG_SCHEMA, findSchemaEntry } from '../lib/config-schema.js';
 import { getTomlValue, setTomlValue } from '../lib/toml-edit.js';
+import { colors } from '../lib/ui-box.js';
 
-const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
-const c = (code, text) => useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
-const dim    = (t) => c('2',  t);
-const bold   = (t) => c('1',  t);
-const red    = (t) => c('31', t);
-const green  = (t) => c('32', t);
-const yellow = (t) => c('33', t);
-const cyan   = (t) => c('36', t);
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 // 짧은 별칭 (사용자가 layer.* 전체 키를 외울 필요 없이)
 const ALIAS = {

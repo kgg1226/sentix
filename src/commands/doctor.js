@@ -15,21 +15,10 @@ import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { isConfigured as isSafetyConfigured } from '../lib/safety.js';
 import { getRuntimeMode, loadProvider } from '../lib/provider.js';
+import { colors, makeBorders, cardLine, cardTitle, renderBar } from '../lib/ui-box.js';
 
-// ── ANSI 색상 (status.js 와 동일 패턴, inline) ─────────
-const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
-const c = (code, text) => useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
-const dim    = (t) => c('2',  t);
-const bold   = (t) => c('1',  t);
-const red    = (t) => c('31', t);
-const green  = (t) => c('32', t);
-const yellow = (t) => c('33', t);
-const cyan   = (t) => c('36', t);
-
-const CARD_WIDTH = 64;
-const BORDER_TOP    = '┌' + '─'.repeat(CARD_WIDTH - 2) + '┐';
-const BORDER_MID    = '├' + '─'.repeat(CARD_WIDTH - 2) + '┤';
-const BORDER_BOTTOM = '└' + '─'.repeat(CARD_WIDTH - 2) + '┘';
+const { dim, bold, red, green, yellow, cyan } = colors;
+const { top: BORDER_TOP, mid: BORDER_MID, bottom: BORDER_BOTTOM } = makeBorders();
 
 registerCommand('doctor', {
   description: 'Diagnose Sentix installation health',
@@ -306,71 +295,3 @@ function order(level) {
   return 2;
 }
 
-function cardTitle(label, suffix) {
-  const inner = CARD_WIDTH - 4;
-  const titleText = bold(label) + (suffix ? `  ${suffix}` : '');
-  const visibleLen = visualWidth(stripAnsi(titleText));
-  const pad = Math.max(0, inner - visibleLen);
-  return `│ ${titleText}${' '.repeat(pad)} │`;
-}
-
-function cardLine(text) {
-  const visible = stripAnsi(text);
-  const width = visualWidth(visible);
-  const inner = CARD_WIDTH - 4;
-  if (width > inner) {
-    text = truncateToWidth(visible, inner - 1) + '…';
-  } else {
-    text = text + ' '.repeat(inner - width);
-  }
-  return `│ ${text} │`;
-}
-
-function stripAnsi(s) {
-  // eslint-disable-next-line no-control-regex
-  return s.replace(/\x1b\[[0-9;]*m/g, '');
-}
-
-function visualWidth(str) {
-  let w = 0;
-  for (const ch of str) {
-    const code = ch.codePointAt(0);
-    if (
-      (code >= 0x1100 && code <= 0x115F) ||
-      (code >= 0x2E80 && code <= 0x9FFF) ||
-      (code >= 0xA000 && code <= 0xA4CF) ||
-      (code >= 0xAC00 && code <= 0xD7A3) ||
-      (code >= 0xF900 && code <= 0xFAFF) ||
-      (code >= 0xFE30 && code <= 0xFE4F) ||
-      (code >= 0xFF00 && code <= 0xFF60) ||
-      (code >= 0xFFE0 && code <= 0xFFE6)
-    ) {
-      w += 2;
-    } else {
-      w += 1;
-    }
-  }
-  return w;
-}
-
-function truncateToWidth(str, max) {
-  let w = 0;
-  let out = '';
-  for (const ch of str) {
-    const cw = visualWidth(ch);
-    if (w + cw > max) break;
-    out += ch;
-    w += cw;
-  }
-  return out;
-}
-
-function renderBar(ratio) {
-  const total = 18;
-  const filled = Math.round(ratio * total);
-  const empty = total - filled;
-  const pct = Math.round(ratio * 100);
-  const fillColor = ratio >= 0.95 ? green : ratio >= 0.7 ? cyan : yellow;
-  const bar = fillColor('█'.repeat(filled)) + dim('░'.repeat(empty));
-  return `${bar}  ${String(pct).padStart(3)}%`;
-}

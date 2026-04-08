@@ -19,16 +19,9 @@ import {
   coerceValue,
 } from '../lib/config-schema.js';
 import { getTomlValue, setTomlValue } from '../lib/toml-edit.js';
+import { colors } from '../lib/ui-box.js';
 
-// ── ANSI (status.js와 동일 패턴, inline) ───────────────
-const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
-const c = (code, text) => useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
-const dim    = (t) => c('2',  t);
-const bold   = (t) => c('1',  t);
-const red    = (t) => c('31', t);
-const green  = (t) => c('32', t);
-const yellow = (t) => c('33', t);
-const cyan   = (t) => c('36', t);
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('config', {
   description: 'View or change Sentix configuration (한 곳에서 모든 설정)',

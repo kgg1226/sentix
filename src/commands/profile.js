@@ -21,19 +21,13 @@ import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { registerCommand } from '../registry.js';
 import { getTomlValue } from '../lib/toml-edit.js';
+import { colors } from '../lib/ui-box.js';
 
 const PROFILE_DIR = 'env-profiles';
 const ACTIVE_FILE = 'env-profiles/active.toml';
 const SENTINEL_RE = /^# sentix-active-source: ([\w.-]+)/;
 
-const useColor = process.env.NO_COLOR === undefined && process.stdout.isTTY;
-const c = (code, text) => useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
-const dim    = (t) => c('2',  t);
-const bold   = (t) => c('1',  t);
-const red    = (t) => c('31', t);
-const green  = (t) => c('32', t);
-const yellow = (t) => c('33', t);
-const cyan   = (t) => c('36', t);
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('profile', {
   description: 'Switch between env-profiles (deploy targets)',
