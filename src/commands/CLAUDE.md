@@ -39,11 +39,16 @@ registerCommand('name', {
 
 ## UX 명령 그룹 — 통일된 시각 언어
 
-다음 명령들은 `src/lib/ui-box.js` 를 통해 동일한 디자인 언어를 공유한다:
+**모든 사용자 facing 명령**이 `src/lib/ui-box.js` 를 통해 동일한
+디자인 언어를 공유한다 (init 제외):
 
-- `sentix` (entry), `sentix status`, `sentix doctor`, `sentix metrics`,
-  `sentix run`, `sentix safety status`, `sentix config`, `sentix profile`,
-  `sentix layer`, `sentix ticket list/create/debug`, `sentix feature list/add/impact`
+- **상태/대시보드**: `sentix` (entry), `sentix status`, `sentix doctor`,
+  `sentix metrics`, `sentix evolve`
+- **파이프라인**: `sentix run`, `sentix ticket`, `sentix feature`
+- **설정/관리**: `sentix config`, `sentix profile`, `sentix layer`,
+  `sentix safety status`, `sentix plugin`
+- **버전/배포**: `sentix version current/bump/changelog`, `sentix update`,
+  `sentix context`
 
 공통 원칙:
 - **정제된 시각화**: 4줄 핵심 요약 + 카드 + 막대 그래프, 데이터 바다 금지
