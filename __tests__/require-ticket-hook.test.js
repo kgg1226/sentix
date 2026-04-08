@@ -79,6 +79,22 @@ describe('require-ticket hook', () => {
       });
       assert.equal(r.code, 0);
     });
+
+    it('allows writes to README.md (no governor cycle required)', () => {
+      const r = runHook(tmpDir, {
+        tool_name: 'Edit',
+        tool_input: { file_path: join(tmpDir, 'README.md') },
+      });
+      assert.equal(r.code, 0);
+    });
+
+    it('allows writes to CHANGELOG.md (no governor cycle required)', () => {
+      const r = runHook(tmpDir, {
+        tool_name: 'Write',
+        tool_input: { file_path: join(tmpDir, 'CHANGELOG.md') },
+      });
+      assert.equal(r.code, 0);
+    });
   });
 
   describe('blocking behavior', () => {

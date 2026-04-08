@@ -31,6 +31,8 @@ const ALLOW_PATTERNS = [
   /^\.claude\/rules\//,    // 규칙 파일 (auto-rule-promoter 가 씀)
   /^scripts\/hooks\//,     // 훅 개발 시 우회 필요 (부트스트랩)
   /^__tests__\//,          // 테스트 추가 (하드룰 1 지원)
+  /^README\.md$/,          // 최상위 프로젝트 소개 (사용자 직접 편집 범주)
+  /^CHANGELOG\.md$/,       // 릴리즈 노트 (CI/수동 모두 사용)
   /\/handoff\.md$/,        // 인수 문서
   /\/lessons\.md$/,        // 학습 기록 (dev-fix 가 씀)
   /\/patterns\.md$/,       // 패턴 기록 (pattern-engine 이 씀)
@@ -128,6 +130,7 @@ function block(filePath, reason) {
     '  허용 경로 (티켓 없이 수정 가능):',
     '    - tasks/**, .sentix/**, __tests__/**',
     '    - scripts/hooks/**, .claude/rules/**',
+    '    - README.md, CHANGELOG.md',
     '    - lessons.md, patterns.md, handoff.md 등 로그 파일',
     '',
   ];
