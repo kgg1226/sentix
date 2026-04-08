@@ -16,6 +16,9 @@ import { registerCommand } from '../registry.js';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
+import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('context', {
   description: 'Fetch cross-project context from registry',
@@ -25,11 +28,19 @@ registerCommand('context', {
     const listOnly = args.includes('--list');
     const fullMode = args.includes('--full');
     const cleanMode = args.includes('--clean');
-    const target = args.find(a => !a.startsWith('--'));
+    const target = args.find((a) => !a.startsWith('--'));
+    const borders = makeBorders();
+
+    ctx.log('');
+    ctx.log(bold(cyan(' Sentix Context')) + dim('  ·  멀티 프로젝트 컨텍스트 동기화'));
+    ctx.log('');
 
     // ── registry.md 파싱 ────────────────────────────
     if (!ctx.exists('registry.md')) {
-      ctx.error('registry.md not found. Run: sentix init');
+      ctx.log(`  ${red('●')} ${bold('차단')}  ${red('registry.md 없음')}`);
+      ctx.log(`  ${dim('실행:')} ${dim('sentix init')}`);
+      ctx.log('');
+      process.exitCode = 1;
       return;
     }
 
@@ -37,18 +48,40 @@ registerCommand('context', {
     const projects = parseRegistry(registry);
 
     if (projects.length === 0) {
-      ctx.warn('No projects registered in registry.md');
-      ctx.log('Add projects to the table in registry.md');
+      ctx.log(`  ${yellow('●')} ${bold('빈 레지스트리')}  ${yellow('등록된 프로젝트 없음')}`);
+      ctx.log(`  ${dim('registry.md 의 표에 프로젝트를 추가하세요')}`);
+      ctx.log('');
       return;
     }
 
     // ── --list ──────────────────────────────────────
     if (listOnly) {
-      ctx.log('=== Registered Projects ===\n');
-      for (const p of projects) {
-        const status = checkProjectAccess(p, ctx.cwd);
-        ctx.log(`  ${status.icon} ${p.name.padEnd(20)} ${status.label}`);
+      const enriched = projects.map((p) => ({ ...p, access: checkProjectAccess(p, ctx.cwd) }));
+      const localCount  = enriched.filter((p) => p.access.type === 'local').length;
+      const githubCount = enriched.filter((p) => p.access.type === 'github').length;
+      const noneCount   = enriched.filter((p) => p.access.type === 'none').length;
+
+      ctx.log(`  ${dim('총    ')}  ${enriched.length}`);
+      ctx.log(`  ${dim('로컬  ')}  ${localCount > 0 ? green(localCount) : dim('0')}`);
+      ctx.log(`  ${dim('GitHub')}  ${githubCount > 0 ? cyan(githubCount) : dim('0')}`);
+      if (noneCount > 0) ctx.log(`  ${dim('차단  ')}  ${red(noneCount)}`);
+      ctx.log('');
+
+      ctx.log(borders.top);
+      ctx.log(cardTitle('등록 프로젝트', dim(String(enriched.length))));
+      ctx.log(borders.mid);
+
+      const nameWidth = Math.max(12, ...enriched.map((p) => p.name.length));
+      for (const p of enriched) {
+        const icon =
+          p.access.type === 'local'  ? green('●') :
+          p.access.type === 'github' ? cyan('○')  :
+                                       red('✗');
+        const name = p.name.padEnd(nameWidth);
+        ctx.log(cardLine(`${icon} ${bold(name)}  ${dim(p.access.label)}`));
       }
+      ctx.log(borders.bottom);
+      ctx.log('');
       return;
     }
 
@@ -57,59 +90,87 @@ registerCommand('context', {
       if (ctx.exists('tasks/context')) {
         const { rmSync } = await import('node:fs');
         rmSync(resolve(ctx.cwd, 'tasks/context'), { recursive: true, force: true });
-        ctx.success('Cleared tasks/context/');
+        ctx.log(`  ${green('●')} ${bold('정리')}  ${green('tasks/context/ 삭제됨')}`);
       } else {
-        ctx.log('tasks/context/ does not exist');
+        ctx.log(`  ${dim('●')} ${dim('tasks/context/ 가 이미 존재하지 않음')}`);
       }
+      ctx.log('');
       return;
     }
 
     // ── 대상 프로젝트 필터링 ────────────────────────
     const targets = target
-      ? projects.filter(p => p.name === target)
+      ? projects.filter((p) => p.name === target)
       : projects;
 
     if (target && targets.length === 0) {
-      ctx.error(`Project "${target}" not found in registry.md`);
-      ctx.log('Registered: ' + projects.map(p => p.name).join(', '));
+      ctx.log(`  ${red('●')} ${bold('차단')}  ${red(`"${target}" 프로젝트를 찾을 수 없음`)}`);
+      ctx.log(`  ${dim('등록된 프로젝트:')} ${dim(projects.map((p) => p.name).join(', '))}`);
+      ctx.log('');
+      process.exitCode = 1;
       return;
     }
 
-    ctx.log(`=== Cross-Project Context Sync ===\n`);
+    ctx.log(`  ${dim('모드')}  ${fullMode ? cyan('full') : dim('basic')}${fullMode ? dim('  (소스 스키마 포함)') : ''}`);
+    ctx.log(`  ${dim('대상')}  ${targets.length}개${target ? dim(`  (${target})`) : ''}`);
+    ctx.log('');
 
-    let synced = 0;
-    let failed = 0;
+    let totalSynced = 0;
+    let totalFailed = 0;
+    const results = [];
 
     for (const project of targets) {
-      ctx.log(`--- ${project.name} ---`);
-
       const access = checkProjectAccess(project, ctx.cwd);
       const contextDir = `tasks/context/${project.name}`;
+      let count = 0;
+      let status = 'ok';
+      let source = '';
 
       if (access.type === 'local') {
-        // ── 로컬 파일시스템 ───────────────────────
-        ctx.log(`  Source: ${access.path} (local)`);
-        synced += await syncLocal(project, access.path, contextDir, fullMode, ctx);
+        source = access.path + dim(' (local)');
+        count = await syncLocalQuiet(project, access.path, contextDir, fullMode, ctx);
       } else if (access.type === 'github') {
-        // ── GitHub API ────────────────────────────
-        ctx.log(`  Source: github.com/kgg1226/${project.name}`);
-        synced += await syncGitHub(project, contextDir, fullMode, ctx);
+        source = `github.com/kgg1226/${project.name}`;
+        count = await syncGitHubQuiet(project, contextDir, fullMode, ctx);
       } else {
-        ctx.warn(`  Cannot access ${project.name} — not found locally or on GitHub`);
-        failed++;
+        status = 'fail';
+        totalFailed++;
       }
 
+      totalSynced += count;
+      results.push({ project, access, source, count, status });
+    }
+
+    // 각 프로젝트 카드
+    for (const r of results) {
+      const stats =
+        r.status === 'fail' ? red('✗') :
+        r.count > 0         ? green(`${r.count}✓`) :
+                              dim('0');
+      ctx.log(borders.top);
+      ctx.log(cardTitle(r.project.name, stats));
+      ctx.log(borders.mid);
+      if (r.status === 'fail') {
+        ctx.log(cardLine(`${red('✗')} ${r.project.name} ${dim('— 로컬/GitHub 모두 접근 불가')}`));
+      } else {
+        ctx.log(cardLine(`${dim('소스')}  ${r.source}`));
+        ctx.log(cardLine(`${dim('위치')}  ${dim('tasks/context/' + r.project.name + '/')}`));
+        ctx.log(cardLine(`${green('✓')} ${r.count}개 파일 동기화`));
+      }
+      ctx.log(borders.bottom);
       ctx.log('');
     }
 
-    // ── 요약 ────────────────────────────────────────
-    ctx.log('=== Summary ===');
-    ctx.log(`  Synced: ${synced} file(s)`);
-    if (failed > 0) ctx.warn(`  Failed: ${failed} project(s)`);
-    if (synced > 0) {
-      ctx.success(`Context cached in tasks/context/`);
-      ctx.log('  Claude Code can now read these files for cross-project reference.');
+    // ── 최종 배너 ──────────────────────────────────
+    if (totalFailed > 0 && totalSynced === 0) {
+      ctx.log(`  ${red('●')} ${bold('실패')}  ${red(`${totalFailed}개 프로젝트 모두 접근 불가`)}`);
+    } else if (totalFailed > 0) {
+      ctx.log(`  ${yellow('●')} ${bold('부분 성공')}  ${green(`${totalSynced}개 파일`)} ${dim('동기화')}  ${yellow(`${totalFailed}개 프로젝트 실패`)}`);
+    } else {
+      ctx.log(`  ${green('●')} ${bold('완료')}  ${green(`${totalSynced}개 파일`)} ${dim('tasks/context/ 에 캐시됨')}`);
+      ctx.log(`  ${dim('Claude Code 가 이제 멀티 프로젝트 참조에 사용할 수 있습니다')}`);
     }
+    ctx.log('');
   },
 });
 
@@ -161,36 +222,21 @@ function checkProjectAccess(project, cwd) {
   return { type: 'none', icon: '✗', label: 'not accessible' };
 }
 
-// ── 로컬 동기화 ──────────────────────────────────────
-async function syncLocal(project, sourcePath, contextDir, fullMode, ctx) {
+// ── 로컬 동기화 (조용한 버전 — 카운트만 반환) ──────
+async function syncLocalQuiet(project, sourcePath, contextDir, fullMode, ctx) {
   let count = 0;
 
-  const files = [
-    { src: 'INTERFACE.md', label: 'INTERFACE.md (API contract)' },
-    { src: 'README.md', label: 'README.md' },
-  ];
-
+  const files = ['INTERFACE.md', 'README.md'];
   if (fullMode) {
-    const extraFiles = [
-      'CLAUDE.md',
-      'package.json',
-      'pyproject.toml',
-      'go.mod',
-      'Cargo.toml',
-      '.sentix/config.toml',
-      'tasks/lessons.md',
-    ];
-    for (const f of extraFiles) {
-      files.push({ src: f, label: f });
-    }
+    files.push('CLAUDE.md', 'package.json', 'pyproject.toml',
+               'go.mod', 'Cargo.toml', '.sentix/config.toml', 'tasks/lessons.md');
   }
 
-  for (const { src, label } of files) {
+  for (const src of files) {
     const srcPath = resolve(sourcePath, src);
     if (existsSync(srcPath)) {
       const content = readFileSync(srcPath, 'utf-8');
       await ctx.writeFile(`${contextDir}/${src}`, content);
-      ctx.success(`  ${label}`);
       count++;
     }
   }
@@ -200,7 +246,6 @@ async function syncLocal(project, sourcePath, contextDir, fullMode, ctx) {
     const profile = generateProjectProfile(project, sourcePath);
     if (profile) {
       await ctx.writeFile(`${contextDir}/PROFILE.md`, profile);
-      ctx.success(`  PROFILE.md (auto-generated)`);
       count++;
     }
   }
@@ -314,8 +359,8 @@ function generateProjectProfile(project, sourcePath) {
   return profile;
 }
 
-// ── GitHub 동기화 ────────────────────────────────────
-async function syncGitHub(project, contextDir, fullMode, ctx) {
+// ── GitHub 동기화 (조용한 버전 — 카운트만 반환) ────
+async function syncGitHubQuiet(project, contextDir, fullMode, ctx) {
   let count = 0;
 
   const files = ['INTERFACE.md', 'README.md'];
@@ -327,14 +372,11 @@ async function syncGitHub(project, contextDir, fullMode, ctx) {
     try {
       const url = `https://raw.githubusercontent.com/kgg1226/${project.name}/main/${file}`;
       const content = execSync(`curl -sf "${url}"`, {
-        encoding: 'utf-8',
-        timeout: 10000,
-        stdio: 'pipe',
+        encoding: 'utf-8', timeout: 10000, stdio: 'pipe',
       });
 
       if (content) {
         await ctx.writeFile(`${contextDir}/${file}`, content);
-        ctx.success(`  ${file}`);
         count++;
       }
     } catch {

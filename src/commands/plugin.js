@@ -8,6 +8,9 @@
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { registerCommand, getAllCommands } from '../registry.js';
+import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('plugin', {
   description: 'Manage plugins (list | create)',
@@ -33,35 +36,54 @@ registerCommand('plugin', {
 });
 
 async function listPlugins(ctx) {
-  ctx.log('=== Registered Commands ===\n');
-
-  const cmds = getAllCommands();
-  for (const [name, cmd] of cmds) {
-    ctx.log(`  ${name.padEnd(12)} ${cmd.description}`);
-  }
+  const borders = makeBorders();
 
   ctx.log('');
+  ctx.log(bold(cyan(' Sentix Plugins')) + dim('  ·  플러그인 관리'));
+  ctx.log('');
 
-  // Check for project-local plugins
+  // 프로젝트 플러그인 수집
+  let projectPlugins = [];
   if (ctx.exists('.sentix/plugins')) {
-    ctx.log('--- Project Plugins ---\n');
     try {
       const files = await readdir(resolve(ctx.cwd, '.sentix/plugins'));
-      const plugins = files.filter(f => f.endsWith('.js'));
-      if (plugins.length > 0) {
-        for (const p of plugins) {
-          ctx.log(`  .sentix/plugins/${p}`);
-        }
-      } else {
-        ctx.log('  (none)');
-      }
-    } catch {
-      ctx.log('  (none)');
-    }
-  } else {
-    ctx.log('Project plugins: (none — create with: sentix plugin create <name>)');
+      projectPlugins = files.filter((f) => f.endsWith('.js'));
+    } catch { /* ignore */ }
   }
 
+  const cmds = getAllCommands();
+
+  ctx.log(`  ${dim('내장 명령')}   ${cmds.size}`);
+  ctx.log(`  ${dim('프로젝트')}   ${projectPlugins.length > 0 ? projectPlugins.length : dim('(없음)')}`);
+  ctx.log('');
+
+  // ── 카드: 내장 명령 ─────────────────────────────────
+  ctx.log(borders.top);
+  ctx.log(cardTitle('내장 명령', dim(String(cmds.size))));
+  ctx.log(borders.mid);
+
+  // 가장 긴 이름 길이
+  const nameWidth = Math.max(...[...cmds.keys()].map((k) => k.length));
+  for (const [name, cmd] of cmds) {
+    const pad = ' '.repeat(nameWidth - name.length);
+    ctx.log(cardLine(`${cyan(name)}${pad}  ${dim(cmd.description)}`));
+  }
+  ctx.log(borders.bottom);
+  ctx.log('');
+
+  // ── 카드: 프로젝트 플러그인 ────────────────────────
+  ctx.log(borders.top);
+  ctx.log(cardTitle('프로젝트 플러그인', dim(String(projectPlugins.length))));
+  ctx.log(borders.mid);
+  if (projectPlugins.length > 0) {
+    for (const p of projectPlugins) {
+      ctx.log(cardLine(`${green('●')} ${dim('.sentix/plugins/')}${p}`));
+    }
+  } else {
+    ctx.log(cardLine(`${dim('· 프로젝트 로컬 플러그인 없음')}`));
+    ctx.log(cardLine(`  ${dim('└')} ${dim('sentix plugin create <name>')}`));
+  }
+  ctx.log(borders.bottom);
   ctx.log('');
 }
 
@@ -106,6 +128,9 @@ import { registerCommand, registerHook } from '../../src/registry.js';
 `;
 
   await ctx.writeFile(path, template);
-  ctx.success(`Created ${path}`);
-  ctx.log(`Edit the file to add your custom commands or hooks.`);
+  ctx.log('');
+  ctx.log(`  ${green('●')} ${bold('플러그인 생성')}  ${cyan(safeName)}`);
+  ctx.log(`  ${dim('파일')}  ${dim(path)}`);
+  ctx.log(`  ${dim('다음')}  ${dim('파일을 열어 registerCommand / registerHook 추가')}`);
+  ctx.log('');
 }

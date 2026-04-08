@@ -10,6 +10,9 @@ import { spawnSync, execSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { parseSemver, bumpSemver } from '../lib/semver.js';
 import { generateForVersion, prependToChangelog, detectBumpType } from '../lib/changelog.js';
+import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('version', {
   description: 'Manage project version (bump | current | changelog)',
@@ -22,15 +25,17 @@ registerCommand('version', {
       await showCurrent(ctx);
     } else if (subcommand === 'bump') {
       let type = args[1] || 'auto';
+      let autoDetected = false;
       if (type === 'auto') {
         type = autoDetectBumpType(ctx);
-        ctx.log(`Auto-detected bump type: ${type}\n`);
+        autoDetected = true;
       }
       if (!['major', 'minor', 'patch'].includes(type)) {
-        ctx.error(`Invalid bump type: ${type} (use auto|major|minor|patch)`);
+        ctx.error(`잘못된 bump type: ${type} (auto|major|minor|patch)`);
+        process.exitCode = 1;
         return;
       }
-      await bumpVersion(type, ctx);
+      await bumpVersion(type, ctx, autoDetected);
     } else if (subcommand === 'changelog') {
       await showChangelog(ctx);
     } else {
@@ -69,63 +74,96 @@ function autoDetectBumpType(ctx) {
 // ── sentix version current ────────────────────────────
 
 async function showCurrent(ctx) {
-  ctx.log('=== Sentix Version ===\n');
+  const borders = makeBorders();
+
+  ctx.log('');
+  ctx.log(bold(cyan(' Sentix Version')) + dim('  ·  버전 상태'));
+  ctx.log('');
 
   // Read from package.json
   let currentVersion = 'unknown';
+  let pkgReadError = false;
   if (ctx.exists('package.json')) {
     try {
       const pkg = await ctx.readJSON('package.json');
       currentVersion = pkg.version || 'unknown';
     } catch {
-      ctx.warn('Could not read package.json');
+      pkgReadError = true;
     }
   }
-  ctx.log(`  Version:  ${currentVersion}`);
 
   // Check latest git tag
+  let latestTag = null;
+  let tagMismatch = false;
   const tagResult = spawnSync('git', ['describe', '--tags', '--abbrev=0'], {
-    cwd: ctx.cwd,
-    encoding: 'utf-8',
-    stdio: 'pipe',
+    cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe',
   });
-
   if (tagResult.status === 0 && tagResult.stdout.trim()) {
-    const latestTag = tagResult.stdout.trim();
-    ctx.log(`  Git Tag:  ${latestTag}`);
-
-    // Check if current version matches the tag
-    const tagVersion = latestTag.replace(/^v/i, '');
-    if (tagVersion !== currentVersion) {
-      ctx.warn(`  Version ${currentVersion} has no matching git tag`);
-    }
-  } else {
-    ctx.log('  Git Tag:  (none)');
+    latestTag = tagResult.stdout.trim();
+    tagMismatch = latestTag.replace(/^v/i, '') !== currentVersion;
   }
 
   // Check INTERFACE.md version
+  let interfaceVersion = null;
+  let interfaceMismatch = false;
   if (ctx.exists('INTERFACE.md')) {
     try {
       const iface = await ctx.readFile('INTERFACE.md');
       const match = iface.match(/version:\s*(\S+)/);
       if (match) {
-        ctx.log(`  INTERFACE: ${match[1]}`);
-        if (match[1] !== currentVersion) {
-          ctx.warn('  INTERFACE.md version is out of sync');
-        }
+        interfaceVersion = match[1];
+        interfaceMismatch = interfaceVersion !== currentVersion;
       }
     } catch { /* non-critical */ }
   }
 
+  // ── 요약 ────────────────────────────────────────
+  ctx.log(`  ${dim('버전')}  ${cyan('v' + currentVersion)}`);
+  if (latestTag) {
+    ctx.log(`  ${dim('태그')}  ${latestTag}${tagMismatch ? '  ' + yellow('⚠ 버전 불일치') : ''}`);
+  }
+  if (interfaceVersion) {
+    ctx.log(`  ${dim('API ')}  ${interfaceVersion}${interfaceMismatch ? '  ' + yellow('⚠ 불일치') : ''}`);
+  }
   ctx.log('');
+
+  // ── 경고 카드 (있을 때만) ──────────────────────
+  const warnings = [];
+  if (pkgReadError) warnings.push({ msg: 'package.json 읽기 실패', fix: 'JSON 형식 확인' });
+  if (!latestTag)   warnings.push({ msg: 'git 태그 없음', fix: 'sentix version bump' });
+  if (tagMismatch)  warnings.push({ msg: `태그(${latestTag})와 버전(${currentVersion}) 불일치`, fix: 'sentix version bump' });
+  if (interfaceMismatch) warnings.push({ msg: `INTERFACE.md 버전 불일치 (${interfaceVersion})`, fix: 'sentix version bump' });
+
+  if (warnings.length > 0) {
+    ctx.log(borders.top);
+    ctx.log(cardTitle('주의', yellow(`${warnings.length}⚠`)));
+    ctx.log(borders.mid);
+    for (const w of warnings) {
+      ctx.log(cardLine(`${yellow('⚠')} ${w.msg}`));
+      if (w.fix) ctx.log(cardLine(`  ${dim('└')} ${dim(w.fix)}`));
+    }
+    ctx.log(borders.bottom);
+    ctx.log('');
+  } else {
+    ctx.log(`  ${green('●')} ${dim('정상 — 모든 버전 동기화됨')}`);
+    ctx.log('');
+  }
 }
 
 // ── sentix version bump ───────────────────────────────
 
-async function bumpVersion(type, ctx) {
+async function bumpVersion(type, ctx, autoDetected = false) {
+  const borders = makeBorders();
+
+  ctx.log('');
+  ctx.log(bold(cyan(' Sentix Version Bump')) + dim('  ·  버전 범프'));
+  ctx.log('');
+
   // 1. Read current version
   if (!ctx.exists('package.json')) {
-    ctx.error('package.json not found');
+    ctx.log(`  ${red('●')} ${bold('차단')}  ${red('package.json 없음')}`);
+    ctx.log('');
+    process.exitCode = 1;
     return;
   }
 
@@ -137,28 +175,40 @@ async function bumpVersion(type, ctx) {
     parseSemver(current);
     newVersion = bumpSemver(current, type);
   } catch (e) {
-    ctx.error(`Cannot bump version: ${e.message}`);
+    ctx.log(`  ${red('●')} ${bold('차단')}  ${red(e.message)}`);
+    ctx.log('');
+    process.exitCode = 1;
     return;
   }
 
-  ctx.log(`Bumping: ${current} → ${newVersion} (${type})\n`);
+  // ── 요약 ────────────────────────────────────────
+  const typeBadge =
+    type === 'major' ? red('major') :
+    type === 'minor' ? yellow('minor') :
+                       cyan('patch');
+  ctx.log(`  ${dim('현재  ')}  ${dim('v' + current)}`);
+  ctx.log(`  ${dim('다음  ')}  ${bold(cyan('v' + newVersion))}`);
+  ctx.log(`  ${dim('유형  ')}  ${typeBadge}${autoDetected ? '  ' + dim('(자동 감지)') : ''}`);
+  ctx.log('');
+
+  // 단계별 결과 수집
+  const steps = [];
 
   // 2. Update package.json
   pkg.version = newVersion;
   await ctx.writeJSON('package.json', pkg);
-  ctx.success('Updated package.json');
+  steps.push({ ok: true, label: 'package.json 업데이트' });
 
   // 3. Update INTERFACE.md version line
   if (ctx.exists('INTERFACE.md')) {
     try {
       let iface = await ctx.readFile('INTERFACE.md');
-      iface = iface.replace(
-        /version:\s*\S+/,
-        `version: ${newVersion}`
-      );
+      iface = iface.replace(/version:\s*\S+/, `version: ${newVersion}`);
       await ctx.writeFile('INTERFACE.md', iface);
-      ctx.success('Updated INTERFACE.md');
-    } catch { /* non-critical */ }
+      steps.push({ ok: true, label: 'INTERFACE.md 업데이트' });
+    } catch {
+      steps.push({ ok: false, label: 'INTERFACE.md 업데이트 실패', level: 'warn' });
+    }
   }
 
   // 4. Generate changelog entry
@@ -166,51 +216,71 @@ async function bumpVersion(type, ctx) {
     const entry = await generateForVersion(ctx, newVersion);
     if (entry.trim()) {
       await prependToChangelog(ctx, entry);
-      ctx.success('Updated CHANGELOG.md');
+      steps.push({ ok: true, label: 'CHANGELOG.md 생성' });
+    } else {
+      steps.push({ ok: true, label: 'CHANGELOG 생성할 내용 없음', level: 'skip' });
     }
   } catch (e) {
-    ctx.warn(`Changelog generation skipped: ${e.message}`);
+    steps.push({ ok: false, label: `CHANGELOG 생성 실패: ${e.message}`, level: 'warn' });
   }
 
   // 5. Git commit + tag
   const gitAdd = spawnSync('git', ['add', 'package.json', 'CHANGELOG.md', 'INTERFACE.md'], {
-    cwd: ctx.cwd,
-    encoding: 'utf-8',
-    stdio: 'pipe',
+    cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe',
   });
 
   if (gitAdd.status === 0) {
     const commitMsg = `chore: bump version to v${newVersion}`;
     const gitCommit = spawnSync('git', ['commit', '-m', commitMsg], {
-      cwd: ctx.cwd,
-      encoding: 'utf-8',
-      stdio: 'pipe',
+      cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe',
     });
 
     if (gitCommit.status === 0) {
-      ctx.success(`Committed: ${commitMsg}`);
+      steps.push({ ok: true, label: `git commit: ${commitMsg}` });
 
       const gitTag = spawnSync('git', ['tag', '-a', `v${newVersion}`, '-m', `Release v${newVersion}`], {
-        cwd: ctx.cwd,
-        encoding: 'utf-8',
-        stdio: 'pipe',
+        cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe',
       });
 
       if (gitTag.status === 0) {
-        ctx.success(`Tagged: v${newVersion}`);
+        steps.push({ ok: true, label: `git tag: v${newVersion}` });
       } else {
-        ctx.warn(`Tag creation failed: ${gitTag.stderr?.trim() || 'unknown error'}`);
+        steps.push({ ok: false, label: `git tag 실패: ${gitTag.stderr?.trim() || 'unknown'}`, level: 'warn' });
       }
     } else {
-      ctx.warn(`Commit failed: ${gitCommit.stderr?.trim() || 'unknown error'}`);
+      steps.push({ ok: false, label: `git commit 실패: ${gitCommit.stderr?.trim() || 'unknown'}`, level: 'warn' });
     }
   } else {
-    ctx.warn('Git staging failed — version bumped in files only');
+    steps.push({ ok: false, label: 'git staging 실패 — 파일만 수정됨', level: 'warn' });
   }
 
+  // ── 결과 카드 ───────────────────────────────────
+  const okCount = steps.filter((s) => s.ok).length;
+  const failCount = steps.length - okCount;
+  const stats = [
+    okCount > 0 ? green(`${okCount}✓`) : null,
+    failCount > 0 ? yellow(`${failCount}⚠`) : null,
+  ].filter(Boolean).join('  ');
+
+  ctx.log(borders.top);
+  ctx.log(cardTitle('단계', stats));
+  ctx.log(borders.mid);
+  for (const s of steps) {
+    const icon = s.ok ? green('✓') : yellow('⚠');
+    const label = s.ok ? dim(s.label) : s.label;
+    ctx.log(cardLine(`${icon} ${label}`));
+  }
+  ctx.log(borders.bottom);
   ctx.log('');
-  ctx.log('To publish:');
-  ctx.log('  git push && git push --tags');
+
+  if (failCount === 0) {
+    ctx.log(`  ${green('●')} ${bold('완료')}  ${dim('v' + current + ' → ')}${green('v' + newVersion)}`);
+    ctx.log(`  ${dim('배포:')} ${dim('git push && git push --tags')}`);
+  } else {
+    ctx.log(`  ${yellow('●')} ${bold('완료 (경고)')}  ${yellow(`${failCount}개 단계 실패`)}`);
+    ctx.log(`  ${dim('위 카드의 ⚠ 항목을 검토하세요')}`);
+  }
+  ctx.log('');
 
   // 6. Log event
   await ctx.appendJSONL('tasks/pattern-log.jsonl', {
@@ -225,7 +295,11 @@ async function bumpVersion(type, ctx) {
 // ── sentix version changelog ──────────────────────────
 
 async function showChangelog(ctx) {
-  ctx.log('=== Changelog Preview ===\n');
+  const borders = makeBorders();
+
+  ctx.log('');
+  ctx.log(bold(cyan(' Sentix Changelog')) + dim('  ·  다음 릴리즈 미리보기'));
+  ctx.log('');
 
   let currentVersion = 'next';
   if (ctx.exists('package.json')) {
@@ -235,14 +309,26 @@ async function showChangelog(ctx) {
     } catch { /* use default */ }
   }
 
+  ctx.log(`  ${dim('버전')}  ${cyan('v' + currentVersion)}`);
+  ctx.log('');
+
   try {
     const entry = await generateForVersion(ctx, currentVersion);
     if (entry.trim()) {
+      // changelog 는 긴 마크다운이므로 카드가 아닌 그대로 출력 (절단 방지)
       ctx.log(entry);
     } else {
-      ctx.log('(No resolved tickets or completed cycles to report)');
+      ctx.log(borders.top);
+      ctx.log(cardTitle('미리보기'));
+      ctx.log(borders.mid);
+      ctx.log(cardLine(`${dim('· 아직 해결된 티켓/사이클 없음')}`));
+      ctx.log(cardLine(`  ${dim('└')} ${dim('sentix run 으로 작업 완료 후 다시 시도')}`));
+      ctx.log(borders.bottom);
+      ctx.log('');
     }
   } catch (e) {
-    ctx.error(`Could not generate changelog: ${e.message}`);
+    ctx.log(`  ${red('●')} ${bold('오류')}  ${red(e.message)}`);
+    ctx.log('');
+    process.exitCode = 1;
   }
 }

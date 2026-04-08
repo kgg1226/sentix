@@ -15,6 +15,9 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sentixRoot = resolve(__dirname, '..', '..');
@@ -58,14 +61,13 @@ const SYNC_FILES = [
 function getUpdateTargets(ctx) {
   const cwd = resolve(ctx.cwd);
   const targets = [cwd];
+  let worktreeNote = null;
 
   try {
     // git worktree인지 확인
-    const gitCommonDir = execSync('git rev-parse --git-common-dir', {
+    execSync('git rev-parse --git-common-dir', {
       cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
-
-    const mainGitDir = resolve(cwd, gitCommonDir);
 
     // main working tree 경로 찾기
     const worktreeList = execSync('git worktree list --porcelain', {
@@ -78,19 +80,23 @@ function getUpdateTargets(ctx) {
       const resolvedMain = resolve(mainRoot);
       if (resolvedMain !== cwd && existsSync(resolvedMain)) {
         targets.push(resolvedMain);
-        ctx.log(`Worktree detected → also updating main: ${resolvedMain}`);
+        worktreeNote = resolvedMain;
       }
     }
   } catch {
     // git 없거나 worktree 아님 — 현재 디렉토리만
   }
 
-  return targets;
+  return { targets, worktreeNote };
 }
 
 // ── 파일 동기화 실행 ─────────────────────────────────────
 
-async function syncFiles(targetDir, dryRun, ctx) {
+/**
+ * 파일을 동기화하고 결과를 { updated, created, skipped, unchanged } 로 반환.
+ * 출력은 하지 않음 — caller 가 카드 형식으로 렌더링.
+ */
+async function syncFilesQuiet(targetDir, dryRun) {
   const results = { updated: [], created: [], skipped: [], unchanged: [] };
 
   for (const { src, dst } of SYNC_FILES) {
@@ -112,43 +118,25 @@ async function syncFiles(targetDir, dryRun, ctx) {
         continue;
       }
 
-      const srcLines = srcContent.split('\n');
-      const dstLines = dstContent.split('\n');
-      const added = srcLines.length - dstLines.length;
-
-      ctx.log(`${dryRun ? '[DRY] ' : ''}Updating: ${dst}`);
-      ctx.log(`  ${dstLines.length} lines → ${srcLines.length} lines (${added >= 0 ? '+' : ''}${added})`);
+      const srcLines = srcContent.split('\n').length;
+      const dstLines = dstContent.split('\n').length;
+      const delta = srcLines - dstLines;
 
       if (!dryRun) {
         mkdirSync(dirname(dstPath), { recursive: true });
         writeFileSync(dstPath, srcContent);
-        ctx.success(`Updated: ${dst}`);
       }
-      results.updated.push(dst);
+      results.updated.push({ file: dst, delta });
     } else {
-      ctx.log(`${dryRun ? '[DRY] ' : ''}Creating: ${dst}`);
       if (!dryRun) {
         mkdirSync(dirname(dstPath), { recursive: true });
         writeFileSync(dstPath, srcContent);
-        ctx.success(`Created: ${dst}`);
       }
       results.created.push(dst);
     }
   }
 
-  // 요약
-  const totalChanges = results.updated.length + results.created.length;
-  if (results.updated.length > 0) {
-    ctx.log(`Updated: ${results.updated.length} — ${results.updated.join(', ')}`);
-  }
-  if (results.created.length > 0) {
-    ctx.log(`Created: ${results.created.length} — ${results.created.join(', ')}`);
-  }
-  if (totalChanges === 0) {
-    ctx.success('Already up to date.');
-  } else if (!dryRun) {
-    ctx.success(`${totalChanges} file(s) updated to sentix v${VERSION}.`);
-  }
+  return results;
 }
 
 registerCommand('update', {
@@ -157,32 +145,108 @@ registerCommand('update', {
 
   async run(args, ctx) {
     const dryRun = args.includes('--dry');
+    const borders = makeBorders();
 
-    ctx.log(`sentix update v${VERSION}`);
-    ctx.log(`source: ${sentixRoot}`);
+    ctx.log('');
+    ctx.log(bold(cyan(' Sentix Update')) + dim('  ·  프레임워크 동기화'));
+    ctx.log('');
 
     // sentix 원본에서 실행 중인지 확인
     if (resolve(ctx.cwd) === resolve(sentixRoot)) {
-      ctx.error('Cannot update sentix itself. Run this from a downstream project.');
+      ctx.log(`  ${red('●')} ${bold('차단')}  ${red('sentix 저장소 자체에서는 실행할 수 없음')}`);
+      ctx.log(`  ${dim('다운스트림 프로젝트에서 실행하세요')}`);
+      ctx.log('');
+      process.exitCode = 1;
       return;
     }
 
-    // 업데이트 대상 디렉토리 수집 (현재 + worktree면 root도)
-    const targets = getUpdateTargets(ctx);
+    // 업데이트 대상 수집
+    const { targets, worktreeNote } = getUpdateTargets(ctx);
+
+    ctx.log(`  ${dim('소스  ')}  ${dim(sentixRoot)}`);
+    ctx.log(`  ${dim('버전  ')}  ${cyan('v' + VERSION)}`);
+    ctx.log(`  ${dim('모드  ')}  ${dryRun ? yellow('dry-run (미리보기)') : green('실제 적용')}`);
+    ctx.log(`  ${dim('대상  ')}  ${targets.length}개${worktreeNote ? dim(` (worktree + main)`) : ''}`);
+    if (worktreeNote) {
+      ctx.log(`  ${dim('      ')}  ${dim('main: ' + worktreeNote)}`);
+    }
+    ctx.log('');
+
+    // 각 타겟별 처리
+    let grandUpdated = 0, grandCreated = 0, grandUnchanged = 0, grandSkipped = 0;
 
     for (const target of targets) {
-      ctx.log(`\n--- target: ${target} ---`);
-      if (dryRun) ctx.warn('DRY RUN\n');
-
       // sentix가 초기화된 프로젝트인지 확인
       const hasConfig = existsSync(resolve(target, '.sentix/config.toml'));
       const hasClaude = existsSync(resolve(target, 'CLAUDE.md'));
       if (!hasConfig && !hasClaude) {
-        ctx.warn(`Not a sentix project: ${target} — skipping`);
+        ctx.log(borders.top);
+        ctx.log(cardTitle(shortPath(target), yellow('skip')));
+        ctx.log(borders.mid);
+        ctx.log(cardLine(`${yellow('⚠')} sentix 프로젝트가 아님 — .sentix/config.toml 또는 CLAUDE.md 필요`));
+        ctx.log(borders.bottom);
+        ctx.log('');
         continue;
       }
 
-      await syncFiles(target, dryRun, ctx);
+      const results = await syncFilesQuiet(target, dryRun);
+      grandUpdated += results.updated.length;
+      grandCreated += results.created.length;
+      grandUnchanged += results.unchanged.length;
+      grandSkipped += results.skipped.length;
+
+      const changeCount = results.updated.length + results.created.length;
+      const stats = [
+        results.updated.length > 0 ? cyan(`${results.updated.length}↻`)   : null,
+        results.created.length > 0 ? green(`${results.created.length}+`)  : null,
+        results.unchanged.length > 0 ? dim(`${results.unchanged.length}=`) : null,
+        results.skipped.length > 0 ? yellow(`${results.skipped.length}?`) : null,
+      ].filter(Boolean).join('  ');
+
+      ctx.log(borders.top);
+      ctx.log(cardTitle(shortPath(target), stats));
+      ctx.log(borders.mid);
+
+      if (changeCount === 0 && results.skipped.length === 0) {
+        ctx.log(cardLine(`${green('✓')} ${dim('최신 상태 — 변경 없음')} ${dim('(' + results.unchanged.length + '개 파일 확인)')}`));
+      } else {
+        // 생성된 파일 (+)
+        for (const f of results.created) {
+          ctx.log(cardLine(`${green('+')} ${f}${dryRun ? dim('  (dry-run)') : ''}`));
+        }
+        // 업데이트된 파일 (↻) with delta
+        for (const { file, delta } of results.updated) {
+          const deltaStr = delta > 0 ? green(`+${delta}`) : delta < 0 ? red(String(delta)) : dim('0');
+          ctx.log(cardLine(`${cyan('↻')} ${file}  ${dim('(' + deltaStr + dim(' 줄)') + ')')}${dryRun ? dim('  (dry-run)') : ''}`));
+        }
+        // 스킵된 파일 (?)
+        for (const { file, reason } of results.skipped) {
+          ctx.log(cardLine(`${yellow('?')} ${file} ${dim('— ' + reason)}`));
+        }
+        if (results.unchanged.length > 0) {
+          ctx.log(cardLine(`${dim('·')} ${dim(`${results.unchanged.length}개 파일 변경 없음`)}`));
+        }
+      }
+      ctx.log(borders.bottom);
+      ctx.log('');
     }
+
+    // ── 최종 배너 ──────────────────────────────────
+    const totalChanges = grandUpdated + grandCreated;
+    if (totalChanges === 0) {
+      ctx.log(`  ${green('●')} ${bold('최신 상태')}  ${dim('모든 파일이 sentix v' + VERSION + ' 와 동기화됨')}`);
+    } else if (dryRun) {
+      ctx.log(`  ${yellow('●')} ${bold('DRY RUN')}  ${yellow(`${totalChanges}개 파일 변경 예정`)} ${dim(`(실제 적용: sentix update)`)}`);
+    } else {
+      ctx.log(`  ${green('●')} ${bold('완료')}  ${green(`${totalChanges}개 파일 sentix v${VERSION} 로 동기화`)}`);
+    }
+    ctx.log('');
   },
 });
+
+/** 긴 경로를 축약해서 표시 (마지막 2개 세그먼트만) */
+function shortPath(fullPath) {
+  const parts = fullPath.split(/[/\\]/).filter(Boolean);
+  if (parts.length <= 2) return fullPath;
+  return '…/' + parts.slice(-2).join('/');
+}
