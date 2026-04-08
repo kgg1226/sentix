@@ -9,6 +9,9 @@ import { registerCommand } from '../registry.js';
 import { runGates } from '../lib/verify-gates.js';
 import { detectDangerousRequest, verifyWord, isConfigured } from '../lib/safety.js';
 import { runChainedPipeline } from '../lib/pipeline.js';
+import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
+
+const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('run', {
   description: 'Run a request through the Governor pipeline',
@@ -16,16 +19,23 @@ registerCommand('run', {
 
   async run(args, ctx) {
     const request = args.join(' ').trim();
+    const borders = makeBorders();
 
     if (!request) {
-      ctx.error('Usage: sentix run "요청 내용"');
-      ctx.log('  Example: sentix run "인증에 세션 만료 추가해줘"');
+      ctx.log('');
+      ctx.error('요청 내용이 비어 있습니다');
+      ctx.log(`  ${dim('사용:')}  ${dim('sentix run "<요청>"')}`);
+      ctx.log(`  ${dim('예시:')}  ${dim('sentix run "인증에 세션 만료 추가해줘"')}`);
+      ctx.log('');
       return;
     }
 
     // ── Preflight checks ────────────────────────────
     if (!ctx.exists('CLAUDE.md')) {
-      ctx.error('CLAUDE.md not found. Run: sentix init');
+      ctx.log('');
+      ctx.error('CLAUDE.md 가 없습니다 — 초기화 필요');
+      ctx.log(`  ${dim('실행:')} ${dim('sentix init')}`);
+      ctx.log('');
       return;
     }
 
@@ -40,17 +50,26 @@ registerCommand('run', {
         const safetyInput = swIdx !== -1 ? args[swIdx + 1] : null;
 
         if (!safetyInput) {
-          ctx.error('[SENTIX:SAFETY] 위험 요청이 감지되었습니다.');
-          ctx.log(`  패턴: ${dangerMatch}`);
           ctx.log('');
-          ctx.log('  이 요청을 실행하려면 안전어를 입력하세요:');
-          ctx.log('  sentix run "요청" --safety-word <안전어>');
+          ctx.log(`  ${red('●')} ${bold('SAFETY')}  ${red('위험 요청 감지됨')}`);
+          ctx.log(`  ${dim('패턴')}  ${yellow(dangerMatch)}`);
+          ctx.log('');
+          ctx.log(borders.top);
+          ctx.log(cardTitle('차단됨', red('안전어 필요')));
+          ctx.log(borders.mid);
+          ctx.log(cardLine(`${red('✗')} 이 요청은 안전어 검증이 필요합니다`));
+          ctx.log(cardLine(`  ${dim('└')} ${dim('sentix run "<요청>" --safety-word <안전어>')}`));
+          ctx.log(borders.bottom);
+          ctx.log('');
           return;
         }
 
         const verified = await verifyWord(ctx, safetyInput);
         if (!verified) {
-          ctx.error('[SENTIX:SAFETY] DENIED — 안전어가 일치하지 않습니다.');
+          ctx.log('');
+          ctx.log(`  ${red('●')} ${bold('SAFETY')}  ${red('DENIED')}`);
+          ctx.log(`  ${dim('사유')}  ${red('안전어가 일치하지 않습니다')}`);
+          ctx.log('');
           await ctx.appendJSONL('tasks/pattern-log.jsonl', {
             ts: new Date().toISOString(),
             event: 'safety-denied',
@@ -60,13 +79,14 @@ registerCommand('run', {
           return;
         }
 
-        ctx.success('[SENTIX:SAFETY] VERIFIED — 진행합니다.');
-      } else {
-        ctx.warn('[SENTIX:SAFETY] 위험 요청이 감지되었습니다.');
-        ctx.log(`  패턴: ${dangerMatch}`);
         ctx.log('');
-        ctx.warn('  안전어가 설정되지 않아 추가 검증 없이 진행합니다.');
-        ctx.warn('  보안 강화를 위해 설정을 권장합니다: sentix safety set <안전어>');
+        ctx.log(`  ${green('●')} ${bold('SAFETY')}  ${green('VERIFIED')} ${dim('— 진행합니다')}`);
+        ctx.log('');
+      } else {
+        ctx.log('');
+        ctx.log(`  ${yellow('●')} ${bold('SAFETY')}  ${yellow('위험 요청 감지됨 (안전어 미설정)')}`);
+        ctx.log(`  ${dim('패턴')}  ${yellow(dangerMatch)}`);
+        ctx.log(`  ${dim('권장')}  ${dim('sentix safety set <안전어>')}`);
         ctx.log('');
       }
     }
@@ -74,7 +94,10 @@ registerCommand('run', {
     // ── Check Claude Code is available ──────────────
     const claudeCheck = spawnSync('claude', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
     if (claudeCheck.error) {
-      ctx.error('Claude Code CLI not found. Install: https://docs.anthropic.com/en/docs/claude-code');
+      ctx.log('');
+      ctx.error('Claude Code CLI 가 설치되어 있지 않습니다');
+      ctx.log(`  ${dim('설치:')} ${dim('npm i -g @anthropic-ai/claude-code')}`);
+      ctx.log('');
       return;
     }
 
@@ -83,8 +106,11 @@ registerCommand('run', {
       try {
         const existing = await ctx.readJSON('tasks/governor-state.json');
         if (existing.status === 'in_progress') {
-          ctx.error(`Another pipeline is running: ${existing.cycle_id}`);
-          ctx.log('  Wait for it to complete, or delete tasks/governor-state.json to force.');
+          ctx.log('');
+          ctx.error('이미 다른 파이프라인이 실행 중입니다');
+          ctx.log(`  ${dim('실행 중:')} ${cyan(existing.cycle_id)}`);
+          ctx.log(`  ${dim('대기하거나 강제 종료:')} ${dim('rm tasks/governor-state.json')}`);
+          ctx.log('');
           return;
         }
       } catch {
@@ -110,8 +136,11 @@ registerCommand('run', {
     };
 
     await ctx.writeJSON('tasks/governor-state.json', state);
-    ctx.success(`Cycle ${cycleId} started`);
-    ctx.log(`Request: "${request}"`);
+    ctx.log('');
+    ctx.log(` ${bold(cyan('Sentix Run'))}  ${dim('·')}  ${dim('Governor 파이프라인')}`);
+    ctx.log('');
+    ctx.log(`  ${dim('cycle  ')}  ${cyan(cycleId)}`);
+    ctx.log(`  ${dim('요청   ')}  "${request}"`);
     ctx.log('');
 
     // ── Log to pattern-log.jsonl ────────────────────
@@ -135,7 +164,8 @@ registerCommand('run', {
     if (useChained || (!useLegacy && !args.includes('--single'))) {
       // ── Chained pipeline (기본값) ─────────────────
       // Phase별로 분리 실행 + 중간 게이트 + 자동 테스트
-      ctx.log('Pipeline mode: chained (PLAN → DEV → GATE → REVIEW → FINALIZE)\n');
+      ctx.log(`  ${dim('모드   ')}  ${green('chained')}  ${dim('PLAN → DEV → GATE → REVIEW → FINALIZE')}`);
+      ctx.log('');
 
       const chainResult = await runChainedPipeline(request, cycleId, state, ctx, { safetyDirective });
 
@@ -149,8 +179,10 @@ registerCommand('run', {
       };
     } else {
       // ── Legacy single-shot (--single 플래그) ──────
-      ctx.log('Pipeline mode: single (legacy)\n');
-      ctx.log('Invoking Claude Code Governor...\n');
+      ctx.log(`  ${dim('모드   ')}  ${yellow('single')}  ${dim('(legacy)')}`);
+      ctx.log('');
+      ctx.log(`  ${dim('Claude Code Governor 호출 중...')}`);
+      ctx.log('');
 
       const prompt = [
         'Read CLAUDE.md first. Refer to FRAMEWORK.md and docs/ only when you need design details for the current task.',
@@ -202,28 +234,50 @@ registerCommand('run', {
         cycle_id: cycleId,
         error: state.error,
       });
-      ctx.error(`Pipeline failed at ${pipelineResult.failedAt} phase.`);
+
+      ctx.log('');
+      ctx.log(borders.top);
+      ctx.log(cardTitle('실패', red('✗')));
+      ctx.log(borders.mid);
+      ctx.log(cardLine(`${red('✗')} ${pipelineResult.failedAt} phase 에서 실패`));
+      ctx.log(cardLine(`  ${dim('└')} ${dim('자세한 내용은 sentix status 또는 위 출력 참조')}`));
+      ctx.log(borders.bottom);
+      ctx.log('');
+      process.exitCode = 1;
       return;
     }
 
     // ── Final verification gates ────────────────────
-    ctx.log('\n--- Final Verification Gates ---');
-
     const gateResults = pipelineResult.gateResults;
-    for (const check of gateResults.checks) {
-      if (check.passed) {
-        ctx.success(`[${check.rule}] ${check.detail}`);
-      } else {
-        ctx.warn(`[${check.rule}] ${check.detail}`);
-        for (const v of check.violations) {
-          ctx.warn(`  → ${v.message}`);
+    const checkPass = gateResults.checks.filter((c) => c.passed).length;
+    const checkFail = gateResults.checks.length - checkPass;
+
+    ctx.log('');
+    ctx.log(borders.top);
+    const gateStats = [
+      checkPass > 0 ? green(`${checkPass}✓`) : null,
+      checkFail > 0 ? red(`${checkFail}✗`) : null,
+    ].filter(Boolean).join('  ');
+    ctx.log(cardTitle('검증 게이트', gateStats));
+    ctx.log(borders.mid);
+
+    if (gateResults.checks.length === 0) {
+      ctx.log(cardLine(`${dim('· ' + (gateResults.summary || '게이트 정의 없음'))}`));
+    } else {
+      // 실패 먼저, 통과는 dim
+      const sorted = [...gateResults.checks].sort((a, b) => Number(a.passed) - Number(b.passed));
+      for (const check of sorted) {
+        if (check.passed) {
+          ctx.log(cardLine(`${green('✓')} ${dim(check.rule)} ${dim(check.detail)}`));
+        } else {
+          ctx.log(cardLine(`${red('✗')} ${bold(check.rule)} ${check.detail}`));
+          for (const v of check.violations) {
+            ctx.log(cardLine(`  ${dim('└')} ${red(v.message)}`));
+          }
         }
       }
     }
-
-    if (gateResults.checks.length === 0) {
-      ctx.log(gateResults.summary);
-    }
+    ctx.log(borders.bottom);
     ctx.log('');
 
     // ── Update state on completion ──────────────────
@@ -271,14 +325,33 @@ registerCommand('run', {
       gate_summary: gateResults.summary,
     });
 
+    // ── 완료 배너 ──────────────────────────────────
     if (gateResults.passed) {
-      ctx.success('Pipeline completed — all gates passed.');
+      const dur = pipelineResult.duration_seconds
+        ? `${dim('  소요')} ${cyan(formatDur(pipelineResult.duration_seconds))}`
+        : '';
+      ctx.log(`  ${green('●')} ${bold('완료')}  ${green('모든 게이트 통과')}${dur}`);
+      ctx.log(`  ${dim('확인:')} ${dim('sentix status')}`);
+      ctx.log('');
     } else {
-      ctx.warn(`Pipeline completed with warnings — ${gateResults.violations.length} gate violation(s).`);
-      ctx.log('Review violations above before merging.');
+      ctx.log(`  ${yellow('●')} ${bold('완료 (경고)')}  ${yellow(`${gateResults.violations.length} 게이트 위반`)}`);
+      ctx.log(`  ${dim('머지 전에 위 ✗ 항목을 검토하세요')}`);
+      ctx.log('');
     }
   },
 });
+
+function formatDur(seconds) {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
 
 /**
  * Detect ticket type from request text or governor state plan.
