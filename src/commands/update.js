@@ -32,6 +32,11 @@ const SYNC_FILES = [
   { src: '.sentix/rules/hard-rules.md',          dst: '.sentix/rules/hard-rules.md' },
   { src: 'scripts/pre-commit.js',                dst: 'scripts/pre-commit.js' },
 
+  // Sentix enforcement hooks (Claude Code integration)
+  { src: 'scripts/hooks/session-start.sh',       dst: 'scripts/hooks/session-start.sh' },
+  { src: 'scripts/hooks/user-prompt-reminder.sh', dst: 'scripts/hooks/user-prompt-reminder.sh' },
+  { src: 'scripts/hooks/require-ticket.js',      dst: 'scripts/hooks/require-ticket.js' },
+
   // 프레임워크 문서
   { src: 'FRAMEWORK.md',                         dst: 'FRAMEWORK.md' },
   { src: 'docs/governor-sop.md',                 dst: 'docs/governor-sop.md' },
