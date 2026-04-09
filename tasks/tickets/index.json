@@ -37,5 +37,18 @@
     "description_hash": "fae9c3ba",
     "related_cycle": null,
     "file_path": "tasks/tickets/feat-003.md"
+  },
+  {
+    "id": "bug-001",
+    "type": "bug",
+    "title": "Quality Gate/Spec Enricher/Feedback Loop 통합 버그 4건 수정 — loadConstraints 미보호, d...",
+    "severity": "critical",
+    "status": "open",
+    "created_at": "2026-04-09T10:47:31.917Z",
+    "updated_at": "2026-04-09T10:47:31.917Z",
+    "pipeline_status": "pending",
+    "description_hash": "77ea5430",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/bug-001.md"
   }
 ]

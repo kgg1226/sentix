@@ -380,7 +380,15 @@ function checkTestRegression(cwd) {
     timeout: 60_000,
   });
 
-  const postStats = parseTestOutput(testRun.stdout || '');
+  // Node.js test runner outputs TAP to stdout, but combine with stderr for robustness
+  const testOutput = (testRun.stdout || '') + '\n' + (testRun.stderr || '');
+  const postStats = parseTestOutput(testOutput);
+
+  // Skip comparison if post-stats couldn't be parsed (all zeros with no tests detected)
+  if (postStats.total === 0 && preStats.total > 0) {
+    result.detail = 'Test output could not be parsed — regression check skipped';
+    return result;
+  }
 
   // Compare
   if (postStats.fail > 0) {

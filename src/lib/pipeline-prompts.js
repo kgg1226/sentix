@@ -58,7 +58,7 @@ export function buildDevPrompt({ request, latestTicket, safetyDirective, methods
 }
 
 /** Dev phase 프롬프트 (swarm fallback, 단일 서브태스크) */
-export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDirective, learningContext }) {
+export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
   return joinFiltered([
     'Read CLAUDE.md first.',
     safetyDirective || '',
@@ -73,13 +73,15 @@ export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDi
     '6. refine() — for non-trivial changes, ask "is there a more elegant way?" Skip for obvious fixes.',
     '7. DO NOT judge code quality — refine is self-challenge, pr-review does grading',
     '8. DO NOT update version, README, or CHANGELOG',
+    '9. Review the CONSTRAINTS below — your code MUST NOT violate any of them.',
     methodsDirective,
     learningContext,
+    constraintsContext,
   ]);
 }
 
 /** Dev-swarm worker (병렬) 프롬프트 */
-export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective, methodsDirective, learningContext }) {
+export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
   return joinFiltered([
     'Read CLAUDE.md first.',
     safetyDirective || '',
@@ -92,8 +94,10 @@ export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective
     '2. Write or update tests for your changes',
     '3. Run: npm test',
     '4. Self-verify: hard rules ONLY',
+    '5. Review the CONSTRAINTS below — your code MUST NOT violate any of them.',
     methodsDirective,
     learningContext,
+    constraintsContext,
   ]);
 }
 

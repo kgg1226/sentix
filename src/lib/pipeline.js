@@ -62,9 +62,15 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   const crossProjectContext = loadCrossProjectContext(ctx.cwd);
 
   // Spec Enricher: 프로젝트 제약 + 학습 패턴 로드
-  const { constraintsContext, constraintCount } = loadConstraints(ctx.cwd);
-  if (constraintCount > 0) {
-    ctx.success(`Loaded ${constraintCount} constraint(s) from .sentix/constraints.md + lessons.md`);
+  let constraintsContext = '';
+  try {
+    const constraints = loadConstraints(ctx.cwd);
+    constraintsContext = constraints.constraintsContext;
+    if (constraints.constraintCount > 0) {
+      ctx.success(`Loaded ${constraints.constraintCount} constraint(s) from .sentix/constraints.md + lessons.md`);
+    }
+  } catch (e) {
+    ctx.warn(`Constraints loading failed (safe skip): ${e.message}`);
   }
 
   const promptCtx = {
@@ -97,7 +103,7 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     ctx.log('\n=== Phase 2: DEV-SWARM (parallel) ===\n');
     state.current_phase = 'dev-swarm';
     await ctx.writeJSON('tasks/governor-state.json', state);
-    devResult = await runDevSwarm(request, latestTicket, methodsDirective, learningContext, options, ctx);
+    devResult = await runDevSwarm(request, latestTicket, methodsDirective, learningContext, options, ctx, constraintsContext);
   } else {
     ctx.log('\n=== Phase 2: DEV ===\n');
     state.current_phase = 'dev';

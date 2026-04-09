@@ -127,7 +127,8 @@ function issueToConstraint(checkName, issue) {
       return `테스트 회귀 금지 — ${issue.message}`;
 
     default:
-      return issue.message ? `[${checkName}] ${issue.message}` : null;
+      if (!issue.message) return null;
+      return `[${checkName}] ${issue.message}`;
   }
 }
 
