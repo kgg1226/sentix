@@ -9,7 +9,7 @@ function joinFiltered(lines) {
 }
 
 /** Planner phase 프롬프트 */
-export function buildPlanPrompt({ request, safetyDirective, methodsDirective, learningContext, crossProjectContext }) {
+export function buildPlanPrompt({ request, safetyDirective, methodsDirective, learningContext, crossProjectContext, constraintsContext }) {
   return joinFiltered([
     'Read CLAUDE.md first.',
     safetyDirective || '',
@@ -22,14 +22,16 @@ export function buildPlanPrompt({ request, safetyDirective, methodsDirective, le
     '6. Define WHAT and WHERE only. DO NOT specify HOW.',
     '7. If high complexity, include PARALLEL_HINT with subtask breakdown.',
     '8. Check cross-project context for API dependencies or breaking changes.',
+    '9. Review the CONSTRAINTS below — your plan MUST NOT violate any of them.',
     methodsDirective,
     learningContext,
     crossProjectContext,
+    constraintsContext,
   ]);
 }
 
 /** Dev phase 프롬프트 (순차 모드) */
-export function buildDevPrompt({ request, latestTicket, safetyDirective, methodsDirective, learningContext }) {
+export function buildDevPrompt({ request, latestTicket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
   return joinFiltered([
     'Read CLAUDE.md first.',
     safetyDirective || '',
@@ -48,8 +50,10 @@ export function buildDevPrompt({ request, latestTicket, safetyDirective, methods
     '   - If you find a clearly better approach, apply it and re-run tests',
     '7. DO NOT judge code quality — refine() is self-challenge, not grading (that is pr-review\'s job)',
     '8. DO NOT update version, README, or CHANGELOG — that is the FINALIZE phase',
+    '9. Review the CONSTRAINTS below — your code MUST NOT violate any of them.',
     methodsDirective,
     learningContext,
+    constraintsContext,
   ]);
 }
 
@@ -119,7 +123,7 @@ export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempt
 }
 
 /** Re-plan phase 프롬프트 */
-export function buildReplanPrompt({ request, methodsDirective, learningContext, crossProjectContext }) {
+export function buildReplanPrompt({ request, methodsDirective, learningContext, crossProjectContext, constraintsContext }) {
   return joinFiltered([
     'Read CLAUDE.md first.',
     'You are the PLANNER agent. PREVIOUS PLAN FAILED. Re-plan with new approach.',
@@ -130,9 +134,11 @@ export function buildReplanPrompt({ request, methodsDirective, learningContext, 
     '2. What constraints did we miss?',
     '3. Create a NEW ticket with different SCOPE or approach',
     '4. Mark previous ticket as SUPERSEDED',
+    '5. Review the CONSTRAINTS below — your new plan MUST NOT violate any of them.',
     methodsDirective,
     learningContext,
     crossProjectContext,
+    constraintsContext,
   ]);
 }
 
