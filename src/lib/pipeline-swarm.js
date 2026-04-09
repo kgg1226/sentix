@@ -18,7 +18,7 @@ import {
  * Dev-swarm 실행.
  * @returns {Promise<{success: boolean, error: string|null, exit_code: number, output: object}>}
  */
-export async function runDevSwarm(request, ticket, methodsDirective, learningContext, options, ctx) {
+export async function runDevSwarm(request, ticket, methodsDirective, learningContext, options, ctx, constraintsContext) {
   const subtasks = parseSubtasks(ticket);
 
   // 서브태스크가 1개면 순차 모드로 fallback
@@ -29,6 +29,7 @@ export async function runDevSwarm(request, ticket, methodsDirective, learningCon
       safetyDirective: options.safetyDirective,
       methodsDirective,
       learningContext,
+      constraintsContext,
     }), ctx);
   }
 
@@ -61,6 +62,7 @@ export async function runDevSwarm(request, ticket, methodsDirective, learningCon
       safetyDirective: options.safetyDirective,
       methodsDirective,
       learningContext,
+      constraintsContext,
     });
 
     const worker = spawnWorker(prompt, wtPath, ctx);

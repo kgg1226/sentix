@@ -50,6 +50,29 @@ describe('quality-gate', () => {
       assert.ok(syntaxCheck, 'syntax check should exist');
       assert.ok(syntaxCheck.passed, `syntax check should pass: ${syntaxCheck.detail}`);
     });
+
+    it('test-regression check returns valid detail', () => {
+      const result = runQualityGate(process.cwd(), { skipAudit: true });
+
+      const regCheck = result.checks.find((c) => c.name === 'test-regression');
+      assert.ok(regCheck, 'test-regression check should exist');
+      assert.ok(typeof regCheck.detail === 'string' && regCheck.detail.length > 0,
+        'test-regression should have non-empty detail');
+      // Should not falsely report regression on a stable codebase
+      assert.ok(regCheck.passed || regCheck.detail.includes('skipped'),
+        `test-regression should pass or skip: ${regCheck.detail}`);
+    });
+
+    it('handles nonexistent directory gracefully', () => {
+      const result = runQualityGate('/tmp/nonexistent-qg-test-12345', { skipAudit: true });
+
+      assert.ok(typeof result.passed === 'boolean');
+      assert.ok(Array.isArray(result.checks));
+      // Should not crash — all checks should still return valid results
+      for (const check of result.checks) {
+        assert.ok(typeof check.detail === 'string', `${check.name} should have detail`);
+      }
+    });
   });
 
   describe('formatQualityReport', () => {
