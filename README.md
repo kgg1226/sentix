@@ -375,6 +375,7 @@ mkdir -p /path/to/your-project/tasks/tickets
 │
 ├── .sentix/              ← 설정 폴더
 │   ├── config.toml       ← 기능 켜기/끄기 + 자동 버전 범프 설정
+│   ├── constraints.md    ← 프로젝트 고유 제약 (Quality Gate + Feedback Loop 연동)
 │   ├── providers/        ← AI 선택 (Claude, OpenAI, Ollama)
 │   └── rules/            ← 절대 어기면 안 되는 규칙 6개
 │
@@ -578,6 +579,88 @@ sentix doctor
 ### 안전장치: Fail-Open
 
 훅 자체에 버그가 있거나 `governor-state.json` 이 파손되면 작업을 **차단하지 않고 통과**시킵니다 (로그만 남김). 훅 개발 실수가 전체 개발을 막으면 안 되기 때문입니다.
+
+---
+
+## 품질 시스템 — AI 결과물의 실질적 품질 향상
+
+`sentix run` 파이프라인에는 AI 자체 리뷰를 넘어서는 **결정론적 품질 시스템**이 내장되어 있습니다.
+
+```
+사용자 요청
+  ↓
+[Spec Questions] — 요청 분석 → 누락 정보 질문 자동 생성
+  ↓
+[Spec Enricher] — 프로젝트 제약 + 과거 실패 패턴 자동 주입
+  ↓
+planner → dev
+  ↓
+[Quality Gate] — 기계가 코드를 검증 (AI 판단 아님)
+  ↓
+[Feedback Loop] — 실패 패턴 → 제약에 자동 추가
+  ↓
+pr-review → finalize
+```
+
+### Quality Gate — AI가 놓치는 것을 기계가 잡는다
+
+dev가 코드를 작성한 후, pr-review 전에 **5가지 결정론적 검사**가 자동 실행됩니다:
+
+| 검사 | 잡는 것 | AI가 놓치는 이유 |
+|---|---|---|
+| **Banned patterns** | `eval()`, `new Function()`, `innerHTML`, 하드코딩 시크릿 | AI는 "의도적이겠지"라고 넘김 |
+| **Debug artifacts** | `src/` 안의 `console.log` | AI가 넣어놓고 안 지움 |
+| **Syntax check** | `.js` 파일 구문 오류 | AI는 "괄호 맞겠지"라고 확신 |
+| **npm audit** | 알려진 보안 취약점 | AI는 CVE DB를 실시간으로 못 봄 |
+| **Test regression** | 테스트 수 감소, 실패 증가 | AI는 "다 통과했을 것"이라 추정 |
+
+AI의 pr-review는 이 중 일부를 **확률적으로** 잡지만, Quality Gate는 **100% 확정적으로** 잡습니다.
+
+### Spec Enricher — 입력이 좋아야 출력이 좋다
+
+`.sentix/constraints.md`에 프로젝트 고유 제약을 관리합니다:
+
+```markdown
+## Security
+- eval(), new Function() 사용 금지
+- 비밀번호, API 키 하드코딩 금지
+
+## Code Quality  
+- src/ 내 console.log 금지 — ctx.log 사용
+- 외부 npm 의존성 추가 금지 (zero-dep 정책)
+```
+
+이 제약은 **모든 파이프라인 실행에서 planner와 dev 프롬프트에 자동 주입**됩니다. 사용자가 매번 "eval 쓰지 마"라고 말할 필요 없이, 파일 하나로 프로젝트 규칙이 영구 적용됩니다.
+
+### Spec Questions — 빈약한 입력을 자동 보강
+
+"로그인 만들어"처럼 짧은 요청이 들어오면, planner에게 **구조화 질문**을 자동 생성합니다:
+
+```
+⚠ 이 요청은 매우 짧습니다 (2단어). 아래 질문에 답하여 계획을 구체화하세요:
+
+  1. [대상 사용자] 이 기능의 대상은 누구인가?
+  2. [완료 기준] "완료"를 어떻게 확인하는가?
+  3. [엣지 케이스] 고려할 예외 상황은?
+  4. [하위 호환성] 기존 API와 호환을 유지해야 하는가?
+  5. [범위 경계] 이 작업의 범위는 어디까지인가?
+```
+
+요청에 이미 포함된 정보는 자동으로 스킵됩니다. 상세한 요청에는 질문이 줄어듭니다.
+
+### Feedback Loop — 실패에서 자동으로 배운다
+
+Quality Gate에서 잡힌 문제는 `.sentix/constraints.md`에 **자동으로 추가**됩니다:
+
+```
+1회차: dev가 eval() 사용 → Quality Gate에서 잡힘
+       → constraints.md에 "eval() 사용 금지" 자동 추가
+
+2회차: planner/dev 프롬프트에 "eval() 사용 금지" 주입됨
+       → dev가 처음부터 eval() 안 씀 → Quality Gate 통과
+```
+
+시간이 지날수록 `constraints.md`가 프로젝트 고유 지식으로 성장하고, 같은 실수가 반복되지 않습니다.
 
 ---
 
