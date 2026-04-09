@@ -21,6 +21,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { runGates } from './verify-gates.js';
+import { runQualityGate, formatQualityReport } from './quality-gate.js';
 import { promoteRepeatedLessons } from './lesson-promoter.js';
 import { runPhase } from './pipeline-worker.js';
 import { runDevSwarm } from './pipeline-swarm.js';
@@ -167,6 +168,7 @@ function runMidGate(ctx) {
     ctx.log(testResult.stdout?.slice(-500) || '');
   }
 
+  // Hard-rule gates (SCOPE, export, test deletion, net deletion)
   const midGate = runGates(ctx.cwd);
   for (const check of midGate.checks) {
     if (check.passed) {
@@ -176,11 +178,42 @@ function runMidGate(ctx) {
     }
   }
 
-  const midGateInfo = midGate.passed
-    ? 'All verification gates passed.'
-    : `Gate violations: ${midGate.violations.map((v) => v.message).join('; ')}`;
+  // Quality gate (banned patterns, debug artifacts, syntax, audit, regression)
+  const qualityGate = runQualityGate(ctx.cwd, { skipAudit: false });
+  ctx.log(formatQualityReport(qualityGate));
+
+  for (const check of qualityGate.checks) {
+    if (check.passed) {
+      ctx.success(`[quality:${check.name}] ${check.detail}`);
+    } else {
+      ctx.warn(`[quality:${check.name}] ${check.detail}`);
+    }
+  }
+
+  const midGateInfo = buildMidGateInfo(midGate, qualityGate);
 
   return { testResult, midGateInfo };
+}
+
+function buildMidGateInfo(midGate, qualityGate) {
+  const parts = [];
+
+  if (midGate.passed && qualityGate.passed) {
+    return 'All verification gates and quality checks passed.';
+  }
+
+  if (!midGate.passed) {
+    parts.push(`Hard-rule violations: ${midGate.violations.map((v) => v.message).join('; ')}`);
+  }
+
+  if (!qualityGate.passed) {
+    const errors = qualityGate.checks
+      .flatMap((c) => c.issues)
+      .filter((i) => i.severity === 'error');
+    parts.push(`Quality issues (${errors.length} error(s)): ${errors.map((e) => e.message).join('; ')}`);
+  }
+
+  return parts.join(' | ');
 }
 
 // ── Review phase (재시도 + NEEDS_REPLAN 감지) ─────────────

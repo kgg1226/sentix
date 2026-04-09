@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "id": "feat-001",
+    "type": "feature",
+    "title": "dev 완료 후 결정론적 품질 게이트(Quality Gate) 추가 — lint, test, coverage, security 검사를 pr...",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-09T08:27:58.164Z",
+    "updated_at": "2026-04-09T08:27:58.164Z",
+    "pipeline_status": "pending",
+    "description_hash": "45444467",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-001.md"
+  }
+]
