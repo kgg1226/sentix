@@ -31,6 +31,7 @@ import {
   buildLearningContext,
   loadCrossProjectContext,
 } from './pipeline-helpers.js';
+import { loadConstraints } from './spec-enricher.js';
 import {
   buildPlanPrompt,
   buildDevPrompt,
@@ -59,12 +60,19 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   const learningContext = buildLearningContext(lessons, patterns);
   const crossProjectContext = loadCrossProjectContext(ctx.cwd);
 
+  // Spec Enricher: 프로젝트 제약 + 학습 패턴 로드
+  const { constraintsContext, constraintCount } = loadConstraints(ctx.cwd);
+  if (constraintCount > 0) {
+    ctx.success(`Loaded ${constraintCount} constraint(s) from .sentix/constraints.md + lessons.md`);
+  }
+
   const promptCtx = {
     request,
     safetyDirective: options.safetyDirective,
     methodsDirective,
     learningContext,
     crossProjectContext,
+    constraintsContext,
   };
 
   // ── Phase 1: PLAN ─────────────────────────────────

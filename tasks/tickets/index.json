@@ -11,5 +11,18 @@
     "description_hash": "45444467",
     "related_cycle": null,
     "file_path": "tasks/tickets/feat-001.md"
+  },
+  {
+    "id": "feat-002",
+    "type": "feature",
+    "title": "입력 품질 강화 — constraints.md 자동 주입 + Spec Enricher로 planner 전 요청 구조화",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-09T09:14:28.464Z",
+    "updated_at": "2026-04-09T09:14:28.464Z",
+    "pipeline_status": "pending",
+    "description_hash": "c2c4a1b3",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-002.md"
   }
 ]
