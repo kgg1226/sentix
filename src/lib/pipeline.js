@@ -22,6 +22,7 @@
 import { spawnSync } from 'node:child_process';
 import { runGates } from './verify-gates.js';
 import { runQualityGate, formatQualityReport } from './quality-gate.js';
+import { feedbackToConstraints } from './feedback-loop.js';
 import { promoteRepeatedLessons } from './lesson-promoter.js';
 import { runPhase } from './pipeline-worker.js';
 import { runDevSwarm } from './pipeline-swarm.js';
@@ -195,6 +196,21 @@ function runMidGate(ctx) {
       ctx.success(`[quality:${check.name}] ${check.detail}`);
     } else {
       ctx.warn(`[quality:${check.name}] ${check.detail}`);
+    }
+  }
+
+  // Feedback loop: 실패 패턴 → constraints.md 자동 추가
+  if (!qualityGate.passed) {
+    try {
+      const feedback = feedbackToConstraints(ctx.cwd, qualityGate);
+      if (feedback.added.length > 0) {
+        ctx.success(`Feedback loop: ${feedback.added.length} pattern(s) added to .sentix/constraints.md`);
+        for (const entry of feedback.added) {
+          ctx.log(`  → ${entry}`);
+        }
+      }
+    } catch (e) {
+      ctx.warn(`Feedback loop skipped: ${e.message}`);
     }
   }
 

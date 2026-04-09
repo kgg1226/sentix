@@ -24,5 +24,18 @@
     "description_hash": "c2c4a1b3",
     "related_cycle": null,
     "file_path": "tasks/tickets/feat-002.md"
+  },
+  {
+    "id": "feat-003",
+    "type": "feature",
+    "title": "피드백 루프 — Quality Gate 실패 패턴을 constraints.md에 자동 추가하는 선순환 구조",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-09T09:42:59.954Z",
+    "updated_at": "2026-04-09T09:42:59.954Z",
+    "pipeline_status": "pending",
+    "description_hash": "fae9c3ba",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-003.md"
   }
 ]
