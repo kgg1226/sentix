@@ -80,6 +80,44 @@ describe('feedback-loop', () => {
       assert.ok(entries[0].includes('테스트 회귀'));
     });
 
+    it('handles unknown check name with message', () => {
+      const gateResults = {
+        passed: false,
+        checks: [
+          {
+            name: 'future-check',
+            passed: false,
+            issues: [
+              { severity: 'error', message: 'some future issue' },
+            ],
+          },
+        ],
+      };
+
+      const entries = extractConstraintEntries(gateResults);
+      assert.equal(entries.length, 1);
+      assert.ok(entries[0].includes('[future-check]'), 'should include check name');
+      assert.ok(entries[0].includes('some future issue'), 'should include message');
+    });
+
+    it('skips unknown check name without message', () => {
+      const gateResults = {
+        passed: false,
+        checks: [
+          {
+            name: 'unknown',
+            passed: false,
+            issues: [
+              { severity: 'error' },  // no message
+            ],
+          },
+        ],
+      };
+
+      const entries = extractConstraintEntries(gateResults);
+      assert.equal(entries.length, 0, 'should skip entries with no message');
+    });
+
     it('returns empty for passing gate', () => {
       const gateResults = {
         passed: true,
