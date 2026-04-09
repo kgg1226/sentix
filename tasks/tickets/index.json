@@ -50,5 +50,18 @@
     "description_hash": "77ea5430",
     "related_cycle": null,
     "file_path": "tasks/tickets/bug-001.md"
+  },
+  {
+    "id": "feat-004",
+    "type": "feature",
+    "title": "인터랙티브 Spec Enricher — sentix run 시 planner 전에 구조화 질문으로 요청을 풍성하게 보강",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-09T14:28:14.827Z",
+    "updated_at": "2026-04-09T14:28:14.827Z",
+    "pipeline_status": "pending",
+    "description_hash": "1b7f8349",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-004.md"
   }
 ]

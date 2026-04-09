@@ -33,6 +33,7 @@ import {
   loadCrossProjectContext,
 } from './pipeline-helpers.js';
 import { loadConstraints } from './spec-enricher.js';
+import { analyzeRequest } from './spec-questions.js';
 import {
   buildPlanPrompt,
   buildDevPrompt,
@@ -73,6 +74,18 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     ctx.warn(`Constraints loading failed (safe skip): ${e.message}`);
   }
 
+  // Spec Questions: 요청 분석 → 누락 정보 질문 생성
+  let specDirective = '';
+  try {
+    const specAnalysis = analyzeRequest(request);
+    specDirective = specAnalysis.specDirective;
+    if (specAnalysis.questions.length > 0) {
+      ctx.success(`Spec analysis: ${specAnalysis.questions.length} question(s) for planner (type: ${specAnalysis.requestType})`);
+    }
+  } catch (e) {
+    ctx.warn(`Spec analysis failed (safe skip): ${e.message}`);
+  }
+
   const promptCtx = {
     request,
     safetyDirective: options.safetyDirective,
@@ -80,6 +93,7 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     learningContext,
     crossProjectContext,
     constraintsContext,
+    specDirective,
   };
 
   // ── Phase 1: PLAN ─────────────────────────────────
