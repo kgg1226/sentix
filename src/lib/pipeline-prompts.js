@@ -123,7 +123,7 @@ export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempt
 }
 
 /** Re-plan phase 프롬프트 */
-export function buildReplanPrompt({ request, methodsDirective, learningContext, crossProjectContext }) {
+export function buildReplanPrompt({ request, methodsDirective, learningContext, crossProjectContext, constraintsContext }) {
   return joinFiltered([
     'Read CLAUDE.md first.',
     'You are the PLANNER agent. PREVIOUS PLAN FAILED. Re-plan with new approach.',
@@ -134,9 +134,11 @@ export function buildReplanPrompt({ request, methodsDirective, learningContext, 
     '2. What constraints did we miss?',
     '3. Create a NEW ticket with different SCOPE or approach',
     '4. Mark previous ticket as SUPERSEDED',
+    '5. Review the CONSTRAINTS below — your new plan MUST NOT violate any of them.',
     methodsDirective,
     learningContext,
     crossProjectContext,
+    constraintsContext,
   ]);
 }
 
