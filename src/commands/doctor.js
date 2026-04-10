@@ -207,6 +207,24 @@ async function checkRuntime(ctx, out) {
 }
 
 async function checkCleanup(ctx, out) {
+  // Quality System layers
+  const qualityLayers = [
+    { path: 'src/lib/quality-gate.js',  label: 'L2 Quality Gate (결정론적 검증)' },
+    { path: 'src/lib/spec-enricher.js', label: 'L3 Spec Enricher (입력 강화)' },
+    { path: 'src/lib/spec-questions.js', label: 'L3 Spec Questions (요청 분석)' },
+    { path: '.sentix/constraints.md',   label: 'L3 constraints.md (프로젝트 제약)' },
+    { path: 'src/lib/feedback-loop.js', label: 'L4 Feedback Loop (자동 학습)' },
+    { path: 'src/lib/multi-gen.js',     label: 'L5 Multi-Gen (다중 생성)' },
+    { path: 'src/lib/cross-review.js',  label: 'L6 Cross-Review (이종 검증)' },
+  ];
+  for (const layer of qualityLayers) {
+    if (ctx.exists(layer.path)) {
+      out.push({ level: 'pass', label: layer.label });
+    } else {
+      out.push({ level: 'warn', label: layer.label, fix: 'sentix update' });
+    }
+  }
+
   // Sentix enforcement hooks (Claude Code settings)
   await checkHooks(ctx, out);
 

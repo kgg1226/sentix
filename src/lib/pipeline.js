@@ -19,7 +19,7 @@
  *   - pipeline-prompts.js  phase 별 prompt 생성
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execSync } from 'node:child_process';
 import { runGates } from './verify-gates.js';
 import { runQualityGate, formatQualityReport } from './quality-gate.js';
 import { feedbackToConstraints } from './feedback-loop.js';
@@ -34,6 +34,8 @@ import {
 } from './pipeline-helpers.js';
 import { loadConstraints } from './spec-enricher.js';
 import { analyzeRequest } from './spec-questions.js';
+import { runMultiGen } from './multi-gen.js';
+import { loadProviderConfig, runCrossReview, getCrossReviewProvider } from './cross-review.js';
 import {
   buildPlanPrompt,
   buildDevPrompt,
@@ -113,11 +115,42 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
 
   // ── Phase 2: DEV ──────────────────────────────────
   let devResult;
+  const useMultiGen = options.multiGen === true;
+
   if (complexity === 'high' && latestTicket) {
     ctx.log('\n=== Phase 2: DEV-SWARM (parallel) ===\n');
     state.current_phase = 'dev-swarm';
     await ctx.writeJSON('tasks/governor-state.json', state);
     devResult = await runDevSwarm(request, latestTicket, methodsDirective, learningContext, options, ctx, constraintsContext);
+  } else if (useMultiGen) {
+    ctx.log('\n=== Phase 2: DEV (multi-gen) ===\n');
+    state.current_phase = 'dev-multi-gen';
+    await ctx.writeJSON('tasks/governor-state.json', state);
+
+    const devPrompt = buildDevPrompt({ ...promptCtx, latestTicket });
+    let multiGenResult;
+    try {
+      multiGenResult = runMultiGen(devPrompt, ctx, { count: options.multiGenCount || 3 });
+    } catch (e) {
+      ctx.warn(`Multi-gen failed (falling back to single dev): ${e.message}`);
+      multiGenResult = { fallback: true };
+    }
+
+    if (multiGenResult.fallback) {
+      // git 없는 환경 또는 multi-gen 실패 → 단일 생성으로 fallback
+      devResult = runPhase('dev', devPrompt, ctx);
+    } else if (multiGenResult.applied && multiGenResult.bestIndex >= 0) {
+      devResult = {
+        success: true,
+        error: null,
+        exit_code: 0,
+        output: { multiGen: multiGenResult },
+      };
+    } else {
+      // 모든 생성 실패 → 단일 dev로 최후 fallback
+      ctx.warn('Multi-gen: all generations failed — falling back to single dev');
+      devResult = runPhase('dev', devPrompt, ctx);
+    }
   } else {
     ctx.log('\n=== Phase 2: DEV ===\n');
     state.current_phase = 'dev';
@@ -125,7 +158,8 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     devResult = runPhase('dev', buildDevPrompt({ ...promptCtx, latestTicket }), ctx);
   }
 
-  phases.push({ name: complexity === 'high' ? 'dev-swarm' : 'dev', ...devResult });
+  const devPhaseName = useMultiGen ? 'dev-multi-gen' : (complexity === 'high' ? 'dev-swarm' : 'dev');
+  phases.push({ name: devPhaseName, ...devResult });
   if (!devResult.success) {
     return { success: false, phases, failedAt: 'dev' };
   }
@@ -145,6 +179,39 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     });
     if (replanResult && !replanResult.success) {
       return replanResult;
+    }
+  }
+
+  // ── Cross-review (이종 모델, opt-in) ───────────────
+  if (options.crossReview) {
+    try {
+      const providerName = typeof options.crossReview === 'string'
+        ? options.crossReview
+        : (getCrossReviewProvider(ctx.cwd) || 'openai');
+
+      ctx.log(`\n=== Cross-Review: ${providerName} ===\n`);
+      const providerConfig = loadProviderConfig(ctx.cwd, providerName);
+
+      if (providerConfig) {
+        const diff = execSync('git diff HEAD', { cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe', timeout: 10_000 });
+
+        if (!diff.trim()) {
+          ctx.warn('Cross-review skipped: no diff to review');
+        } else {
+          const crossResult = await runCrossReview(diff, 'Review this code change for issues.', providerConfig);
+          if (crossResult.success) {
+            ctx.success(`Cross-review by ${crossResult.model}: completed`);
+            ctx.log(crossResult.review.slice(0, 2000));
+            phases.push({ name: `cross-review-${providerName}`, success: true, output: { review: crossResult.review } });
+          } else {
+            ctx.warn(`Cross-review skipped: ${crossResult.error}`);
+          }
+        }
+      } else {
+        ctx.warn(`Cross-review: provider "${providerName}" not configured`);
+      }
+    } catch (e) {
+      ctx.warn(`Cross-review failed (safe skip): ${e.message}`);
     }
   }
 

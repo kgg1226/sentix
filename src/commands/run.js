@@ -25,7 +25,7 @@ registerCommand('run', {
   usage: 'sentix run "요청 내용"',
 
   async run(args, ctx) {
-    const request = args.join(' ').trim();
+    const request = stripFlags(args).join(' ').trim();
 
     if (!request) {
       renderPreflightError(ctx, 'empty-request');
@@ -173,7 +173,21 @@ registerCommand('run', {
       };
     } else if (useChained || (!useLegacy && !args.includes('--single'))) {
       renderModeLine(ctx, 'chained');
-      const chainResult = await runChainedPipeline(request, cycleId, state, ctx, { safetyDirective });
+      const multiGen = args.includes('--multi-gen') || args.includes('-mg');
+      const multiGenCount = (() => {
+        const idx = args.indexOf('--gen-count');
+        return idx !== -1 ? parseInt(args[idx + 1]) || 3 : 3;
+      })();
+      const crossReviewIdx = args.indexOf('--cross-review');
+      const crossReview = crossReviewIdx !== -1
+        ? (args[crossReviewIdx + 1] && !args[crossReviewIdx + 1].startsWith('-') ? args[crossReviewIdx + 1] : true)
+        : false;
+      const chainResult = await runChainedPipeline(request, cycleId, state, ctx, {
+        safetyDirective,
+        multiGen,
+        multiGenCount,
+        crossReview,
+      });
       pipelineResult = {
         success: chainResult.success,
         gateResults: chainResult.gateResults || runGates(ctx.cwd),
@@ -368,4 +382,30 @@ function detectTicketType(request, state) {
   }
 
   return null;
+}
+
+/**
+ * CLI 플래그를 args에서 제거하고 순수 요청 텍스트만 반환한다.
+ * 플래그: --flag, -shortflag, 그리고 값이 따라오는 플래그 (--gen-count 3)
+ */
+const FLAGS_WITH_VALUE = new Set(['--gen-count', '--safety-word']);
+
+function stripFlags(args) {
+  const result = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('--') || arg === '-c' || arg === '-mg') {
+      // 값이 따라오는 플래그면 다음 인자도 스킵
+      if (FLAGS_WITH_VALUE.has(arg)) {
+        i++;
+      } else if (arg === '--cross-review') {
+        // --cross-review 뒤에 provider 이름이 올 수도 있음 (플래그가 아닌 경우만)
+        const next = args[i + 1];
+        if (next && !next.startsWith('-')) i++;
+      }
+      continue;
+    }
+    result.push(arg);
+  }
+  return result;
 }
