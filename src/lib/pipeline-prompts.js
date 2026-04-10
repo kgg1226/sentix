@@ -123,6 +123,11 @@ export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempt
     '7. If gate violations exist, fix them',
     '8. Run: npm test — confirm all pass after fixes',
     `9. If this is your ${maxAttempts}rd attempt and still REJECTED, output "NEEDS_REPLAN" to trigger planner re-summoning`,
+    '',
+    'ADVERSARIAL PROTOCOL:',
+    'You MUST identify at least 2 potential issues before approving.',
+    'If you genuinely find none, list the 5 specific checks you performed.',
+    '"I found no issues" without evidence is NOT a valid review.',
     methodsDirective,
     learningContext,
   ]);

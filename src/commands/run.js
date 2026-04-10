@@ -178,10 +178,15 @@ registerCommand('run', {
         const idx = args.indexOf('--gen-count');
         return idx !== -1 ? parseInt(args[idx + 1]) || 3 : 3;
       })();
+      const crossReviewIdx = args.indexOf('--cross-review');
+      const crossReview = crossReviewIdx !== -1
+        ? (args[crossReviewIdx + 1] && !args[crossReviewIdx + 1].startsWith('-') ? args[crossReviewIdx + 1] : true)
+        : false;
       const chainResult = await runChainedPipeline(request, cycleId, state, ctx, {
         safetyDirective,
         multiGen,
         multiGenCount,
+        crossReview,
       });
       pipelineResult = {
         success: chainResult.success,
@@ -383,7 +388,7 @@ function detectTicketType(request, state) {
  * CLI 플래그를 args에서 제거하고 순수 요청 텍스트만 반환한다.
  * 플래그: --flag, -shortflag, 그리고 값이 따라오는 플래그 (--gen-count 3)
  */
-const FLAGS_WITH_VALUE = new Set(['--gen-count', '--safety-word']);
+const FLAGS_WITH_VALUE = new Set(['--gen-count', '--safety-word', '--cross-review']);
 
 function stripFlags(args) {
   const result = [];

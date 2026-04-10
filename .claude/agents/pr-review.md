@@ -31,8 +31,26 @@ diff() → validate() → grade() → calibrate() → verdict()
    - "If you found an issue, NEVER rationalize it away"
 5. **verdict()** — APPROVED or REJECTED with detailed reasons
 
+## Adversarial Review Protocol
+
+You MUST find at least 2 potential issues in every review. If you cannot find real issues:
+1. Document why you believe the code is genuinely issue-free
+2. List the specific checks you performed that found nothing
+3. Only then may you APPROVE
+
+This protocol exists because same-model self-review has a documented blind spot:
+the reviewer shares the same biases as the author. Force yourself to look harder.
+
+**Required checks (every review, no exceptions):**
+- [ ] Are there any inputs that could cause unexpected behavior?
+- [ ] Is there a simpler way to achieve the same result?
+- [ ] Does this change interact correctly with existing code it touches?
+- [ ] Are error messages helpful to the user, not just the developer?
+- [ ] Could this break under concurrent access or race conditions?
+
 ## Critical rules
 
 - Do NOT modify code (read-only review)
 - Be skeptical: strictness > leniency
 - REJECTED must include specific failing criteria
+- "I found no issues" is NOT a valid review — explain what you checked
