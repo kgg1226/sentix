@@ -19,7 +19,7 @@
  *   - pipeline-prompts.js  phase 별 prompt 생성
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execSync } from 'node:child_process';
 import { runGates } from './verify-gates.js';
 import { runQualityGate, formatQualityReport } from './quality-gate.js';
 import { feedbackToConstraints } from './feedback-loop.js';
@@ -193,16 +193,19 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
       const providerConfig = loadProviderConfig(ctx.cwd, providerName);
 
       if (providerConfig) {
-        const { execSync } = await import('node:child_process');
         const diff = execSync('git diff HEAD', { cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe', timeout: 10_000 });
-        const crossResult = await runCrossReview(diff, 'Review this code change for issues.', providerConfig);
 
-        if (crossResult.success) {
-          ctx.success(`Cross-review by ${crossResult.model}: completed`);
-          ctx.log(crossResult.review.slice(0, 2000));
-          phases.push({ name: `cross-review-${providerName}`, success: true, output: { review: crossResult.review } });
+        if (!diff.trim()) {
+          ctx.warn('Cross-review skipped: no diff to review');
         } else {
-          ctx.warn(`Cross-review skipped: ${crossResult.error}`);
+          const crossResult = await runCrossReview(diff, 'Review this code change for issues.', providerConfig);
+          if (crossResult.success) {
+            ctx.success(`Cross-review by ${crossResult.model}: completed`);
+            ctx.log(crossResult.review.slice(0, 2000));
+            phases.push({ name: `cross-review-${providerName}`, success: true, output: { review: crossResult.review } });
+          } else {
+            ctx.warn(`Cross-review skipped: ${crossResult.error}`);
+          }
         }
       } else {
         ctx.warn(`Cross-review: provider "${providerName}" not configured`);

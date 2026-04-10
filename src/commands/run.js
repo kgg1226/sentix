@@ -388,7 +388,7 @@ function detectTicketType(request, state) {
  * CLI 플래그를 args에서 제거하고 순수 요청 텍스트만 반환한다.
  * 플래그: --flag, -shortflag, 그리고 값이 따라오는 플래그 (--gen-count 3)
  */
-const FLAGS_WITH_VALUE = new Set(['--gen-count', '--safety-word', '--cross-review']);
+const FLAGS_WITH_VALUE = new Set(['--gen-count', '--safety-word']);
 
 function stripFlags(args) {
   const result = [];
@@ -396,7 +396,13 @@ function stripFlags(args) {
     const arg = args[i];
     if (arg.startsWith('--') || arg === '-c' || arg === '-mg') {
       // 값이 따라오는 플래그면 다음 인자도 스킵
-      if (FLAGS_WITH_VALUE.has(arg)) i++;
+      if (FLAGS_WITH_VALUE.has(arg)) {
+        i++;
+      } else if (arg === '--cross-review') {
+        // --cross-review 뒤에 provider 이름이 올 수도 있음 (플래그가 아닌 경우만)
+        const next = args[i + 1];
+        if (next && !next.startsWith('-')) i++;
+      }
       continue;
     }
     result.push(arg);
