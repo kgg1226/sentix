@@ -34,6 +34,7 @@ import {
 } from './pipeline-helpers.js';
 import { loadConstraints } from './spec-enricher.js';
 import { analyzeRequest } from './spec-questions.js';
+import { runMultiGen } from './multi-gen.js';
 import {
   buildPlanPrompt,
   buildDevPrompt,
@@ -113,11 +114,42 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
 
   // ── Phase 2: DEV ──────────────────────────────────
   let devResult;
+  const useMultiGen = options.multiGen === true;
+
   if (complexity === 'high' && latestTicket) {
     ctx.log('\n=== Phase 2: DEV-SWARM (parallel) ===\n');
     state.current_phase = 'dev-swarm';
     await ctx.writeJSON('tasks/governor-state.json', state);
     devResult = await runDevSwarm(request, latestTicket, methodsDirective, learningContext, options, ctx, constraintsContext);
+  } else if (useMultiGen) {
+    ctx.log('\n=== Phase 2: DEV (multi-gen) ===\n');
+    state.current_phase = 'dev-multi-gen';
+    await ctx.writeJSON('tasks/governor-state.json', state);
+
+    const devPrompt = buildDevPrompt({ ...promptCtx, latestTicket });
+    let multiGenResult;
+    try {
+      multiGenResult = runMultiGen(devPrompt, ctx, { count: options.multiGenCount || 3 });
+    } catch (e) {
+      ctx.warn(`Multi-gen failed (falling back to single dev): ${e.message}`);
+      multiGenResult = { fallback: true };
+    }
+
+    if (multiGenResult.fallback) {
+      // git 없는 환경 또는 multi-gen 실패 → 단일 생성으로 fallback
+      devResult = runPhase('dev', devPrompt, ctx);
+    } else if (multiGenResult.applied && multiGenResult.bestIndex >= 0) {
+      devResult = {
+        success: true,
+        error: null,
+        exit_code: 0,
+        output: { multiGen: multiGenResult },
+      };
+    } else {
+      // 모든 생성 실패 → 단일 dev로 최후 fallback
+      ctx.warn('Multi-gen: all generations failed — falling back to single dev');
+      devResult = runPhase('dev', devPrompt, ctx);
+    }
   } else {
     ctx.log('\n=== Phase 2: DEV ===\n');
     state.current_phase = 'dev';
@@ -125,7 +157,8 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     devResult = runPhase('dev', buildDevPrompt({ ...promptCtx, latestTicket }), ctx);
   }
 
-  phases.push({ name: complexity === 'high' ? 'dev-swarm' : 'dev', ...devResult });
+  const devPhaseName = useMultiGen ? 'dev-multi-gen' : (complexity === 'high' ? 'dev-swarm' : 'dev');
+  phases.push({ name: devPhaseName, ...devResult });
   if (!devResult.success) {
     return { success: false, phases, failedAt: 'dev' };
   }

@@ -63,5 +63,18 @@
     "description_hash": "1b7f8349",
     "related_cycle": null,
     "file_path": "tasks/tickets/feat-004.md"
+  },
+  {
+    "id": "feat-005",
+    "type": "feature",
+    "title": "다중 생성(Multi-Gen) — dev를 N번 독립 실행하여 최선의 결과를 선택하는 Layer 5",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-10T00:00:05.233Z",
+    "updated_at": "2026-04-10T00:00:05.233Z",
+    "pipeline_status": "pending",
+    "description_hash": "3ed290b5",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-005.md"
   }
 ]
