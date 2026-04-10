@@ -22,6 +22,7 @@ agent-profiles/active.toml
 
 # Sentix runtime files
 tasks/.pre-fix-test-results.json
+tasks/.gen-*.patch
 tasks/pattern-log.jsonl
 tasks/agent-metrics.jsonl
 tasks/strategies.jsonl
