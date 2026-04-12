@@ -11,10 +11,12 @@
 
 cat <<'EOF'
 [SENTIX REMINDER]
-- 코드 변경 요청 = Governor 파이프라인 진입 (planner → dev → review → finalize)
-- 직접 Write/Edit 금지 (PreToolUse 훅이 차단). 작업 전 `sentix run "<요청>"` 사용
+- 코드 변경 요청 = 반드시 `sentix run "<요청>"` 으로 실행 (직접 코딩 금지)
+- sentix run이 L1~L6 전체 품질 파이프라인을 자동 실행합니다
+- 직접 Write/Edit 금지 (PreToolUse 훅이 차단)
 - 하드 룰 6개: 테스트 스냅샷 / SCOPE 준수 / export 보존 / 테스트 보존 / 순삭제 50줄 / 핸들러 보존
 - 질문/탐색은 예외 (읽기 도구는 허용)
+- 코드 변경이 필요하면: sentix run "<요청>" 또는 sentix ticket create "<설명>"
 EOF
 
 exit 0

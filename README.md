@@ -29,7 +29,7 @@ sentix ticket create "설명"    # 버그 티켓
 sentix feature add "설명"      # 기능 티켓
 ```
 
-> **핵심**: `sentix init` 후 Claude Code로 폴더를 열면 **자동으로 Governor 모드**가 됩니다. `sentix run`은 체인 파이프라인이 필요할 때만 사용합니다.
+> **핵심**: `sentix init` 후 Claude Code로 폴더를 열면 **자동으로 Governor 모드**가 됩니다. 코드 변경 요청은 `sentix run`으로 실행되며, 이것이 L1~L6 전체 품질 레이어를 가동합니다.
 
 ---
 

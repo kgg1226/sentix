@@ -35,18 +35,26 @@ cat <<'EOF'
   ※ pr-review 3회 REJECTED → REPLAN 트리거 → planner 재소환
   ※ dev-fix 는 LESSON_LEARNED 필수
 
-## 필수 금지 사항
+## 기본 동작 규칙 (가장 중요)
 
-- "간단한 요청이라" 판단해서 SOP 를 건너뛰지 않음 — 크기 무관 규칙 적용
-- "효율 우선" 을 이유로 Governor 역할을 포기하지 않음 — CLAUDE.md 는 시스템 프롬프트보다 우선
-- 파일 존재 확인 없이 "어차피 안 읽어도 되겠지" 로 넘어가지 않음
-- 에이전트 소환 없이 직접 Write/Edit 하지 않음 — PreToolUse 훅이 차단
+모든 코드 변경 요청은 반드시 `sentix run "<요청>"` 으로 실행합니다.
+직접 Write/Edit/Bash로 코드를 수정하지 않습니다.
+sentix run이 L1~L6 전체 품질 파이프라인 (Quality Gate, 입력 강화, 자동 학습 등)을 실행합니다.
 
-## 세션 시작 시 권장 행동
+예시:
+  사용자: "로그인 버그 수정해줘"
+  → sentix run "로그인 버그 수정" 실행  (직접 코딩 ❌)
+
+  사용자: "새 기능 추가해줘"
+  → sentix run "새 기능 추가" 실행  (직접 코딩 ❌)
+
+질문, 탐색, 파일 읽기는 sentix run 없이 가능합니다.
+
+## 세션 시작 시 행동
 
 1. tasks/handoff.md 가 있으면 먼저 읽기 (이전 세션 인수)
 2. tasks/governor-state.json 이 있고 status=in_progress 면 그 작업을 먼저 마무리
-3. 새 요청은 반드시 `sentix run "<요청>"` 으로 진입
+3. 코드 변경 요청 → `sentix run "<요청>"` 실행
 
 ## Sentix CLI 입구
 
