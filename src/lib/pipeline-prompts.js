@@ -9,7 +9,7 @@ function joinFiltered(lines) {
 }
 
 /** Planner phase 프롬프트 */
-export function buildPlanPrompt({ request, safetyDirective, methodsDirective, learningContext, crossProjectContext, constraintsContext, specDirective }) {
+export function buildPlanPrompt({ request, safetyDirective, methodsDirective, learningContext, crossProjectContext, constraintsContext, specDirective, patternDirective }) {
   return joinFiltered([
     'Read CLAUDE.md first.',
     safetyDirective || '',
@@ -24,11 +24,13 @@ export function buildPlanPrompt({ request, safetyDirective, methodsDirective, le
     '8. Check cross-project context for API dependencies or breaking changes.',
     '9. Review the CONSTRAINTS below — your plan MUST NOT violate any of them.',
     '10. If SPEC ENRICHMENT questions are provided below, address each one in your ticket.',
+    '11. If PATTERN DIRECTIVES are provided below, follow their recommendations.',
     methodsDirective,
     learningContext,
     crossProjectContext,
     constraintsContext,
     specDirective,
+    patternDirective,
   ]);
 }
 
