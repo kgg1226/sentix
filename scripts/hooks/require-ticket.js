@@ -27,9 +27,10 @@ import { resolve, relative } from 'node:path';
 // 이유: 티켓 없이도 안전하게 수정 가능한 영역
 const ALLOW_PATTERNS = [
   /^tasks\//,              // Sentix 자체가 tasks/ 를 관리
-  /^\.sentix\//,           // Sentix 내부 설정
+  /^\.sentix\/constraints\.md$/,  // 피드백 루프가 자동 추가
+  /^\.sentix\/config\.toml$/,     // sentix config set 이 수정
+  /^\.sentix\/plugins\//,         // 로컬 플러그인
   /^\.claude\/rules\//,    // 규칙 파일 (auto-rule-promoter 가 씀)
-  /^scripts\/hooks\//,     // 훅 개발 시 우회 필요 (부트스트랩)
   /^__tests__\//,          // 테스트 추가 (하드룰 1 지원)
   /^README\.md$/,          // 최상위 프로젝트 소개 (사용자 직접 편집 범주)
   /^CHANGELOG\.md$/,       // 릴리즈 노트 (CI/수동 모두 사용)

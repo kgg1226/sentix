@@ -64,12 +64,12 @@ describe('require-ticket hook', () => {
       assert.equal(r.code, 0);
     });
 
-    it('allows writes to scripts/hooks/ (bootstrap)', () => {
+    it('blocks writes to scripts/hooks/ (protected)', () => {
       const r = runHook(tmpDir, {
         tool_name: 'Edit',
         tool_input: { file_path: join(tmpDir, 'scripts/hooks/session-start.sh') },
       });
-      assert.equal(r.code, 0);
+      assert.equal(r.code, 2, 'scripts/hooks/ should be blocked (integrity protection)');
     });
 
     it('allows writes to lessons.md / handoff.md', () => {
