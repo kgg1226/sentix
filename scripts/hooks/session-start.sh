@@ -4,11 +4,37 @@
 # 세션 시작 시 Claude Code 컨텍스트에 Sentix Governor 역할과 하드 룰을
 # 자동 주입한다. stdout 의 모든 출력은 Claude 의 초기 컨텍스트에 추가된다.
 #
-# 효과: 다음 세션의 Claude 는 "CLAUDE.md 를 읽어야 한다" 가 아니라
-#       "이미 Sentix Governor 역할을 부여받은 상태" 로 시작한다.
+# SENTIX_PIPELINE=true 환경 변수가 있으면 파이프라인 내부 에이전트 모드로 전환.
+# 이 경우 "직접 Write/Edit 금지" 대신 "자유롭게 코드를 작성하라" 는 지시를 준다.
 #
 # 등록: .claude/settings.json hooks.SessionStart
 
+# ── 파이프라인 내부 에이전트 모드 ────────────────────────
+if [ "$SENTIX_PIPELINE" = "true" ]; then
+  cat <<'AGENT_EOF'
+[SENTIX AGENT MODE]
+
+당신은 Sentix 파이프라인 내부에서 실행되는 에이전트입니다.
+Governor가 당신을 소환했습니다. 코드를 자유롭게 작성하세요.
+
+- Write/Edit 도구를 사용하여 실제 파일을 수정하세요
+- "코드를 텍스트로만 출력"하지 마세요 — 실제로 파일에 써야 합니다
+- 하드 룰 6개는 여전히 적용됩니다
+- 작업 완료 후 npm test를 실행하세요
+
+AGENT_EOF
+
+  # 하드 룰은 파이프라인 에이전트에도 적용
+  if [ -f .sentix/rules/hard-rules.md ]; then
+    echo ""
+    echo "=== .sentix/rules/hard-rules.md (원문) ==="
+    cat .sentix/rules/hard-rules.md
+  fi
+
+  exit 0
+fi
+
+# ── 일반 사용자 세션 모드 ────────────────────────────────
 cat <<'EOF'
 [SENTIX SESSION START]
 

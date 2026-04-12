@@ -35,6 +35,7 @@ export function runPhase(name, prompt, ctx) {
     encoding: 'utf-8',
     stdio: 'pipe',
     timeout: 300_000,
+    env: { ...process.env, SENTIX_PIPELINE: 'true' },
   });
 
   if (result.error) {
@@ -77,6 +78,7 @@ export function spawnWorker(prompt, cwd, _ctx) {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: 300_000,
+      env: { ...process.env, SENTIX_PIPELINE: 'true' },
     });
 
     let stdout = '';

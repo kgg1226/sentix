@@ -9,6 +9,14 @@
 #
 # 등록: .claude/settings.json hooks.UserPromptSubmit
 
+# 파이프라인 내부 에이전트는 간소한 리마인더만
+if [ "$SENTIX_PIPELINE" = "true" ]; then
+  cat <<'AGENT_EOF'
+[SENTIX AGENT] Write/Edit로 실제 파일을 수정하세요. 텍스트 출력만 하지 마세요.
+AGENT_EOF
+  exit 0
+fi
+
 cat <<'EOF'
 [SENTIX REMINDER]
 - 코드 변경 요청 = 반드시 `sentix run "<요청>"` 으로 실행 (직접 코딩 금지)

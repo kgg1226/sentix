@@ -148,6 +148,7 @@ registerCommand('run', {
         cwd: ctx.cwd,
         stdio: 'inherit',
         timeout: 600_000,
+        env: { ...process.env, SENTIX_PIPELINE: 'true' },
       });
 
       if (result.error || result.status !== 0) {
@@ -211,6 +212,7 @@ registerCommand('run', {
         cwd: ctx.cwd,
         stdio: 'inherit',
         timeout: 600_000,
+        env: { ...process.env, SENTIX_PIPELINE: 'true' },
       });
 
       if (result.error || result.status !== 0) {
