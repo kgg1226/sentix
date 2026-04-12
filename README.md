@@ -7,20 +7,29 @@
 
 ---
 
-## 빠른 시작
+## 설치 / 업데이트 / 명령어
 
 ```bash
-npx sentix init        # 프로젝트에 설치 (1분)
+# 설치 (프로젝트 폴더에서)
+npm install -g sentix     # 글로벌 설치 (한 번만)
+sentix init               # 프로젝트에 Sentix 적용 → CLAUDE.md, 훅, 설정 생성
+# 또는: npx sentix init   # 글로벌 설치 없이 바로 실행
+
+# 업데이트
+npm install -g sentix@latest   # 패키지 업데이트
+sentix update                  # 프로젝트 파일 동기화 (훅, 에이전트, 규칙)
+
+# 사용 (Claude Code에서 이 폴더를 열고 대화하면 자동 작동)
+sentix run "요청"              # 파이프라인 실행 (선택사항)
+sentix run "요청" --multi-gen  # 다중 생성 모드 (dev × 3 → 최선 선택)
+sentix run "요청" --cross-review  # 이종 모델 리뷰 (OpenAI 등)
+sentix status                  # Governor 대시보드
+sentix doctor                  # 설치 진단
+sentix ticket create "설명"    # 버그 티켓
+sentix feature add "설명"      # 기능 티켓
 ```
 
-**끝.** 이제 Claude Code, Cursor, Windsurf 등에서 평소처럼 대화하세요.
-
-```
-당신: "로그인에 세션 만료 추가해줘"
-→ Sentix가 자동으로 기획 → 코드 → 검증 → 리뷰 → 학습까지 수행합니다.
-```
-
-> `sentix run "요청"`은 **선택사항** — 체인 파이프라인 + 검증 게이트 + 메트릭이 필요할 때만.
+> **핵심**: `sentix init` 후 Claude Code로 폴더를 열면 **자동으로 Governor 모드**가 됩니다. `sentix run`은 체인 파이프라인이 필요할 때만 사용합니다.
 
 ---
 
