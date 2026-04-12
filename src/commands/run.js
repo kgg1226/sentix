@@ -10,6 +10,7 @@ import { registerCommand } from '../registry.js';
 import { runGates, runPreGates } from '../lib/verify-gates.js';
 import { detectDangerousRequest, verifyWord, isConfigured } from '../lib/safety.js';
 import { runChainedPipeline } from '../lib/pipeline.js';
+import { enrichRequestInteractively } from '../lib/interactive-spec.js';
 import {
   renderStartBanner,
   renderModeLine,
@@ -37,8 +38,17 @@ registerCommand('run', {
       return;
     }
 
+    // ── 인터랙티브 입력 구체화 ──────────────────────
+    const skipInteractive = args.includes('--yes') || args.includes('-y');
+    let enrichedRequest;
+    try {
+      enrichedRequest = await enrichRequestInteractively(request, ctx, { skipInteractive });
+    } catch {
+      enrichedRequest = request; // 인터랙티브 실패 시 원본 사용
+    }
+
     // ── Safety word gate ───────────────────────────
-    const safetyResult = await handleSafetyGate(request, args, ctx);
+    const safetyResult = await handleSafetyGate(enrichedRequest, args, ctx);
     if (safetyResult === 'denied' || safetyResult === 'needs-word') return;
 
     // ── Preflight: Claude Code + 동시 실행 검사 ────
@@ -84,7 +94,7 @@ registerCommand('run', {
     const state = {
       schema_version: 1,
       cycle_id: cycleId,
-      request,
+      request: enrichedRequest,
       mode,
       status: 'in_progress',
       current_phase: 'governor',
@@ -97,12 +107,12 @@ registerCommand('run', {
     };
 
     await ctx.writeJSON('tasks/governor-state.json', state);
-    renderStartBanner(ctx, { cycleId, request, mode });
+    renderStartBanner(ctx, { cycleId, request: enrichedRequest, mode });
 
     await ctx.appendJSONL('tasks/pattern-log.jsonl', {
       ts: new Date().toISOString(),
       event: 'request',
-      input: request,
+      input: enrichedRequest,
       cycle_id: cycleId,
       mode,
     });
@@ -139,7 +149,7 @@ registerCommand('run', {
         safetyDirective,
         modeDirective,
         `Execute the following request through the hotfix (shortened) Governor pipeline:`,
-        `"${request}"`,
+        `"${enrichedRequest}"`,
         '',
         'Follow the SOP exactly. Update tasks/governor-state.json at each phase.',
       ].filter(Boolean).join('\n');
@@ -183,7 +193,7 @@ registerCommand('run', {
       const crossReview = crossReviewIdx !== -1
         ? (args[crossReviewIdx + 1] && !args[crossReviewIdx + 1].startsWith('-') ? args[crossReviewIdx + 1] : true)
         : false;
-      const chainResult = await runChainedPipeline(request, cycleId, state, ctx, {
+      const chainResult = await runChainedPipeline(enrichedRequest, cycleId, state, ctx, {
         safetyDirective,
         multiGen,
         multiGenCount,
@@ -203,7 +213,7 @@ registerCommand('run', {
         'Read CLAUDE.md first. Refer to FRAMEWORK.md and docs/ only when you need design details for the current task.',
         safetyDirective,
         'Execute the following request through the Governor pipeline:',
-        `"${request}"`,
+        `"${enrichedRequest}"`,
         '',
         'Follow the SOP exactly. Update tasks/governor-state.json at each phase.',
       ].filter(Boolean).join('\n');
@@ -343,7 +353,7 @@ async function handleSafetyGate(request, args, ctx) {
     await ctx.appendJSONL('tasks/pattern-log.jsonl', {
       ts: new Date().toISOString(),
       event: 'safety-denied',
-      input: request,
+      input: enrichedRequest,
       pattern: dangerMatch,
     });
     return 'denied';
@@ -396,7 +406,7 @@ function stripFlags(args) {
   const result = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg.startsWith('--') || arg === '-c' || arg === '-mg') {
+    if (arg.startsWith('--') || arg === '-c' || arg === '-mg' || arg === '-y') {
       // 값이 따라오는 플래그면 다음 인자도 스킵
       if (FLAGS_WITH_VALUE.has(arg)) {
         i++;
