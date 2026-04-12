@@ -18,12 +18,20 @@ export const AGENT_MAP = {
   finalize: null,
 };
 
+/** 코드를 수정하는 phase인지 판단 */
+const WRITE_PHASES = new Set(['dev', 'review', 'finalize']);
+
 /**
  * Phase 를 동기 실행 (spawnSync).
  * @returns {{success: boolean, error: string|null, exit_code: number|null, output: object|null}}
  */
 export function runPhase(name, prompt, ctx) {
   const args = ['-p', prompt, '--output-format', 'json'];
+
+  // 코드를 수정하는 phase에는 acceptEdits 권한 부여
+  if (WRITE_PHASES.has(name)) {
+    args.push('--permission-mode', 'acceptEdits');
+  }
 
   const agentName = AGENT_MAP[name];
   if (agentName && existsSync(join(ctx.cwd, '.claude', 'agents', `${agentName}.md`))) {
@@ -68,7 +76,7 @@ export function runPhase(name, prompt, ctx) {
  */
 export function spawnWorker(prompt, cwd, _ctx) {
   return new Promise((resolveFn) => {
-    const args = ['-p', prompt, '--output-format', 'json'];
+    const args = ['-p', prompt, '--output-format', 'json', '--permission-mode', 'acceptEdits'];
 
     if (existsSync(join(cwd, '.claude', 'agents', 'dev.md'))) {
       args.push('--agent', 'dev');
