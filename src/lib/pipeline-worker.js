@@ -42,7 +42,7 @@ export function runPhase(name, prompt, ctx) {
     cwd: ctx.cwd,
     encoding: 'utf-8',
     stdio: 'pipe',
-    timeout: 300_000,
+    timeout: 900_000,
     env: { ...process.env, SENTIX_PIPELINE: 'true' },
   });
 
@@ -85,7 +85,7 @@ export function spawnWorker(prompt, cwd, _ctx) {
     const child = spawn('claude', args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 300_000,
+      timeout: 900_000,
       env: { ...process.env, SENTIX_PIPELINE: 'true' },
     });
 
