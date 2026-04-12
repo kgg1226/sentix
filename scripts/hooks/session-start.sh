@@ -66,6 +66,16 @@ if [ -f .sentix/rules/hard-rules.md ]; then
   cat .sentix/rules/hard-rules.md
 fi
 
+# 보호 파일 무결성 검사 (변조/삭제 감지 → 자동 복원)
+node -e "
+  try {
+    const { verifyIntegrity, formatIntegrityReport } = await import('./src/lib/integrity-guard.js');
+    const result = verifyIntegrity(process.cwd());
+    const report = formatIntegrityReport(result);
+    if (report) console.log(report);
+  } catch {}
+" 2>/dev/null || true
+
 # 진행 중인 사이클이 있으면 알림
 if [ -f tasks/governor-state.json ]; then
   echo ""

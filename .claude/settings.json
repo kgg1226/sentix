@@ -48,7 +48,21 @@
       "Edit: CLAUDE.md",
       "Edit: FRAMEWORK.md",
       "Edit: .github/**",
+      "Edit: .claude/settings.json",
+      "Edit: .claude/agents/**",
+      "Edit: scripts/hooks/**",
+      "Edit: .sentix/rules/**",
+      "Edit: .sentix/safety.toml",
+      "Write: .claude/settings.json",
+      "Write: .claude/agents/**",
+      "Write: scripts/hooks/**",
+      "Write: .sentix/rules/**",
+      "Write: .sentix/safety.toml",
       "Bash(rm -rf *)",
+      "Bash(rm -f .claude/*)",
+      "Bash(rm -f scripts/hooks/*)",
+      "Bash(rm -f .sentix/rules/*)",
+      "Bash(rm *settings.json*)",
       "Bash(git push --force*)"
     ]
   }
