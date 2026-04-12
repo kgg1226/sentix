@@ -33,6 +33,7 @@ import {
   loadCrossProjectContext,
 } from './pipeline-helpers.js';
 import { loadConstraints } from './spec-enricher.js';
+import { updatePatterns } from '../plugins/pattern-engine.js';
 import { analyzeRequest } from './spec-questions.js';
 import { runMultiGen } from './multi-gen.js';
 import { loadProviderConfig, runCrossReview, getCrossReviewProvider } from './cross-review.js';
@@ -234,6 +235,16 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     }
   } catch (e) {
     ctx.warn(`Lesson promotion skipped: ${e.message}`);
+  }
+
+  // ── Pattern analysis ───────────────────────────────
+  try {
+    const patternResult = updatePatterns(ctx.cwd);
+    if (patternResult.updated) {
+      ctx.success(`Pattern analysis: ${patternResult.patternsFound} pattern(s) → tasks/patterns.md`);
+    }
+  } catch (e) {
+    ctx.warn(`Pattern analysis skipped: ${e.message}`);
   }
 
   // ── Final gate ────────────────────────────────────
