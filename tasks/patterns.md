@@ -1,18 +1,11 @@
-# User Patterns — auto-generated, do not edit manually
+# 사용자 패턴 분석
 
-> pattern-engine이 pattern-log.jsonl을 분석하여 자동 생성한다.
-> confidence ≥ 0.70이면 등록, < 0.50이면 제거.
+> 자동 생성됨 (2026-04-12). pattern-log.jsonl 기반.
 
----
+## 자주 반복되는 명령 순서
 
-## Temporal (시간 기반)
+- "feature → feature" 순서가 3회 반복
 
-<!-- pattern-engine이 자동 작성 -->
+## 실패 패턴
 
-## Sequential (순서 기반)
-
-<!-- pattern-engine이 자동 작성 -->
-
-## Contextual (컨텍스트 기반)
-
-<!-- pattern-engine이 자동 작성 -->
+- 실패 "Failed at phase: dev": 1회

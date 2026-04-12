@@ -76,5 +76,18 @@
     "description_hash": "3ed290b5",
     "related_cycle": null,
     "file_path": "tasks/tickets/feat-005.md"
+  },
+  {
+    "id": "feat-006",
+    "type": "feature",
+    "title": "패턴 분석 엔진 — pattern-log.jsonl 자동 분석 → patterns.md 자동 업데이트 → 프롬프트 주입",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-12T04:08:21.699Z",
+    "updated_at": "2026-04-12T04:08:21.699Z",
+    "pipeline_status": "pending",
+    "description_hash": "9144a52a",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-006.md"
   }
 ]
