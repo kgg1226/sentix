@@ -33,7 +33,7 @@ import {
   loadCrossProjectContext,
 } from './pipeline-helpers.js';
 import { loadConstraints } from './spec-enricher.js';
-import { updatePatterns } from '../plugins/pattern-engine.js';
+import { updatePatterns, generatePatternDirective } from '../plugins/pattern-engine.js';
 import { analyzeRequest } from './spec-questions.js';
 import { runMultiGen } from './multi-gen.js';
 import { loadProviderConfig, runCrossReview, getCrossReviewProvider } from './cross-review.js';
@@ -89,6 +89,17 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     ctx.warn(`Spec analysis failed (safe skip): ${e.message}`);
   }
 
+  // Pattern Directives: 과거 패턴 기반 행동 지시
+  let patternDirective = '';
+  try {
+    patternDirective = generatePatternDirective(ctx.cwd, request);
+    if (patternDirective) {
+      ctx.success('Pattern directives generated from usage history');
+    }
+  } catch (e) {
+    ctx.warn(`Pattern directive generation failed (safe skip): ${e.message}`);
+  }
+
   const promptCtx = {
     request,
     safetyDirective: options.safetyDirective,
@@ -97,6 +108,7 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     crossProjectContext,
     constraintsContext,
     specDirective,
+    patternDirective,
   };
 
   // ── Phase 1: PLAN ─────────────────────────────────

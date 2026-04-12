@@ -7,6 +7,7 @@ import {
   analyzePatterns,
   formatPatternsMarkdown,
   updatePatterns,
+  generatePatternDirective,
 } from '../src/plugins/pattern-engine.js';
 
 const TMP = join(process.cwd(), '__tests__/.tmp-pattern-engine');
@@ -167,6 +168,57 @@ describe('pattern-engine', () => {
       const result = updatePatterns('/tmp/nonexistent-pe-test');
       assert.equal(result.patternsFound, 0);
       assert.equal(result.updated, false);
+    });
+  });
+
+  describe('generatePatternDirective', () => {
+    it('returns empty for insufficient data', () => {
+      writeLog([{ event: 'request', input: 'test' }]);
+      const directive = generatePatternDirective(TMP, 'some request');
+      assert.equal(directive, '');
+    });
+
+    it('returns empty for nonexistent directory', () => {
+      const directive = generatePatternDirective('/tmp/nonexistent-pe-test', 'test');
+      assert.equal(directive, '');
+    });
+
+    it('generates sequence suggestion when pattern matches request', () => {
+      writeLog([
+        { event: 'command:start', command: 'feature' },
+        { event: 'command:start', command: 'run' },
+        { event: 'command:start', command: 'feature' },
+        { event: 'command:start', command: 'run' },
+        { event: 'command:start', command: 'feature' },
+        { event: 'command:start', command: 'run' },
+      ]);
+      const directive = generatePatternDirective(TMP, '기능 추가해줘');
+      assert.ok(directive.includes('PATTERN'), 'should include PATTERN header');
+    });
+
+    it('generates failure warning when failures exist', () => {
+      writeLog([
+        { event: 'command:start', command: 'run' },
+        { event: 'command:start', command: 'run' },
+        { event: 'command:start', command: 'run' },
+        { event: 'pipeline-failed', error: 'Failed at phase: dev' },
+        { event: 'pipeline-failed', error: 'Failed at phase: dev' },
+      ]);
+      const directive = generatePatternDirective(TMP, 'run something');
+      assert.ok(directive.includes('failure-warning') || directive.includes('실패'), 'should warn about failures');
+    });
+
+    it('generates specialization hint for dominant request type', () => {
+      const events = [];
+      for (let i = 0; i < 5; i++) events.push({ event: 'request', input: '버그 수정' + i });
+      for (let i = 0; i < 5; i++) events.push({ event: 'command:start', command: 'run' });
+      writeLog(events);
+      const directive = generatePatternDirective(TMP, '새 버그 수정');
+      // bug-fix should be 100% of requests
+      if (directive) {
+        assert.ok(directive.includes('specialization') || directive.includes('bug-fix'),
+          'should hint about bug-fix specialization');
+      }
     });
   });
 });

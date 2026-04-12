@@ -227,3 +227,107 @@ export function updatePatterns(cwd) {
 
   return { patternsFound: total, updated: true, summary: analysis.summary };
 }
+
+// ══════════════════════════════════════════════════════
+// Phase 2: 패턴 기반 행동 지시문 생성
+// ══════════════════════════════════════════════════════
+
+/**
+ * 패턴 분석 결과에서 planner/dev에게 전달할 구체적 행동 지시문을 생성한다.
+ *
+ * 단순한 "참고하세요"가 아니라 "이렇게 하세요"라는 구체적 지시.
+ *
+ * @param {string} cwd
+ * @param {string} currentRequest - 현재 사용자 요청
+ * @returns {string} 프롬프트에 주입할 지시문 블록
+ */
+export function generatePatternDirective(cwd, currentRequest) {
+  const events = loadPatternLog(cwd);
+  if (events.length < 3) return ''; // 데이터 부족
+
+  const analysis = analyzePatterns(events);
+  const directives = [];
+
+  // 1. 순서 패턴 → 선제 제안
+  for (const seq of analysis.sequencePatterns) {
+    const [first] = seq.pair.split(' → ');
+    // 현재 요청이 패턴의 첫 번째와 관련 있으면 다음 단계를 제안
+    if (currentRequest.toLowerCase().includes(first) || isRelatedCommand(currentRequest, first)) {
+      const [, next] = seq.pair.split(' → ');
+      directives.push({
+        type: 'sequence-suggest',
+        confidence: Math.min(seq.count / 5, 1),
+        directive: `이 사용자는 "${seq.pair}" 순서를 ${seq.count}회 반복했습니다. 현재 작업 완료 후 "${next}" 실행을 제안하세요.`,
+      });
+    }
+  }
+
+  // 2. 실패 패턴 → 사전 경고
+  for (const fail of analysis.failurePatterns) {
+    if (fail.count >= 2) {
+      directives.push({
+        type: 'failure-warning',
+        confidence: Math.min(fail.count / 3, 1),
+        directive: `⚠ 과거 실패 패턴: "${fail.reason.slice(0, 80)}". 같은 유형의 실패가 ${fail.count}회 발생했습니다. 이 영역에서 특별히 주의하세요.`,
+      });
+    }
+  }
+
+  // 3. 요청 빈도 → 전문화 힌트
+  for (const req of analysis.requestPatterns) {
+    if (req.ratio >= 40) { // 40% 이상 차지하는 요청 유형
+      directives.push({
+        type: 'specialization-hint',
+        confidence: req.ratio / 100,
+        directive: `이 프로젝트는 "${req.category}" 요청이 ${req.ratio}%를 차지합니다. ${getSpecializationAdvice(req.category)}`,
+      });
+    }
+  }
+
+  if (directives.length === 0) return '';
+
+  // 신뢰도 순으로 정렬, 상위 5개만
+  directives.sort((a, b) => b.confidence - a.confidence);
+  const top = directives.slice(0, 5);
+
+  const lines = [
+    '',
+    '--- PATTERN-BASED DIRECTIVES (과거 사용 패턴에서 학습) ---',
+  ];
+  for (const d of top) {
+    lines.push(`- [${d.type}] ${d.directive}`);
+  }
+  lines.push('--- END PATTERN DIRECTIVES ---');
+
+  return lines.join('\n');
+}
+
+/**
+ * 현재 요청이 특정 명령과 관련 있는지 판단한다.
+ */
+function isRelatedCommand(request, command) {
+  const lower = request.toLowerCase();
+  const mapping = {
+    feature: /feature|기능|추가|만들/,
+    run: /run|실행|파이프라인/,
+    ticket: /ticket|티켓|버그/,
+    version: /version|버전|bump/,
+    status: /status|상태/,
+  };
+  return mapping[command]?.test(lower) || false;
+}
+
+/**
+ * 요청 유형별 전문화 조언을 반환한다.
+ */
+function getSpecializationAdvice(category) {
+  const advice = {
+    'bug-fix': '에러 재현 조건과 스택 트레이스를 먼저 확인하세요. 테스트 케이스를 먼저 작성한 후 수정하세요.',
+    'feature': '기존 코드와의 호환성을 반드시 확인하세요. SCOPE를 최소한으로 유지하세요.',
+    'refactor': '리팩터링 전 테스트 커버리지를 확인하세요. 동작 변경 없이 구조만 개선하세요.',
+    'testing': '엣지 케이스와 실패 경로를 우선 테스트하세요.',
+    'version': '커밋 메시지 기반으로 bump 유형을 자동 결정하세요.',
+    'pipeline-execution': '이전 파이프라인 결과를 확인하고 중복 실행을 피하세요.',
+  };
+  return advice[category] || '과거 패턴을 참고하여 효율적으로 작업하세요.';
+}
