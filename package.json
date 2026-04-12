@@ -28,7 +28,8 @@
     ".github/workflows/security-scan.yml",
     "docs/",
     "scripts/update-downstream.sh",
-    "scripts/pre-commit.js"
+    "scripts/pre-commit.js",
+    "scripts/hooks/"
   ],
   "keywords": [
     "devops",
