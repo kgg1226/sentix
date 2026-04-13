@@ -1,8 +1,69 @@
 # Sentix `v2.16`
 
-**Adaptive Guardrail for AI Coding** — AI가 코드를 쓸 때 넘으면 안 되는 선을 강제하고, 실수에서 배우고, 시간이 지나면서 스스로 개선되는 프레임워크.
+**Adaptive Guardrail for AI Coding** — A framework that enforces boundaries when AI writes code, learns from mistakes, and improves itself over time.
+
+[English](#english) | [한국어](#한국어) | [日本語](#日本語) | [中文](#中文)
 
 ---
+
+<a id="english"></a>
+
+## What is Sentix?
+
+| | |
+|---|---|
+| **Definition** | Adaptive Guardrail for AI Coding |
+| **Identity** | Not a harness (direction), not an agent (autonomy) — **boundary enforcement + verification + learning** |
+| **Core Principle** | Instead of telling AI "do it this way," mechanically enforce "never do this" |
+| **Differentiator** | Not just blocking — adaptive: learns from failures to prevent the same mistake next time |
+
+### Features
+
+| Feature | Description |
+|---|---|
+| **Destruction Prevention** | Physically blocks deletion of existing features, tests, and out-of-scope files |
+| **Deterministic Verification** | Catches eval/syntax errors/test regression/security vulnerabilities — 100% by machine |
+| **Input Enrichment** | Vague request → interactive selection menu → rich specification |
+| **Auto-Learning** | Verification failure → constraint auto-added → same mistake prevented next time |
+| **Multi-Generation** | Same request implemented 3 ways → best one selected by Quality Gate score |
+| **Cross-Model Review** | Independent review by different AI model + adversarial prompting |
+| **Pattern Learning** | Usage pattern analysis → behavioral directives auto-generated |
+| **Integrity Monitoring** | Protected file tampering/deletion detected → auto-restored from git |
+
+### Feature Availability by Environment
+
+| Feature | `sentix run` | Conversation | claude.ai Web | API |
+|---|:---:|:---:|:---:|:---:|
+| 6 Hard Rules (CLAUDE.md) | ✅ | ✅ | ✅ | ✅ |
+| PreToolUse Hook (Write/Edit block) | ✅ | ✅ | ❌ | ❌ |
+| Interactive Input Enrichment | ✅ | ❌ | ❌ | ❌ |
+| Quality Gate (5 checks) | ✅ | ❌ | ❌ | ❌ |
+| Feedback Loop (auto-learning) | ✅ | ❌ | ❌ | ❌ |
+| Multi-Gen (multiple generations) | ✅ | ❌ | ❌ | ❌ |
+| Cross-Review (external model) | ✅ | ❌ | ❌ | ❌ |
+| Pattern Analysis + Directives | ✅ | ❌ | ❌ | ❌ |
+| Integrity Monitoring + Restore | ✅ | ✅ | ❌ | ❌ |
+
+### Install / Update / Commands
+
+```bash
+# Install
+npm install -g sentix && sentix init
+# or: npx sentix init
+
+# Update
+npm install -g sentix@latest && sentix update
+
+# Usage
+sentix run "request"                # Pipeline execution
+sentix run "request" --multi-gen    # Multi-generation mode
+sentix run "request" --cross-review # Cross-model review
+sentix doctor                      # Installation diagnostics
+```
+
+---
+
+<a id="한국어"></a>
 
 ## Sentix란?
 
@@ -40,313 +101,287 @@
 | 패턴 분석 + 행동 지시 | ✅ | ❌ | ❌ | ❌ |
 | 무결성 감시 + 자동 복원 | ✅ | ✅ | ❌ | ❌ |
 
-> **`sentix run`이 기본**: 대화 모드에서 코드 변경을 요청하면 Claude가 자동으로 `sentix run`을 실행합니다.
-
----
-
-## 설치 / 업데이트 / 명령어
+### 설치 / 업데이트 / 명령어
 
 ```bash
-# 설치 (프로젝트 폴더에서)
-npm install -g sentix     # 글로벌 설치 (한 번만)
-sentix init               # 프로젝트에 Sentix 적용 → CLAUDE.md, 훅, 설정 생성
-# 또는: npx sentix init   # 글로벌 설치 없이 바로 실행
+# 설치
+npm install -g sentix && sentix init
+# 또는: npx sentix init
 
 # 업데이트
-npm install -g sentix@latest   # 패키지 업데이트
-sentix update                  # 프로젝트 파일 동기화 (훅, 에이전트, 규칙)
+npm install -g sentix@latest && sentix update
 
-# 사용 (Claude Code에서 이 폴더를 열고 대화하면 자동 작동)
-sentix run "요청"              # 파이프라인 실행 (선택사항)
-sentix run "요청" --multi-gen  # 다중 생성 모드 (dev × 3 → 최선 선택)
-sentix run "요청" --cross-review  # 이종 모델 리뷰 (OpenAI 등)
-sentix status                  # Governor 대시보드
-sentix doctor                  # 설치 진단
-sentix ticket create "설명"    # 버그 티켓
-sentix feature add "설명"      # 기능 티켓
+# 사용
+sentix run "요청"                # 파이프라인 실행
+sentix run "요청" --multi-gen    # 다중 생성 모드
+sentix run "요청" --cross-review # 이종 모델 리뷰
+sentix doctor                    # 설치 진단
 ```
-
-> **핵심**: `sentix init` 후 Claude Code로 폴더를 열면 **자동으로 Governor 모드**가 됩니다. 코드 변경 요청은 `sentix run`으로 실행되며, 이것이 L1~L6 전체 품질 레이어를 가동합니다.
 
 ---
 
-## 어떻게 작동하나요?
+<a id="日本語"></a>
 
-```
-사용자 요청
-  ↓
-[L3 Spec Questions]  — 빈약한 요청에 구조화 질문 자동 생성
-  ↓
-[L3 Spec Enricher]   — 프로젝트 제약 + 과거 실패 패턴 주입
-  ↓
-planner → dev ─── 또는 ───→ dev × 3 [L5 Multi-Gen]
-                  ↓
-          [L2 Quality Gate] — 기계적 검증 5종
-                  ↓
-          [L4 Feedback Loop] — 실패 패턴 → constraints 자동 추가
-                  ↓
-          pr-review [L6 적대적 프롬프트]
-                  ↓
-          [L6 Cross-Review] — 다른 AI 모델로 독립 리뷰 (opt-in)
-                  ↓
-          finalize → 학습 기록 → 완료
-```
+## Sentixとは？
 
-핵심은 **에이전트를 여러 개 쓰는 것이 아니라** (같은 AI가 역할만 바꿉니다), **단계 사이에 기계적 검증을 끼우는 것**입니다.
-
----
-
-## 안전장치 — 하드 룰 6개
-
-AI도 이 규칙은 무시할 수 없습니다:
-
-| # | 규칙 | 강제 방식 |
-|---|---|---|
-| 1 | 작업 전 테스트 스냅샷 필수 | 게이트 검사 |
-| 2 | 범위 밖 파일 수정 금지 | git diff 분석 |
-| 3 | 기존 export/API 삭제 금지 | git diff 분석 |
-| 4 | 기존 테스트 삭제 금지 | git diff 분석 |
-| 5 | 한 번에 50줄 넘게 삭제 금지 | git diff 분석 |
-| 6 | **기존 기능 삭제 금지** | PreToolUse 훅 |
-
-규칙 2~5는 `sentix run` 실행 후 **코드가 자동 검증**합니다. AI에게 부탁하는 것이 아니라 git diff를 분석하는 결정론적 코드가 위반 여부를 판단합니다.
-
----
-
-## 품질 시스템 상세
-
-<details>
-<summary><b>Quality Gate — 5가지 결정론적 검사</b></summary>
-
-| 검사 | 잡는 것 | AI가 놓치는 이유 |
-|---|---|---|
-| Banned patterns | `eval()`, `innerHTML`, 하드코딩 시크릿 | "의도적이겠지"라고 넘김 |
-| Debug artifacts | `src/` 안의 `console.log` | 넣어놓고 안 지움 |
-| Syntax check | `.js` 구문 오류 | "괄호 맞겠지"라고 확신 |
-| npm audit | 보안 취약점 | CVE DB를 실시간으로 못 봄 |
-| Test regression | 테스트 수 감소 | "다 통과했을 것"이라 추정 |
-
-</details>
-
-<details>
-<summary><b>Spec Enricher — 프로젝트 제약 자동 주입</b></summary>
-
-`.sentix/constraints.md`에 프로젝트 규칙을 관리하면 모든 파이프라인에 자동 주입됩니다:
-
-```markdown
-## Security
-- eval() 사용 금지
-- 비밀번호 하드코딩 금지
-
-## Architecture
-- 외부 npm 의존성 추가 금지 (zero-dep 정책)
-```
-
-</details>
-
-<details>
-<summary><b>Feedback Loop — 실패에서 자동 학습</b></summary>
-
-```
-1회차: dev가 eval() 사용 → Quality Gate에서 잡힘
-       → constraints.md에 "eval() 사용 금지" 자동 추가
-
-2회차: 프롬프트에 "eval() 사용 금지" 주입됨
-       → dev가 처음부터 eval() 안 씀 → 통과
-```
-
-시간이 지날수록 `constraints.md`가 프로젝트 고유 지식으로 성장합니다.
-
-</details>
-
-<details>
-<summary><b>Multi-Gen — 다중 생성 + 최선 선택 (--multi-gen)</b></summary>
-
-```
-Gen 1 [단순한 접근]   → score 85 (issues: 1)
-Gen 2 [견고한 접근]   → score 95 (issues: 0)  ★ 선택
-Gen 3 [우아한 접근]   → score 80 (issues: 2)
-```
-
-```bash
-sentix run "요청" --multi-gen              # 3가지 접근법
-sentix run "요청" --multi-gen --gen-count 2  # 2가지
-```
-
-</details>
-
-<details>
-<summary><b>Cross-Review — 이종 모델 독립 리뷰 (--cross-review)</b></summary>
-
-같은 모델이 쓰고 리뷰하면 사각지대가 같습니다. 다른 모델(OpenAI, Ollama 등)로 독립 리뷰:
-
-```bash
-sentix run "요청" --cross-review           # config 기본 provider
-sentix run "요청" --cross-review openai    # 명시적 지정
-sentix run "요청" --cross-review ollama    # 로컬 모델
-```
-
-리뷰어에게 **"최소 2개 문제를 찾아라"** 의무 부여 (적대적 프롬프트).
-
-</details>
-
----
-
-## CLI 명령어
-
-> CLI는 **선택사항**입니다. 대화만 해도 자동 작동합니다.
-
-| 명령어 | 하는 일 |
+| 項目 | 説明 |
 |---|---|
-| `sentix` | 현재 상태 + 권장 다음 액션 |
-| `sentix run "요청"` | 파이프라인 실행 |
-| `sentix status` | Governor 대시보드 |
-| `sentix doctor` | 설치 진단 (6레이어 상태 포함) |
-| `sentix ticket create "설명"` | 버그 티켓 |
-| `sentix feature add "설명"` | 기능 티켓 |
-| `sentix version bump patch` | 버전 올림 |
-| `sentix metrics` | AI 성공률 통계 |
+| **定義** | AIコーディング・ガードレール（Adaptive Guardrail） |
+| **アイデンティティ** | ハーネス（方向指示）でもエージェント（自律行動）でもない — **境界強制 + 検証 + 学習** |
+| **基本原則** | AIに「こうしろ」ではなく「これだけはするな」を機械的に強制 |
+| **差別化要素** | 単なるブロックではなくadaptive — 失敗から学び、次回同じミスを防止 |
 
-<details>
-<summary>전체 명령어 목록</summary>
+### 機能一覧
 
-| 명령어 | 하는 일 |
+| 機能 | 説明 |
 |---|---|
-| `sentix init` | 프로젝트 설치 |
-| `sentix resume` | 중단된 파이프라인 재개 |
-| `sentix update` | 프레임워크 파일 동기화 |
-| `sentix config` | 설정 조회/변경 |
-| `sentix profile use <name>` | 환경 프로필 전환 |
-| `sentix layer enable <n>` | 레이어 켜기/끄기 |
-| `sentix safety set <단어>` | LLM 인젝션 방지 안전어 |
-| `sentix context` | 멀티 프로젝트 컨텍스트 |
-| `sentix plugin list` | 플러그인 목록 |
-| `sentix evolve` | 자가 분석/개선 |
-| `sentix version current` | 현재 버전 확인 |
-| `sentix version changelog` | CHANGELOG 미리보기 |
+| **破壊防止** | 既存機能の削除、テスト破壊、スコープ外の変更を物理的にブロック |
+| **決定論的検証** | eval/構文エラー/テスト回帰/セキュリティ脆弱性をマシンが100%検出 |
+| **入力具体化** | 曖昧なリクエスト → インタラクティブ選択肢 → 豊富な仕様 |
+| **自動学習** | 検証失敗 → 制約自動追加 → 次回は同じミスを防止 |
+| **多重生成** | 同じリクエストを3つのアプローチで実装 → 最善を選択 |
+| **異種検証** | 異なるAIモデルによる独立レビュー + 敵対的プロンプト |
+| **パターン学習** | 使用パターン分析 → 行動指示を自動生成 |
+| **整合性監視** | 保護ファイルの改ざん/削除を検知 → gitから自動復元 |
 
-</details>
+### 環境別機能サポート
+
+| 機能 | `sentix run` | 会話モード | claude.ai Web | API |
+|---|:---:|:---:|:---:|:---:|
+| ハードルール6個 (CLAUDE.md) | ✅ | ✅ | ✅ | ✅ |
+| PreToolUseフック (Write/Editブロック) | ✅ | ✅ | ❌ | ❌ |
+| インタラクティブ入力具体化 | ✅ | ❌ | ❌ | ❌ |
+| Quality Gate (5種検査) | ✅ | ❌ | ❌ | ❌ |
+| Feedback Loop (自動学習) | ✅ | ❌ | ❌ | ❌ |
+| Multi-Gen (多重生成) | ✅ | ❌ | ❌ | ❌ |
+| Cross-Review (異種モデル) | ✅ | ❌ | ❌ | ❌ |
+| パターン分析 + 行動指示 | ✅ | ❌ | ❌ | ❌ |
+| 整合性監視 + 自動復元 | ✅ | ✅ | ❌ | ❌ |
+
+### インストール / アップデート / コマンド
+
+```bash
+# インストール
+npm install -g sentix && sentix init
+# または: npx sentix init
+
+# アップデート
+npm install -g sentix@latest && sentix update
+
+# 使用方法
+sentix run "リクエスト"              # パイプライン実行
+sentix run "リクエスト" --multi-gen  # 多重生成モード
+sentix run "リクエスト" --cross-review # 異種モデルレビュー
+sentix doctor                        # インストール診断
+```
 
 ---
 
-## 환경별 설치
+<a id="中文"></a>
 
-| 환경 | 설치 | 자동화 수준 |
+## Sentix是什么？
+
+| 项目 | 说明 |
+|---|---|
+| **定义** | AI编程护栏（Adaptive Guardrail） |
+| **定位** | 既不是缰绳（方向指引），也不是代理（自主行为）— **边界强制 + 验证 + 学习** |
+| **核心原则** | 不是告诉AI"这样做"，而是机械性地强制"绝对不能做这个" |
+| **差异化** | 不仅仅是阻断 — 具有自适应性：从失败中学习，防止下次犯同样的错误 |
+
+### 功能概述
+
+| 功能 | 说明 |
+|---|---|
+| **破坏防护** | 物理阻断现有功能删除、测试破坏、超出范围的修改 |
+| **确定性验证** | eval/语法错误/测试回归/安全漏洞 — 机器100%捕获 |
+| **输入具体化** | 模糊请求 → 交互式选择菜单 → 丰富的规格说明 |
+| **自动学习** | 验证失败 → 自动添加约束 → 下次防止同样的错误 |
+| **多重生成** | 同一请求用3种方法实现 → 选择最佳方案 |
+| **异构验证** | 不同AI模型独立审查 + 对抗性提示 |
+| **模式学习** | 使用模式分析 → 自动生成行为指令 |
+| **完整性监控** | 受保护文件篡改/删除检测 → 从git自动恢复 |
+
+### 各环境功能支持
+
+| 功能 | `sentix run` | 对话模式 | claude.ai Web | API |
+|---|:---:|:---:|:---:|:---:|
+| 6条硬规则 (CLAUDE.md) | ✅ | ✅ | ✅ | ✅ |
+| PreToolUse钩子 (Write/Edit阻断) | ✅ | ✅ | ❌ | ❌ |
+| 交互式输入具体化 | ✅ | ❌ | ❌ | ❌ |
+| Quality Gate (5项检查) | ✅ | ❌ | ❌ | ❌ |
+| Feedback Loop (自动学习) | ✅ | ❌ | ❌ | ❌ |
+| Multi-Gen (多重生成) | ✅ | ❌ | ❌ | ❌ |
+| Cross-Review (异构模型) | ✅ | ❌ | ❌ | ❌ |
+| 模式分析 + 行为指令 | ✅ | ❌ | ❌ | ❌ |
+| 完整性监控 + 自动恢复 | ✅ | ✅ | ❌ | ❌ |
+
+### 安装 / 更新 / 命令
+
+```bash
+# 安装
+npm install -g sentix && sentix init
+# 或者: npx sentix init
+
+# 更新
+npm install -g sentix@latest && sentix update
+
+# 使用
+sentix run "请求"                # 管道执行
+sentix run "请求" --multi-gen    # 多重生成模式
+sentix run "请求" --cross-review # 异构模型审查
+sentix doctor                    # 安装诊断
+```
+
+---
+
+## Pipeline Architecture
+
+```
+User Request
+  ↓
+[L3 Spec Questions]  — Structured questions for vague requests
+  ↓
+[L3 Spec Enricher]   — Project constraints + past failure patterns
+  ↓
+planner → dev ─── or ───→ dev × 3 [L5 Multi-Gen]
+                  ↓
+          [L2 Quality Gate] — 5 deterministic checks
+                  ↓
+          [L4 Feedback Loop] — Failure patterns → constraints auto-added
+                  ↓
+          pr-review [L6 Adversarial Prompt]
+                  ↓
+          [L6 Cross-Review] — Independent review by external AI (opt-in)
+                  ↓
+          finalize → Learning record → Done
+```
+
+---
+
+## Hard Rules
+
+| # | Rule | Enforcement |
 |---|---|---|
-| **Claude Code / Cursor / Windsurf** | `npx sentix init` | 완전 자동 (L1~L6) |
-| **claude.ai 웹** | Project Knowledge에 CLAUDE.md 업로드 | 안내 모드 (L1만) |
-| **Claude 모바일** | CLAUDE.md 붙여넣기 | 안내 모드 (L1만) |
-| **Claude API** | system prompt에 CLAUDE.md 포함 | 도구 제공 시 자동 |
+| 1 | Test snapshot required before changes | Gate check |
+| 2 | No out-of-scope file modifications | git diff analysis |
+| 3 | No export/API deletion | git diff analysis |
+| 4 | No test deletion | git diff analysis |
+| 5 | Max 50 lines net deletion | git diff analysis |
+| 6 | **No existing feature deletion** | PreToolUse hook |
+
+---
 
 <details>
-<summary>환경별 상세 설치 방법</summary>
+<summary><b>Quality System Details</b></summary>
 
-### Claude Code / Cursor / Windsurf
+### Quality Gate — 5 Deterministic Checks
+
+| Check | Catches | Why AI Misses It |
+|---|---|---|
+| Banned patterns | `eval()`, `innerHTML`, hardcoded secrets | AI assumes "it's intentional" |
+| Debug artifacts | `console.log` in `src/` | AI adds them and forgets to remove |
+| Syntax check | `.js` syntax errors | AI is "sure the brackets match" |
+| npm audit | Security vulnerabilities | AI can't access CVE DB in real-time |
+| Test regression | Decreased test count | AI assumes "tests probably pass" |
+
+### Multi-Gen
+
+```
+Gen 1 [Simplest]  → score 85 (issues: 1)
+Gen 2 [Robust]    → score 95 (issues: 0)  ★ Selected
+Gen 3 [Elegant]   → score 80 (issues: 2)
+```
+
+### Cross-Review
 
 ```bash
-npx sentix init
-# CLAUDE.md, .sentix/, tasks/, docs/ 자동 생성
-# 기술 스택 자동 감지 (Node.js, Python, Go, Rust)
+sentix run "request" --cross-review openai  # External model review
 ```
 
-### claude.ai 웹
-
-1. 프로젝트 생성 → Project Knowledge에 `CLAUDE.md`, `FRAMEWORK.md` 업로드
-2. 대화 시작 → 자동으로 Governor 모드
-
-### Claude API
-
-```python
-import anthropic
-client = anthropic.Anthropic()
-
-with open("CLAUDE.md") as f:
-    system = f.read()
-
-response = client.messages.create(
-    model="claude-sonnet-4-20250514",
-    system=system,
-    messages=[{"role": "user", "content": "로그인에 세션 만료 추가해줘"}],
-)
-```
-
-### 업데이트
-
-```bash
-npm install -g sentix@latest   # 패키지 업데이트
-sentix update                  # 프레임워크 파일 동기화
-```
+Reviewer is **required to find at least 2 issues** (adversarial prompting).
 
 </details>
 
----
+<details>
+<summary><b>CLI Commands</b></summary>
 
-## 프로젝트 구조
+| Command | Description |
+|---|---|
+| `sentix` | Status + recommended next action |
+| `sentix run "request"` | Pipeline execution |
+| `sentix status` | Governor dashboard |
+| `sentix doctor` | Installation diagnostics |
+| `sentix ticket create "desc"` | Bug ticket |
+| `sentix feature add "desc"` | Feature ticket |
+| `sentix version bump patch` | Version bump |
+| `sentix metrics` | AI success rate stats |
+| `sentix init` | Project setup |
+| `sentix update` | Framework file sync |
+| `sentix config` | Settings |
+| `sentix safety set <word>` | Anti-injection safety word |
+| `sentix evolve` | Self-analysis |
+
+</details>
+
+<details>
+<summary><b>Project Structure</b></summary>
 
 ```
-내 프로젝트/
-├── CLAUDE.md              ← AI가 읽는 실행 규칙 (핵심)
-├── FRAMEWORK.md           ← 상세 설계 문서
+my-project/
+├── CLAUDE.md              ← AI execution rules (core)
+├── FRAMEWORK.md           ← Detailed design document
 ├── .sentix/
-│   ├── config.toml        ← 레이어 활성화/비활성화
-│   ├── constraints.md     ← 프로젝트 제약 (자동 학습)
-│   ├── providers/         ← AI 선택 (Claude, OpenAI, Ollama)
-│   └── rules/             ← 하드 룰 + 자동 생성 규칙
+│   ├── config.toml        ← Layer enable/disable
+│   ├── constraints.md     ← Project constraints (auto-learning)
+│   ├── providers/         ← AI selection (Claude, OpenAI, Ollama)
+│   └── rules/             ← Hard rules + auto-generated rules
 ├── .claude/
-│   ├── settings.json      ← 훅 등록
-│   ├── agents/            ← planner, dev, pr-review 에이전트
-│   └── rules/             ← 조건부 규칙
-├── scripts/hooks/         ← SessionStart, PreToolUse 훅
+│   ├── settings.json      ← Hook registration
+│   ├── agents/            ← planner, dev, pr-review agents
+│   └── rules/             ← Conditional rules
+├── scripts/hooks/         ← SessionStart, PreToolUse hooks
 ├── tasks/
-│   ├── lessons.md         ← 실패에서 배운 것
-│   ├── patterns.md        ← 사용자 행동 패턴
-│   └── tickets/           ← 작업 티켓
-├── docs/                  ← SOP, 에이전트 범위, severity
-└── (기존 프로젝트 파일은 그대로)
+│   ├── lessons.md         ← Lessons from failures
+│   ├── patterns.md        ← Usage patterns
+│   └── tickets/           ← Work tickets
+├── docs/                  ← SOP, agent scopes, severity
+└── (existing project files unchanged)
 ```
 
----
-
-## FAQ
+</details>
 
 <details>
-<summary>자주 묻는 질문</summary>
+<summary><b>FAQ</b></summary>
 
-**Q: 기존 코드가 바뀌나요?**
-A: 아닙니다. 새 파일만 추가됩니다.
+**Q: Does it change existing code?**
+A: No. Only adds new files.
 
-**Q: `sentix run`을 꼭 써야 하나요?**
-A: 아닙니다. 대화만 해도 자동 작동. `sentix run`은 체인 파이프라인이 필요할 때만.
+**Q: Is `sentix run` required?**
+A: In conversation mode, Claude automatically routes code changes through `sentix run`.
 
-**Q: Claude Code가 없으면?**
-A: claude.ai 웹/모바일에서는 안내 모드(L1만), API에서는 도구 제공 시 자동.
+**Q: Without Claude Code?**
+A: claude.ai web/mobile: guidance mode (L1 only). API: full auto with tools.
 
-**Q: 무료인가요?**
-A: Sentix 자체는 MIT 무료. AI 비용은 제공자에 따라 다릅니다.
+**Q: Is it free?**
+A: Sentix itself is MIT free. AI costs depend on the provider.
 
-**Q: 어떤 언어를 지원하나요?**
-A: 자동 감지: Node.js, Python, Go, Rust. 그 외는 CLAUDE.md 수동 편집.
-
-**Q: `sentix` 명령이 안 됩니다**
-A: `npm install -g sentix` 또는 매번 `npx sentix ...` 사용.
-
-**Q: `sentix doctor`에서 FRAMEWORK.md MISSING**
-A: `sentix update`로 가져옵니다.
+**Q: Which languages?**
+A: Auto-detect: Node.js, Python, Go, Rust. Others via manual CLAUDE.md edit.
 
 </details>
 
 ---
 
-## 테스트
+## Test
 
 ```bash
-npm test    # 159 tests, Node.js 내장 테스트 러너
+npm test    # 191 tests, Node.js built-in test runner
 ```
 
 ## Contributing
 
-- **providers**: 새 AI 추가 (Gemini, Mistral 등)
-- **plugins**: 커스텀 플러그인 (`sentix plugin create`)
+- **providers**: Add new AI (Gemini, Mistral, etc.)
+- **plugins**: Custom plugins (`sentix plugin create`)
 
 ## License
 
