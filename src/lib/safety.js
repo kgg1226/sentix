@@ -34,7 +34,7 @@ export function hashWord(word) {
  * recovery key = 16자 hex (사용자가 기록하기 쉽게)
  */
 export function generateRecoveryKey(_word) {
-  return randomBytes(8).toString('hex'); // 8 bytes = 16 hex chars
+  return randomBytes(13).toString('hex').slice(0, 26); // 13 bytes → 26 hex chars
 }
 
 /**
