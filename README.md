@@ -54,11 +54,28 @@ npm install -g sentix && sentix init
 # Update
 npm install -g sentix@latest && sentix update
 
-# Usage
+# Usage (terminal)
 sentix run "request"                # Pipeline execution
 sentix run "request" --multi-gen    # Multi-generation mode
 sentix run "request" --cross-review # Cross-model review
-sentix doctor                      # Installation diagnostics
+sentix doctor                       # Installation diagnostics
+```
+
+### How to use in Claude Code chat
+
+After `sentix init`, open the folder in Claude Code and just talk normally:
+
+```
+You: "Make a login page"
+Claude: (automatically runs sentix run "Make a login page" via Bash)
+→ Pipeline starts: PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+**You don't need to type `sentix run` yourself.** Claude reads the hooks and automatically routes code change requests through the pipeline.
+
+If Claude doesn't use `sentix run` automatically, you can tell it:
+```
+You: "Use sentix run to make a login page"
 ```
 
 ---
@@ -118,6 +135,23 @@ sentix run "요청" --cross-review # 이종 모델 리뷰
 sentix doctor                    # 설치 진단
 ```
 
+### Claude Code 채팅에서 사용하는 법
+
+`sentix init` 후 Claude Code로 폴더를 열고 그냥 대화하세요:
+
+```
+나: "로그인 페이지 만들어줘"
+Claude: (자동으로 Bash에서 sentix run "로그인 페이지 만들어줘" 실행)
+→ 파이프라인 시작: PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+**`sentix run`을 직접 타이핑할 필요 없습니다.** Claude가 훅을 읽고 코드 변경 요청을 자동으로 파이프라인에 넘깁니다.
+
+만약 Claude가 `sentix run`을 자동으로 안 쓰면:
+```
+나: "sentix run으로 로그인 페이지 만들어줘"
+```
+
 ---
 
 <a id="日本語"></a>
@@ -175,6 +209,18 @@ sentix run "リクエスト" --cross-review # 異種モデルレビュー
 sentix doctor                        # インストール診断
 ```
 
+### Claude Codeチャットでの使い方
+
+`sentix init`後、Claude Codeでフォルダを開いて普通に会話してください：
+
+```
+あなた：「ログインページを作って」
+Claude：（自動的にBashで sentix run "ログインページを作って" を実行）
+→ パイプライン開始：PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+**`sentix run`を自分で入力する必要はありません。** Claudeがフックを読み取り、コード変更リクエストを自動的にパイプラインに送ります。
+
 ---
 
 <a id="中文"></a>
@@ -231,6 +277,18 @@ sentix run "请求" --multi-gen    # 多重生成模式
 sentix run "请求" --cross-review # 异构模型审查
 sentix doctor                    # 安装诊断
 ```
+
+### 在Claude Code聊天中如何使用
+
+`sentix init`后，用Claude Code打开文件夹，正常对话即可：
+
+```
+你："做一个登录页面"
+Claude：（自动通过Bash执行 sentix run "做一个登录页面"）
+→ 管道启动：PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+**不需要自己输入`sentix run`。** Claude会读取钩子，自动将代码变更请求路由到管道。
 
 ---
 
