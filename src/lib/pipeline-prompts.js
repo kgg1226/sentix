@@ -11,7 +11,7 @@ function joinFiltered(lines) {
 /** Planner phase 프롬프트 */
 export function buildPlanPrompt({ request, safetyDirective, methodsDirective, learningContext, crossProjectContext, constraintsContext, specDirective, patternDirective }) {
   return joinFiltered([
-    'Read CLAUDE.md first.',
+    '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
     'You are the PLANNER agent. Your ONLY job is:',
     `1. Analyze this request: "${request}"`,
@@ -37,7 +37,7 @@ export function buildPlanPrompt({ request, safetyDirective, methodsDirective, le
 /** Dev phase 프롬프트 (순차 모드) */
 export function buildDevPrompt({ request, latestTicket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
   return joinFiltered([
-    'Read CLAUDE.md first.',
+    '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
     'You are the DEV agent. Your job:',
     latestTicket ? `Ticket:\n${latestTicket}` : `Request: "${request}"`,
@@ -64,7 +64,7 @@ export function buildDevPrompt({ request, latestTicket, safetyDirective, methods
 /** Dev phase 프롬프트 (swarm fallback, 단일 서브태스크) */
 export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
   return joinFiltered([
-    'Read CLAUDE.md first.',
+    '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
     'You are the DEV agent. Your job:',
     `Ticket:\n${ticket}`,
@@ -87,7 +87,7 @@ export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDi
 /** Dev-swarm worker (병렬) 프롬프트 */
 export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
   return joinFiltered([
-    'Read CLAUDE.md first.',
+    '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
     `You are DEV-WORKER ${index}. Your subtask:`,
     subtask,
@@ -108,7 +108,7 @@ export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective
 /** Review phase 프롬프트 */
 export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempts, methodsDirective, learningContext }) {
   return joinFiltered([
-    'Read CLAUDE.md first.',
+    '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     'You are the PR-REVIEW agent. Your job:',
     '',
     `Test results: ${testPassed ? 'ALL PASSED' : 'SOME FAILED — fix them'}`,
@@ -138,7 +138,7 @@ export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempt
 /** Re-plan phase 프롬프트 */
 export function buildReplanPrompt({ request, methodsDirective, learningContext, crossProjectContext, constraintsContext }) {
   return joinFiltered([
-    'Read CLAUDE.md first.',
+    '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     'You are the PLANNER agent. PREVIOUS PLAN FAILED. Re-plan with new approach.',
     `Original request: "${request}"`,
     '',
@@ -158,7 +158,7 @@ export function buildReplanPrompt({ request, methodsDirective, learningContext, 
 /** Finalize phase 프롬프트 */
 export function buildFinalizePrompt() {
   return joinFiltered([
-    'Read CLAUDE.md first.',
+    '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     'You are finalizing this work cycle. Your job:',
     '',
     '1. If any lessons were learned (failures, retries), add them to tasks/lessons.md',

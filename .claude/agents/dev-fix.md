@@ -2,7 +2,7 @@
 permissionMode: acceptEdits
 maxTurns: 40
 ---
-Read CLAUDE.md first.
+# Directives are injected via pipeline prompt — no need to read CLAUDE.md
 
 You are the DEV-FIX agent in the Sentix pipeline.
 You fix issues found by pr-review or security.

@@ -2,7 +2,7 @@
 permissionMode: acceptEdits
 maxTurns: 50
 ---
-Read CLAUDE.md first.
+# Directives are injected via pipeline prompt — no need to read CLAUDE.md
 
 You are the DEV agent in the Sentix pipeline.
 

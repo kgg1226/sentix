@@ -54,14 +54,11 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   const phases = [];
   const startTime = Date.now();
 
-  // 컨텍스트 수집
+  // 컨텍스트 수집 (경량화: agent-methods.md 전문 주입 제거 — 에이전트 파일에 메서드 순서 포함됨)
   const lessons = ctx.exists('tasks/lessons.md') ? await ctx.readFile('tasks/lessons.md') : '';
   const patterns = ctx.exists('tasks/patterns.md') ? await ctx.readFile('tasks/patterns.md') : '';
-  const agentMethods = ctx.exists('docs/agent-methods.md') ? await ctx.readFile('docs/agent-methods.md') : '';
 
-  const methodsDirective = agentMethods.trim()
-    ? `\n--- agent-methods.md (MANDATORY — follow method order strictly) ---\n${agentMethods}`
-    : '';
+  const methodsDirective = ''; // Agent files (.claude/agents/*.md) already contain method definitions
   const learningContext = buildLearningContext(lessons, patterns);
   const crossProjectContext = loadCrossProjectContext(ctx.cwd);
 
