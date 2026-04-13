@@ -47,19 +47,27 @@
 ### Install / Update / Commands
 
 ```bash
-# Install
-npm install -g sentix && sentix init
-# or: npx sentix init
+# Install (choose one)
+npm install sentix          # Local install (for Claude Code app/web)
+npm install -g sentix       # Global install (for terminal CLI)
+sentix init                 # or: npx sentix init
 
 # Update
-npm install -g sentix@latest && sentix update
-
-# Usage (terminal)
-sentix run "request"                # Pipeline execution
-sentix run "request" --multi-gen    # Multi-generation mode
-sentix run "request" --cross-review # Cross-model review
-sentix doctor                       # Installation diagnostics
+npm install sentix@latest   # Local update
+npm install -g sentix@latest # Global update
+sentix update               # Sync framework files
 ```
+
+### Which install do I need?
+
+| Environment | Install | Command |
+|---|---|---|
+| **Claude Code App / Web** | Local (`npm install sentix`) | `npx sentix run "request"` |
+| **Terminal CLI** | Global (`npm install -g sentix`) | `sentix run "request"` |
+| **Both** | Both (no conflict) | Either works |
+
+> **Important**: Global install (`-g`) is NOT accessible from Claude Code app/web.
+> If you use Claude Code app/web, you MUST install locally (`npm install sentix`).
 
 ### How to use in Claude Code chat
 
@@ -67,7 +75,7 @@ After `sentix init`, open the folder in Claude Code and just talk normally:
 
 ```
 You: "Make a login page"
-Claude: (automatically runs sentix run "Make a login page" via Bash)
+Claude: (automatically runs npx sentix run "Make a login page" via Bash)
 → Pipeline starts: PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
@@ -121,19 +129,27 @@ You: "Use sentix run to make a login page"
 ### 설치 / 업데이트 / 명령어
 
 ```bash
-# 설치
-npm install -g sentix && sentix init
-# 또는: npx sentix init
+# 설치 (둘 중 선택)
+npm install sentix          # 로컬 설치 (Claude Code 앱/웹용)
+npm install -g sentix       # 글로벌 설치 (터미널 CLI용)
+sentix init                 # 또는: npx sentix init
 
 # 업데이트
-npm install -g sentix@latest && sentix update
-
-# 사용
-sentix run "요청"                # 파이프라인 실행
-sentix run "요청" --multi-gen    # 다중 생성 모드
-sentix run "요청" --cross-review # 이종 모델 리뷰
-sentix doctor                    # 설치 진단
+npm install sentix@latest   # 로컬 업데이트
+npm install -g sentix@latest # 글로벌 업데이트
+sentix update               # 프레임워크 파일 동기화
 ```
+
+### 어떤 설치가 필요한가?
+
+| 환경 | 설치 방법 | 명령어 |
+|---|---|---|
+| **Claude Code 앱 / 웹** | 로컬 (`npm install sentix`) | `npx sentix run "요청"` |
+| **터미널 CLI** | 글로벌 (`npm install -g sentix`) | `sentix run "요청"` |
+| **둘 다** | 둘 다 설치 (충돌 없음) | 어느 쪽이든 작동 |
+
+> **중요**: 글로벌 설치(`-g`)는 Claude Code 앱/웹에서 접근 불가합니다.
+> Claude Code 앱/웹을 사용한다면 반드시 로컬 설치(`npm install sentix`)가 필요합니다.
 
 ### Claude Code 채팅에서 사용하는 법
 
