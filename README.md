@@ -1,4 +1,4 @@
-# Sentix `v2.16`
+# Sentix `v2.30`
 
 **Adaptive Guardrail for AI Coding** — A framework that enforces boundaries when AI writes code, learns from mistakes, and improves itself over time.
 

@@ -195,6 +195,11 @@ registerCommand('update', {
       }
 
       const results = await syncFilesQuiet(target, dryRun);
+
+      // README 버전 자동 갱신
+      if (!dryRun) {
+        updateReadmeVersion(target, VERSION);
+      }
       grandUpdated += results.updated.length;
       grandCreated += results.created.length;
       grandUnchanged += results.unchanged.length;
@@ -248,6 +253,23 @@ registerCommand('update', {
     ctx.log('');
   },
 });
+
+/** README.md 첫 줄의 버전을 현재 sentix 버전으로 갱신 */
+function updateReadmeVersion(targetDir, version) {
+  const readmePath = resolve(targetDir, 'README.md');
+  if (!existsSync(readmePath)) return;
+
+  try {
+    const content = readFileSync(readmePath, 'utf-8');
+    const updated = content.replace(
+      /^# Sentix `v[\d.]+`/m,
+      `# Sentix \`v${version}\``
+    );
+    if (updated !== content) {
+      writeFileSync(readmePath, updated);
+    }
+  } catch { /* non-critical */ }
+}
 
 /** 긴 경로를 축약해서 표시 (마지막 2개 세그먼트만) */
 function shortPath(fullPath) {
