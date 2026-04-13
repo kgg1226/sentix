@@ -177,9 +177,21 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   // ── Mid-pipeline gate: test + verify ──────────────
   const { testResult, midGateInfo } = runMidGate(ctx);
 
+  // ── Diff 요약 생성 (REVIEW 토큰 절감) ─────────────
+  let diffSummary = '';
+  try {
+    const diffStat = execSync('git diff --stat HEAD 2>/dev/null || git diff --stat', {
+      cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe', timeout: 10_000,
+    }).trim();
+    const diffNumstat = execSync('git diff --numstat HEAD 2>/dev/null || git diff --numstat', {
+      cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe', timeout: 10_000,
+    }).trim();
+    diffSummary = `--- DIFF SUMMARY (DO NOT run git diff yourself — use this summary) ---\n${diffStat}\n\nDetailed:\n${diffNumstat}\n--- END DIFF SUMMARY ---`;
+  } catch { /* ignore */ }
+
   // ── Phase 3: REVIEW (재시도 + 재계획 트리거) ────────
   const reviewOutcome = await runReviewPhase({
-    ctx, state, phases, testResult, midGateInfo,
+    ctx, state, phases, testResult, midGateInfo, diffSummary,
     methodsDirective, learningContext,
   });
 
@@ -365,7 +377,7 @@ function buildMidGateInfo(midGate, qualityGate) {
 
 // ── Review phase (재시도 + NEEDS_REPLAN 감지) ─────────────
 
-async function runReviewPhase({ ctx, state, phases, testResult, midGateInfo, methodsDirective, learningContext }) {
+async function runReviewPhase({ ctx, state, phases, testResult, midGateInfo, methodsDirective, learningContext, diffSummary }) {
   ctx.log('\n=== Phase 3: REVIEW ===\n');
   state.current_phase = 'review';
   await ctx.writeJSON('tasks/governor-state.json', state);
@@ -385,6 +397,7 @@ async function runReviewPhase({ ctx, state, phases, testResult, midGateInfo, met
       maxAttempts: MAX_REVIEW_RETRIES,
       methodsDirective,
       learningContext,
+      diffSummary,
     }), ctx);
 
     phases.push({ name: `review-${attempt}`, ...reviewResult });

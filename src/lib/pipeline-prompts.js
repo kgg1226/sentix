@@ -106,7 +106,7 @@ export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective
 }
 
 /** Review phase 프롬프트 */
-export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempts, methodsDirective, learningContext }) {
+export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempts, methodsDirective, learningContext, diffSummary }) {
   return joinFiltered([
     '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     'You are the PR-REVIEW agent. Your job:',
@@ -115,8 +115,10 @@ export function buildReviewPrompt({ testPassed, midGateInfo, attempt, maxAttempt
     `Verification gates: ${midGateInfo}`,
     `Attempt: ${attempt}/${maxAttempts}`,
     '',
+    diffSummary || '',
+    '',
     '1. Follow pr-review methods: diff() → validate() → grade() → calibrate() → verdict()',
-    '2. Review the git diff (run: git diff)',
+    '2. Use the DIFF SUMMARY above for review (DO NOT run git diff yourself — it wastes tokens)',
     '3. Validate hard rules first — any violation = immediate REJECTED',
     '4. Grade on 4 criteria: Correctness, Consistency, Simplicity, Test Coverage',
     '   (skip grade() for low complexity — hard rule pass is sufficient)',
