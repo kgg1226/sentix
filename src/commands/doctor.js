@@ -16,8 +16,15 @@ import { registerCommand } from '../registry.js';
 import { isConfigured as isSafetyConfigured } from '../lib/safety.js';
 import { getRuntimeMode, loadProvider } from '../lib/provider.js';
 import { colors, makeBorders, cardLine, cardTitle, renderBar } from '../lib/ui-box.js';
+import { existsSync } from 'node:fs';
 import { checkHooks } from '../lib/doctor-hooks-check.js';
 import { checkTechStack } from '../lib/doctor-tech-stack-check.js';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolve as resolvePath } from 'node:path';
+
+const __doctorDir = dirname(fileURLToPath(import.meta.url));
+const sentixPkgRoot = resolvePath(__doctorDir, '..', '..');
 
 const { dim, bold, red, green, yellow, cyan } = colors;
 const { top: BORDER_TOP, mid: BORDER_MID, bottom: BORDER_BOTTOM } = makeBorders();
@@ -207,22 +214,28 @@ async function checkRuntime(ctx, out) {
 }
 
 async function checkCleanup(ctx, out) {
-  // Quality System layers
-  const qualityLayers = [
+  // Quality System layers — 패키지 내부 모듈은 sentix 패키지에서, 프로젝트 파일은 cwd에서 확인
+  const pkgLayers = [
     { path: 'src/lib/quality-gate.js',  label: 'L2 Quality Gate (결정론적 검증)' },
     { path: 'src/lib/spec-enricher.js', label: 'L3 Spec Enricher (입력 강화)' },
     { path: 'src/lib/spec-questions.js', label: 'L3 Spec Questions (요청 분석)' },
-    { path: '.sentix/constraints.md',   label: 'L3 constraints.md (프로젝트 제약)' },
     { path: 'src/lib/feedback-loop.js', label: 'L4 Feedback Loop (자동 학습)' },
     { path: 'src/lib/multi-gen.js',     label: 'L5 Multi-Gen (다중 생성)' },
     { path: 'src/lib/cross-review.js',  label: 'L6 Cross-Review (이종 검증)' },
   ];
-  for (const layer of qualityLayers) {
-    if (ctx.exists(layer.path)) {
+  for (const layer of pkgLayers) {
+    const fullPath = resolvePath(sentixPkgRoot, layer.path);
+    if (existsSync(fullPath)) {
       out.push({ level: 'pass', label: layer.label });
     } else {
-      out.push({ level: 'warn', label: layer.label, fix: 'sentix update' });
+      out.push({ level: 'warn', label: layer.label, fix: 'npm install -g sentix@latest' });
     }
+  }
+  // constraints.md는 프로젝트 로컬 파일
+  if (ctx.exists('.sentix/constraints.md')) {
+    out.push({ level: 'pass', label: 'L3 constraints.md (프로젝트 제약)' });
+  } else {
+    out.push({ level: 'warn', label: 'L3 constraints.md (프로젝트 제약)', fix: 'sentix update' });
   }
 
   // Sentix enforcement hooks (Claude Code settings)
