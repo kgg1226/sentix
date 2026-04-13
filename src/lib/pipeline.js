@@ -256,6 +256,21 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     ctx.warn(`Pattern analysis skipped: ${e.message}`);
   }
 
+  // ── Token usage summary ────────────────────────────
+  let totalIn = 0, totalOut = 0;
+  for (const phase of phases) {
+    const usage = phase.output?.usage || {};
+    totalIn += usage.input_tokens || 0;
+    totalOut += usage.output_tokens || 0;
+  }
+  if (totalIn > 0 || totalOut > 0) {
+    ctx.log(`\n=== Token Usage ===`);
+    ctx.log(`  Input:  ${totalIn.toLocaleString()} tokens`);
+    ctx.log(`  Output: ${totalOut.toLocaleString()} tokens`);
+    ctx.log(`  Total:  ${(totalIn + totalOut).toLocaleString()} tokens`);
+    ctx.log('');
+  }
+
   // ── Final gate ────────────────────────────────────
   const finalGate = runGates(ctx.cwd);
 
@@ -265,6 +280,7 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     gateResults: finalGate,
     duration_seconds: Math.round((Date.now() - startTime) / 1000),
     test_passed: testResult.status === 0,
+    token_usage: { input: totalIn, output: totalOut, total: totalIn + totalOut },
   };
 }
 

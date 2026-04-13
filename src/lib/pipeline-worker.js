@@ -67,7 +67,10 @@ export function runPhase(name, prompt, ctx) {
   let output = null;
   try {
     output = JSON.parse(result.stdout);
-    ctx.success(`Phase ${name} completed (${output.usage?.output_tokens || '?'} tokens)`);
+    const usage = output.usage || {};
+    const inTok = usage.input_tokens || 0;
+    const outTok = usage.output_tokens || 0;
+    ctx.success(`Phase ${name} completed (in: ${inTok.toLocaleString()} / out: ${outTok.toLocaleString()} tokens)`);
   } catch {
     output = { content: result.stdout };
     ctx.success(`Phase ${name} completed`);
