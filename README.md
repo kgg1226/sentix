@@ -71,15 +71,16 @@ sentix update               # Sync framework files
 
 ### How to use in Claude Code chat
 
-After `sentix init`, open the folder in Claude Code and just talk normally:
+You must explicitly tell Claude to use `npx sentix run`:
 
 ```
-You: "Make a login page"
-Claude: (automatically runs npx sentix run "Make a login page" via Bash)
+You: "Run npx sentix run 'Make a login page' in terminal"
+Claude: (executes via Bash tool)
 → Pipeline starts: PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-**You don't need to type `sentix run` yourself.** Claude reads the hooks and automatically routes code change requests through the pipeline.
+> **Important**: If you just say "Make a login page" without mentioning `sentix run`,
+> Claude will code directly without the pipeline. Always include `npx sentix run` in your request.
 
 If Claude doesn't use `sentix run` automatically, you can tell it:
 ```
@@ -153,19 +154,20 @@ sentix update               # 프레임워크 파일 동기화
 
 ### Claude Code 채팅에서 사용하는 법
 
-`sentix init` 후 Claude Code로 폴더를 열고 그냥 대화하세요:
+채팅에서 `npx sentix run`을 명시적으로 포함해야 합니다:
 
 ```
-나: "로그인 페이지 만들어줘"
-Claude: (자동으로 Bash에서 sentix run "로그인 페이지 만들어줘" 실행)
+나: "터미널에서 npx sentix run '로그인 페이지 만들어줘' 실행해"
+Claude: (Bash 도구로 실행)
 → 파이프라인 시작: PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-**`sentix run`을 직접 타이핑할 필요 없습니다.** Claude가 훅을 읽고 코드 변경 요청을 자동으로 파이프라인에 넘깁니다.
+> **중요**: "로그인 페이지 만들어줘"만 입력하면 Claude가 sentix 없이 직접 코딩합니다.
+> 반드시 `npx sentix run`을 요청에 포함하세요.
 
-만약 Claude가 `sentix run`을 자동으로 안 쓰면:
+예시:
 ```
-나: "sentix run으로 로그인 페이지 만들어줘"
+나: "npx sentix run '버그 수정해줘' 터미널에서 실행해"
 ```
 
 ---
@@ -227,15 +229,16 @@ sentix doctor                        # インストール診断
 
 ### Claude Codeチャットでの使い方
 
-`sentix init`後、Claude Codeでフォルダを開いて普通に会話してください：
+チャットで`npx sentix run`を明示的に指定する必要があります：
 
 ```
-あなた：「ログインページを作って」
-Claude：（自動的にBashで sentix run "ログインページを作って" を実行）
+あなた：「ターミナルで npx sentix run 'ログインページを作って' を実行して」
+Claude：（Bashツールで実行）
 → パイプライン開始：PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-**`sentix run`を自分で入力する必要はありません。** Claudeがフックを読み取り、コード変更リクエストを自動的にパイプラインに送ります。
+> **重要**：「ログインページを作って」だけ入力すると、Claudeはsentixなしで直接コーディングします。
+> 必ず`npx sentix run`をリクエストに含めてください。
 
 ---
 
@@ -296,15 +299,16 @@ sentix doctor                    # 安装诊断
 
 ### 在Claude Code聊天中如何使用
 
-`sentix init`后，用Claude Code打开文件夹，正常对话即可：
+聊天中必须明确指定`npx sentix run`：
 
 ```
-你："做一个登录页面"
-Claude：（自动通过Bash执行 sentix run "做一个登录页面"）
+你："在终端执行 npx sentix run '做一个登录页面'"
+Claude：（通过Bash工具执行）
 → 管道启动：PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-**不需要自己输入`sentix run`。** Claude会读取钩子，自动将代码变更请求路由到管道。
+> **重要**：如果只输入"做一个登录页面"，Claude会不经过sentix直接编码。
+> 请务必在请求中包含`npx sentix run`。
 
 ---
 
