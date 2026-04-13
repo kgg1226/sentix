@@ -11,7 +11,7 @@
  *   - 안전어 해시도 사용자 요청 없이 노출 금지
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -29,15 +29,12 @@ export function hashWord(word) {
 }
 
 /**
- * Generate a recovery key from the safety word.
- * 안전어와 다른 salt를 사용하여 독립적인 해시 생성.
- * recovery key = 해시의 앞 16자 (사용자가 기록하기 쉽게)
+ * Generate a cryptographically random recovery key.
+ * 안전어와 무관한 완전 독립적인 랜덤 키.
+ * recovery key = 16자 hex (사용자가 기록하기 쉽게)
  */
-export function generateRecoveryKey(word) {
-  const hash = createHash('sha256')
-    .update(`${RECOVERY_SALT}:${word.trim()}`)
-    .digest('hex');
-  return hash.slice(0, 16);
+export function generateRecoveryKey(_word) {
+  return randomBytes(8).toString('hex'); // 8 bytes = 16 hex chars
 }
 
 /**
