@@ -54,7 +54,12 @@ export function runPhase(name, prompt, ctx) {
   if (result.status !== 0) {
     ctx.error(`Phase ${name} exited with code ${result.status}`);
     if (result.stderr?.trim()) {
-      ctx.log(result.stderr.slice(-500));
+      ctx.log('--- stderr ---');
+      ctx.log(result.stderr.slice(-1000));
+    }
+    if (result.stdout?.trim()) {
+      ctx.log('--- stdout ---');
+      ctx.log(result.stdout.slice(-500));
     }
     return { success: false, error: `exit code ${result.status}`, exit_code: result.status, output: null };
   }
