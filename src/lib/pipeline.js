@@ -54,47 +54,56 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   const phases = [];
   const startTime = Date.now();
 
-  // 컨텍스트 수집 (경량화: agent-methods.md 전문 주입 제거 — 에이전트 파일에 메서드 순서 포함됨)
-  const lessons = ctx.exists('tasks/lessons.md') ? await ctx.readFile('tasks/lessons.md') : '';
-  const patterns = ctx.exists('tasks/patterns.md') ? await ctx.readFile('tasks/patterns.md') : '';
+  // ── 요청 복잡도 판별 → 컨텍스트 로딩 수준 결정 ────
+  const requestWords = request.split(/\s+/).filter(Boolean).length;
+  const isSimple = requestWords <= 10 || /hotfix|typo|오타|한 줄|quick|간단/i.test(request);
+  if (isSimple) ctx.log('  [lightweight] 간단한 요청 — 컨텍스트 경량 로딩');
 
-  const methodsDirective = ''; // Agent files (.claude/agents/*.md) already contain method definitions
+  // 컨텍스트 수집 (복잡도에 따라 선택적 로딩)
+  const lessons = !isSimple && ctx.exists('tasks/lessons.md') ? await ctx.readFile('tasks/lessons.md') : '';
+  const patterns = !isSimple && ctx.exists('tasks/patterns.md') ? await ctx.readFile('tasks/patterns.md') : '';
+
+  const methodsDirective = '';
   const learningContext = buildLearningContext(lessons, patterns);
-  const crossProjectContext = loadCrossProjectContext(ctx.cwd);
+  const crossProjectContext = !isSimple ? loadCrossProjectContext(ctx.cwd) : '';
 
-  // Spec Enricher: 프로젝트 제약 + 학습 패턴 로드
+  // Spec Enricher: constraints는 항상 로드 (핵심 보호)
   let constraintsContext = '';
   try {
     const constraints = loadConstraints(ctx.cwd);
     constraintsContext = constraints.constraintsContext;
     if (constraints.constraintCount > 0) {
-      ctx.success(`Loaded ${constraints.constraintCount} constraint(s) from .sentix/constraints.md + lessons.md`);
+      ctx.success(`Loaded ${constraints.constraintCount} constraint(s)`);
     }
   } catch (e) {
     ctx.warn(`Constraints loading failed (safe skip): ${e.message}`);
   }
 
-  // Spec Questions: 요청 분석 → 누락 정보 질문 생성
+  // Spec Questions: 간단한 요청이면 스킵
   let specDirective = '';
-  try {
-    const specAnalysis = analyzeRequest(request);
-    specDirective = specAnalysis.specDirective;
-    if (specAnalysis.questions.length > 0) {
-      ctx.success(`Spec analysis: ${specAnalysis.questions.length} question(s) for planner (type: ${specAnalysis.requestType})`);
+  if (!isSimple) {
+    try {
+      const specAnalysis = analyzeRequest(request);
+      specDirective = specAnalysis.specDirective;
+      if (specAnalysis.questions.length > 0) {
+        ctx.success(`Spec analysis: ${specAnalysis.questions.length} question(s) for planner (type: ${specAnalysis.requestType})`);
+      }
+    } catch (e) {
+      ctx.warn(`Spec analysis failed (safe skip): ${e.message}`);
     }
-  } catch (e) {
-    ctx.warn(`Spec analysis failed (safe skip): ${e.message}`);
   }
 
-  // Pattern Directives: 과거 패턴 기반 행동 지시
+  // Pattern Directives: 간단한 요청이면 스킵
   let patternDirective = '';
-  try {
-    patternDirective = generatePatternDirective(ctx.cwd, request);
-    if (patternDirective) {
-      ctx.success('Pattern directives generated from usage history');
+  if (!isSimple) {
+    try {
+      patternDirective = generatePatternDirective(ctx.cwd, request);
+      if (patternDirective) {
+        ctx.success('Pattern directives generated from usage history');
+      }
+    } catch (e) {
+      ctx.warn(`Pattern directive generation failed (safe skip): ${e.message}`);
     }
-  } catch (e) {
-    ctx.warn(`Pattern directive generation failed (safe skip): ${e.message}`);
   }
 
   const promptCtx = {
