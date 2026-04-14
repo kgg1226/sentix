@@ -1,50 +1,37 @@
-# Handoff — 품질 시스템 구축 세션 (완료)
+# Handoff — 이전 세션 인수인계
 
-## 완료된 작업
+## 완료된 작업 (이번 세션)
 
-### 브랜치: `claude/investigate-semantic-caching-tSas9`
-### PR: kgg1226/sentix#27
+### 실전 테스트 기반 버그 수정
+- fix: scripts/hooks/ npm publish 누락 → package.json files에 추가
+- fix: DEV 에이전트가 자기 훅에 차단됨 → SENTIX_PIPELINE 환경 변수 + --permission-mode acceptEdits
+- fix: phase 타임아웃 5분 → 15분
+- fix: doctor가 잘못된 경로에서 L2~L6 체크 → 패키지 내부 경로로 변경
+- fix: recovery key가 동일값 → crypto.randomBytes로 변경
 
-6개 레이어 품질 시스템 구축 완료 — 총 16커밋.
+### 토큰 경량화
+- perf: "Read CLAUDE.md first" 제거 (7곳) — ~100K tokens 절감
+- perf: agent-methods.md 전문 주입 제거 — ~23K tokens 절감
+- perf: REVIEW에 diff 요약 주입 (git diff 직접 실행 방지)
+- perf: .claudeignore 확장 (FRAMEWORK.md, README.md, docs/*.md, 데이터 파일)
+- perf: lessons/patterns/constraints 길이 제한 강화
+- perf: 적응형 컨텍스트 로딩 (간단한 요청은 경량 모드)
 
-### 아키텍처 (6 레이어)
+### UX 개선
+- feat: 인터랙티브 선택지 입력 구체화
+- feat: 토큰 사용량 per-phase + 총합 표시
+- feat: sentix update 시 README 버전 자동 갱신
+- docs: README 4개 언어 + 환경별 OX 표 + 로컬/글로벌 설치 차이
 
-```
-L1  파괴 방지      하드 룰 + PreToolUse 훅
-L2  결정론적 검증   Quality Gate 5종
-L3  입력 강화      Spec Questions + Spec Enricher + constraints.md
-L4  자동 학습      Feedback Loop + Lesson Promoter
-L5  다중 생성      Multi-Gen (dev × N, 점수 선택) [--multi-gen]
-L6  이종 검증      Cross-Review (외부 AI) + 적대적 프롬프트 [--cross-review]
-```
+## 다음 세션 권장 작업
 
-### 테스트: 159 pass, 0 fail
+1. **에이전트 간 위임 프로토콜** — gate 위반 시 적절한 에이전트에게 자동 재라우팅
+2. **FINALIZE를 코드로 대체** — Claude 소환 없이 git commit + 학습 기록
+3. **--skip-review 플래그** — 간단한 작업에서 REVIEW 건너뛰기
+4. **복잡도 기반 자동 경로** — low → hotfix (PLAN+REVIEW 스킵), high → full pipeline
+5. **Bash 우회 차단** — echo >/tee로 파일 쓰기 감지
 
-### 신규 파일
+## 수용된 한계
 
-- `src/lib/quality-gate.js` — 5개 결정론적 검사
-- `src/lib/spec-enricher.js` — constraints 로드 + 프롬프트 주입
-- `src/lib/spec-questions.js` — 요청 분석 + 구조화 질문
-- `src/lib/feedback-loop.js` — Gate 실패 → constraints 자동 추가
-- `src/lib/multi-gen.js` — N회 독립 dev + 점수 선택
-- `src/lib/cross-review.js` — 이종 모델 API 리뷰
-- `.sentix/constraints.md` — 프로젝트 제약 시드
-- `__tests__/quality-gate.test.js` (11), `spec-enricher.test.js` (14),
-  `spec-questions.test.js` (16), `feedback-loop.test.js` (11),
-  `lesson-promoter.test.js` (12), `multi-gen.test.js` (13),
-  `cross-review.test.js` (9)
-
-### CLI 사용법
-
-```
-sentix run "요청"                                    # 기본 (L1~L4)
-sentix run "요청" --multi-gen                        # + L5 다중 생성
-sentix run "요청" --cross-review                     # + L6 이종 리뷰
-sentix run "요청" --multi-gen --cross-review openai  # L1~L6 전부
-```
-
-## 수용된 RISK
-
-- npm audit: package-lock.json 없어 항상 스킵 (zero-dep 의도)
-- writeFileSync 원자성: constraints.md 쓰기 중 장애 시 손상 (빈도 매우 낮음)
-- diff 15000자 제한: cross-review의 diff 잘림 (대부분 충분)
+- Claude가 채팅에서 sentix run을 자동 실행하지 않는 문제 → 사용자가 명시적으로 "npx sentix run" 포함해야 함
+- 글로벌 설치는 Claude Code 앱/웹에서 접근 불가 → 로컬 설치 필수
