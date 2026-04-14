@@ -63,7 +63,19 @@
       "Bash(rm -f scripts/hooks/*)",
       "Bash(rm -f .sentix/rules/*)",
       "Bash(rm *settings.json*)",
-      "Bash(git push --force*)"
+      "Bash(git push --force*)",
+      "Bash(echo * > src/*)",
+      "Bash(echo * > lib/*)",
+      "Bash(echo * > app/*)",
+      "Bash(echo * > bin/*)",
+      "Bash(cat * > src/*)",
+      "Bash(cat * > lib/*)",
+      "Bash(tee src/*)",
+      "Bash(tee lib/*)",
+      "Bash(printf * > src/*)",
+      "Bash(printf * > lib/*)",
+      "Bash(sed -i* src/*)",
+      "Bash(sed -i* lib/*)"
     ]
   }
 }

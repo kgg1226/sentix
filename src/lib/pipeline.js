@@ -117,15 +117,20 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     patternDirective,
   };
 
-  // ── Phase 1: PLAN ─────────────────────────────────
-  ctx.log('=== Phase 1: PLAN ===\n');
-  state.current_phase = 'plan';
-  await ctx.writeJSON('tasks/governor-state.json', state);
+  // ── Phase 1: PLAN (간단한 요청이면 스킵) ─────────────
+  if (isSimple && !options.forcePlan) {
+    ctx.log('=== Phase 1: PLAN (skipped — simple request) ===\n');
+    phases.push({ name: 'plan-skipped', success: true, error: null, exit_code: 0, output: null });
+  } else {
+    ctx.log('=== Phase 1: PLAN ===\n');
+    state.current_phase = 'plan';
+    await ctx.writeJSON('tasks/governor-state.json', state);
 
-  const planResult = runPhase('plan', buildPlanPrompt(promptCtx), ctx);
-  phases.push({ name: 'plan', ...planResult });
-  if (!planResult.success) {
-    return { success: false, phases, failedAt: 'plan' };
+    const planResult = runPhase('plan', buildPlanPrompt(promptCtx), ctx);
+    phases.push({ name: 'plan', ...planResult });
+    if (!planResult.success) {
+      return { success: false, phases, failedAt: 'plan' };
+    }
   }
 
   // ── 복잡도 감지: 병렬 or 순차 결정 ────────────────
@@ -199,10 +204,18 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   } catch { /* ignore */ }
 
   // ── Phase 3: REVIEW (재시도 + 재계획 트리거) ────────
-  const reviewOutcome = await runReviewPhase({
-    ctx, state, phases, testResult, midGateInfo, diffSummary,
-    methodsDirective, learningContext,
-  });
+  let reviewOutcome = { needsReplan: false };
+  const shouldSkipReview = options.skipReview || (isSimple && !options.forceReview);
+  if (shouldSkipReview) {
+    const reason = options.skipReview ? '--skip-review' : 'simple request';
+    ctx.log(`\n=== Phase 3: REVIEW (skipped — ${reason}) ===\n`);
+    phases.push({ name: 'review-skipped', success: true, error: null, exit_code: 0, output: null });
+  } else {
+    reviewOutcome = await runReviewPhase({
+      ctx, state, phases, testResult, midGateInfo, diffSummary,
+      methodsDirective, learningContext,
+    });
+  }
 
   if (reviewOutcome.needsReplan) {
     const replanResult = await runReplanPhase({
@@ -246,13 +259,21 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     }
   }
 
-  // ── Phase 4: FINALIZE ─────────────────────────────
+  // ── Phase 4: FINALIZE (코드로 직접 실행 — Claude 소환 불필요) ──
   ctx.log('\n=== Phase 4: FINALIZE ===\n');
   state.current_phase = 'finalize';
   await ctx.writeJSON('tasks/governor-state.json', state);
 
-  const finalResult = runPhase('finalize', buildFinalizePrompt(), ctx);
-  phases.push({ name: 'finalize', ...finalResult });
+  // FINALIZE 작업을 코드로 직접 수행 (토큰 ~6,000 절감)
+  try {
+    // 1. 학습 기록은 이미 feedback-loop + lesson-promoter가 처리
+    // 2. git commit은 run.js의 post-pipeline에서 처리
+    // 3. 여기서는 finalize 성공만 기록
+    ctx.success('Phase finalize completed (code-based, no Claude spawn)');
+  } catch (e) {
+    ctx.warn(`Finalize warning: ${e.message}`);
+  }
+  phases.push({ name: 'finalize', success: true, error: null, exit_code: 0, output: null });
 
   // ── Auto-promote repeated lessons to rules ─────────
   try {
@@ -323,12 +344,27 @@ function runMidGate(ctx) {
 
   // Hard-rule gates (SCOPE, export, test deletion, net deletion)
   const midGate = runGates(ctx.cwd);
+  const delegationHints = [];
   for (const check of midGate.checks) {
     if (check.passed) {
       ctx.success(`[${check.rule}] ${check.detail}`);
     } else {
       ctx.warn(`[${check.rule}] ${check.detail}`);
+      // 위반 유형별 위임 힌트 생성
+      if (check.rule === 'scope') {
+        delegationHints.push('SCOPE violation detected → REVIEW must request planner to expand SCOPE or reject');
+      } else if (check.rule === 'no-export-deletion') {
+        delegationHints.push('Export deletion detected → REVIEW must request dev-fix to restore exports');
+      } else if (check.rule === 'no-test-deletion') {
+        delegationHints.push('Test deletion detected → REVIEW must request dev-fix to restore tests');
+      } else if (check.rule === 'net-deletion-limit') {
+        delegationHints.push('Net deletion limit exceeded → REVIEW must request refactoring split');
+      }
     }
+  }
+  if (delegationHints.length > 0) {
+    ctx.log(`\n  Delegation hints for REVIEW: ${delegationHints.length}`);
+    for (const hint of delegationHints) ctx.log(`    → ${hint}`);
   }
 
   // Quality gate (banned patterns, debug artifacts, syntax, audit, regression)
@@ -358,12 +394,12 @@ function runMidGate(ctx) {
     }
   }
 
-  const midGateInfo = buildMidGateInfo(midGate, qualityGate);
+  const midGateInfo = buildMidGateInfo(midGate, qualityGate, delegationHints);
 
   return { testResult, midGateInfo };
 }
 
-function buildMidGateInfo(midGate, qualityGate) {
+function buildMidGateInfo(midGate, qualityGate, delegationHints = []) {
   const parts = [];
 
   if (midGate.passed && qualityGate.passed) {
@@ -379,6 +415,10 @@ function buildMidGateInfo(midGate, qualityGate) {
       .flatMap((c) => c.issues)
       .filter((i) => i.severity === 'error');
     parts.push(`Quality issues (${errors.length} error(s)): ${errors.map((e) => e.message).join('; ')}`);
+  }
+
+  if (delegationHints.length > 0) {
+    parts.push(`Delegation: ${delegationHints.join('; ')}`);
   }
 
   return parts.join(' | ');

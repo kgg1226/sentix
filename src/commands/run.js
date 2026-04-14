@@ -193,11 +193,13 @@ registerCommand('run', {
       const crossReview = crossReviewIdx !== -1
         ? (args[crossReviewIdx + 1] && !args[crossReviewIdx + 1].startsWith('-') ? args[crossReviewIdx + 1] : true)
         : false;
+      const skipReview = args.includes('--skip-review');
       const chainResult = await runChainedPipeline(enrichedRequest, cycleId, state, ctx, {
         safetyDirective,
         multiGen,
         multiGenCount,
         crossReview,
+        skipReview,
       });
       pipelineResult = {
         success: chainResult.success,
