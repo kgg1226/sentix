@@ -6,6 +6,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { registerCommand } from '../registry.js';
 import { runGates, runPreGates } from '../lib/verify-gates.js';
 import { detectDangerousRequest, verifyWord, isConfigured } from '../lib/safety.js';
@@ -87,6 +89,26 @@ registerCommand('run', {
         }
       }
     }
+
+    // ── Pre-gate 자동 해결 ──────────────────────────
+    // 테스트 스냅샷 없으면 자동 생성 (npm test 실행)
+    const snapshotCheck = preGateResults.checks.find(c => c.rule === 'test-snapshot');
+    if (snapshotCheck && !snapshotCheck.passed) {
+      ctx.log('  → 테스트 스냅샷 자동 생성 중...');
+      try {
+        const testRun = spawnSync('npm', ['test'], {
+          cwd: ctx.cwd, encoding: 'utf-8', stdio: 'pipe', timeout: 60_000,
+        });
+        if (testRun.stdout) {
+          const snapshotPath = resolve(ctx.cwd, 'tasks/.pre-fix-test-results.json');
+          mkdirSync(resolve(ctx.cwd, 'tasks'), { recursive: true });
+          writeFileSync(snapshotPath, testRun.stdout);
+          ctx.success('  → 테스트 스냅샷 자동 생성 완료');
+        }
+      } catch { /* 테스트 없으면 스킵 */ }
+    }
+    // 티켓 없음은 planner가 자동 생성 (프롬프트에 포함)
+
     ctx.log('');
 
     // ── Create governor state ───────────────────────
