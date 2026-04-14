@@ -135,6 +135,20 @@ registerCommand('init', {
       ctx.warn('Auto-check skipped (run manually: sentix doctor)');
     }
 
+    // ── 프로젝트 자동 스캔 + 작업 제안 ──────────────
+    ctx.log('\n--- Project Scan ---\n');
+    try {
+      const { scanProject, formatScanReport } = await import('../lib/project-scanner.js');
+      const scanResult = scanProject(ctx.cwd);
+      if (scanResult.suggestions.length > 0) {
+        ctx.log(formatScanReport(scanResult));
+      } else {
+        ctx.success('프로젝트 스캔 완료 — 개선 제안 없음');
+      }
+    } catch {
+      ctx.warn('Auto-scan skipped (run manually: sentix scan)');
+    }
+
     if (!hasSafety) {
       ctx.log('');
       ctx.log('Optional: sentix safety set <안전어>  (LLM 인젝션 방지)');
