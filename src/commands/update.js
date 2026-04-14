@@ -59,6 +59,9 @@ const SYNC_FILES = [
   { src: '.claude/agents/pr-review.md',          dst: '.claude/agents/pr-review.md' },
   { src: '.claude/agents/dev-fix.md',            dst: '.claude/agents/dev-fix.md' },
   { src: '.claude/agents/security.md',           dst: '.claude/agents/security.md' },
+
+  // 토큰 절감용 ignore 파일
+  { src: '.claudeignore',                        dst: '.claudeignore' },
 ];
 
 // ── Worktree 감지: 현재 위치 + main working tree ────────

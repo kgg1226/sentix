@@ -29,7 +29,8 @@
     "docs/",
     "scripts/update-downstream.sh",
     "scripts/pre-commit.js",
-    "scripts/hooks/"
+    "scripts/hooks/",
+    ".claudeignore"
   ],
   "keywords": [
     "devops",

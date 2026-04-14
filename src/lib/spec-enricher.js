@@ -55,8 +55,9 @@ export function loadConstraints(cwd) {
     }
   }
 
+  const fullText = parts.join('\n');
   const constraintsContext = parts.length > 0
-    ? `\n--- CONSTRAINTS (${constraintCount} rules — MUST follow) ---\n${parts.join('\n')}\n--- END CONSTRAINTS ---`
+    ? `\n--- CONSTRAINTS (${constraintCount} rules) ---\n${fullText.slice(0, 1500)}\n--- END CONSTRAINTS ---`
     : '';
 
   return { constraintsContext, constraintCount };

@@ -77,8 +77,8 @@ export async function getLatestTicket(ctx) {
  */
 export function buildLearningContext(lessons, patterns) {
   return [
-    lessons.trim() ? `\n--- lessons.md ---\n${lessons.slice(0, 2000)}` : '',
-    patterns.trim() ? `\n--- patterns.md ---\n${patterns.slice(0, 1000)}` : '',
+    lessons.trim() ? `\n--- lessons (recent) ---\n${lessons.slice(-800)}` : '',
+    patterns.trim() ? `\n--- patterns ---\n${patterns.slice(0, 500)}` : '',
   ].filter(Boolean).join('\n');
 }
 
