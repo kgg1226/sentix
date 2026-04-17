@@ -1,6 +1,6 @@
 # feat-006: 패턴 분석 엔진 — pattern-log.jsonl 자동 분석 → patterns.md 자동 업데이트 → 프롬프트 주입
 
-- **Status:** open
+- **Status:** resolved
 - **Complexity:** low
 - **Deploy flag:** false
 - **Security flag:** false

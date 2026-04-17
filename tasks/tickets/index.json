@@ -4,9 +4,9 @@
     "type": "feature",
     "title": "dev 완료 후 결정론적 품질 게이트(Quality Gate) 추가 — lint, test, coverage, security 검사를 pr...",
     "severity": "suggestion",
-    "status": "review",
+    "status": "resolved",
     "created_at": "2026-04-09T08:27:58.164Z",
-    "updated_at": "2026-04-17T02:53:32.527Z",
+    "updated_at": "2026-04-17T07:25:00.000Z",
     "pipeline_status": "pending",
     "description_hash": "45444467",
     "related_cycle": "debug-feat-001-049",
@@ -17,12 +17,12 @@
     "type": "feature",
     "title": "입력 품질 강화 — constraints.md 자동 주입 + Spec Enricher로 planner 전 요청 구조화",
     "severity": "suggestion",
-    "status": "open",
+    "status": "resolved",
     "created_at": "2026-04-09T09:14:28.464Z",
-    "updated_at": "2026-04-09T09:14:28.464Z",
+    "updated_at": "2026-04-17T07:25:00.000Z",
     "pipeline_status": "pending",
     "description_hash": "c2c4a1b3",
-    "related_cycle": null,
+    "related_cycle": "pre-existing-implementation",
     "file_path": "tasks/tickets/feat-002.md"
   },
   {
@@ -30,12 +30,12 @@
     "type": "feature",
     "title": "피드백 루프 — Quality Gate 실패 패턴을 constraints.md에 자동 추가하는 선순환 구조",
     "severity": "suggestion",
-    "status": "open",
+    "status": "resolved",
     "created_at": "2026-04-09T09:42:59.954Z",
-    "updated_at": "2026-04-09T09:42:59.954Z",
+    "updated_at": "2026-04-17T07:25:00.000Z",
     "pipeline_status": "pending",
     "description_hash": "fae9c3ba",
-    "related_cycle": null,
+    "related_cycle": "pre-existing-implementation",
     "file_path": "tasks/tickets/feat-003.md"
   },
   {
@@ -56,12 +56,12 @@
     "type": "feature",
     "title": "인터랙티브 Spec Enricher — sentix run 시 planner 전에 구조화 질문으로 요청을 풍성하게 보강",
     "severity": "suggestion",
-    "status": "open",
+    "status": "resolved",
     "created_at": "2026-04-09T14:28:14.827Z",
-    "updated_at": "2026-04-09T14:28:14.827Z",
+    "updated_at": "2026-04-17T07:25:00.000Z",
     "pipeline_status": "pending",
     "description_hash": "1b7f8349",
-    "related_cycle": null,
+    "related_cycle": "pre-existing-implementation",
     "file_path": "tasks/tickets/feat-004.md"
   },
   {
@@ -69,12 +69,12 @@
     "type": "feature",
     "title": "다중 생성(Multi-Gen) — dev를 N번 독립 실행하여 최선의 결과를 선택하는 Layer 5",
     "severity": "suggestion",
-    "status": "open",
+    "status": "resolved",
     "created_at": "2026-04-10T00:00:05.233Z",
-    "updated_at": "2026-04-10T00:00:05.233Z",
+    "updated_at": "2026-04-17T07:25:00.000Z",
     "pipeline_status": "pending",
     "description_hash": "3ed290b5",
-    "related_cycle": null,
+    "related_cycle": "pre-existing-implementation",
     "file_path": "tasks/tickets/feat-005.md"
   },
   {
@@ -82,12 +82,12 @@
     "type": "feature",
     "title": "패턴 분석 엔진 — pattern-log.jsonl 자동 분석 → patterns.md 자동 업데이트 → 프롬프트 주입",
     "severity": "suggestion",
-    "status": "open",
+    "status": "resolved",
     "created_at": "2026-04-12T04:08:21.699Z",
-    "updated_at": "2026-04-12T04:08:21.699Z",
+    "updated_at": "2026-04-17T07:25:00.000Z",
     "pipeline_status": "pending",
     "description_hash": "9144a52a",
-    "related_cycle": null,
+    "related_cycle": "pre-existing-implementation",
     "file_path": "tasks/tickets/feat-006.md"
   },
   {
@@ -167,5 +167,18 @@
     "description_hash": "e0d80ec8",
     "related_cycle": "hotfix-2026-04-17",
     "file_path": "tasks/tickets/bug-007.md"
+  },
+  {
+    "id": "feat-007",
+    "type": "feature",
+    "title": "dev-swarm + pipeline-prompts 에 patternDirective 전파 — pipeline.js의 generatePat...",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-17T08:25:04.353Z",
+    "updated_at": "2026-04-17T08:25:04.353Z",
+    "pipeline_status": "pending",
+    "description_hash": "ec9a0fde",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-007.md"
   }
 ]

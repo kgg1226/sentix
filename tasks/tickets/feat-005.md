@@ -1,6 +1,6 @@
 # feat-005: 다중 생성(Multi-Gen) — dev를 N번 독립 실행하여 최선의 결과를 선택하는 Layer 5
 
-- **Status:** open
+- **Status:** resolved
 - **Complexity:** low
 - **Deploy flag:** false
 - **Security flag:** false

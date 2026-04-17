@@ -1,6 +1,6 @@
 # feat-003: 피드백 루프 — Quality Gate 실패 패턴을 constraints.md에 자동 추가하는 선순환 구조
 
-- **Status:** open
+- **Status:** resolved
 - **Complexity:** low
 - **Deploy flag:** false
 - **Security flag:** false
