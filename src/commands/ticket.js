@@ -28,8 +28,8 @@ import {
 const { dim, bold, red, green, yellow, cyan } = colors;
 
 registerCommand('ticket', {
-  description: 'Manage bug/issue tickets (create | list | debug)',
-  usage: 'sentix ticket <create|list|debug> [args...] [--severity critical|warning|suggestion]',
+  description: 'Manage bug/issue tickets (create | list | debug | close)',
+  usage: 'sentix ticket <create|list|debug|close> [args...] [--severity critical|warning|suggestion]',
 
   async run(args, ctx) {
     const subcommand = args[0];
@@ -45,9 +45,16 @@ registerCommand('ticket', {
         return;
       }
       await debugTicket(ticketId, ctx);
+    } else if (subcommand === 'close') {
+      const ticketId = args[1];
+      if (!ticketId) {
+        ctx.error('Usage: sentix ticket close <ticket-id> [--force]');
+        return;
+      }
+      await closeTicket(ticketId, args.slice(2), ctx);
     } else {
       ctx.error(`Unknown subcommand: ${subcommand}`);
-      ctx.log('Usage: sentix ticket <create|list|debug> [args...]');
+      ctx.log('Usage: sentix ticket <create|list|debug|close> [args...]');
     }
   },
 });
@@ -207,6 +214,42 @@ async function debugTicket(ticketId, ctx) {
 
   // 4. Delegate to lib
   await runTicketDebug(ticket, ctx);
+}
+
+// ── sentix ticket close ───────────────────────────────
+
+async function closeTicket(ticketId, args, ctx) {
+  const force = args.includes('--force');
+
+  const ticket = await findTicket(ctx, ticketId);
+  if (!ticket) {
+    ctx.error(`Ticket not found: ${ticketId}`);
+    return;
+  }
+
+  if (ticket.status === 'closed') {
+    ctx.log('');
+    ctx.log(`  ${yellow('●')} ${bold('이미 closed')}  ${cyan(ticketId)}`);
+    ctx.log(`  ${dim('상태')}      ${statusBadge('closed')}`);
+    ctx.log('');
+    return;
+  }
+
+  const isDirectPath = ticket.status === 'resolved';
+  if (!isDirectPath && !force) {
+    ctx.error(`Ticket ${ticketId} is '${ticket.status}' — resolved 상태만 close 가능합니다.`);
+    ctx.log(`  ${dim('강제로 닫으려면')}  sentix ticket close ${ticketId} --force`);
+    return;
+  }
+
+  const updated = await updateTicket(ctx, ticketId, { status: 'closed' }, { force });
+
+  ctx.log('');
+  ctx.log(`  ${green('●')} ${bold('티켓 closed')}  ${cyan(ticketId)}`);
+  ctx.log(`  ${dim('제목')}      ${updated.title}`);
+  ctx.log(`  ${dim('이전 상태')}  ${statusBadge(ticket.status)}`);
+  ctx.log(`  ${dim('현재 상태')}  ${statusBadge('closed')}${force && !isDirectPath ? '  ' + dim('(강제)') : ''}`);
+  ctx.log('');
 }
 
 // ── Helpers ───────────────────────────────────────────

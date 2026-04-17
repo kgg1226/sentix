@@ -180,5 +180,18 @@
     "description_hash": "ec9a0fde",
     "related_cycle": "hotfix-2026-04-17",
     "file_path": "tasks/tickets/feat-007.md"
+  },
+  {
+    "id": "feat-008",
+    "type": "feature",
+    "title": "sentix ticket close <id> 서브명령 추가 — 현재 CLI에 ticket create/list/debug 만 있고 clos...",
+    "severity": "suggestion",
+    "status": "closed",
+    "created_at": "2026-04-17T08:42:09.324Z",
+    "updated_at": "2026-04-17T08:49:26.621Z",
+    "pipeline_status": "pending",
+    "description_hash": "a2c004c0",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-008.md"
   }
 ]

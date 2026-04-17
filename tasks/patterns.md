@@ -4,9 +4,13 @@
 
 ## 요청 빈도
 
-- "bug-fix" 요청이 전체의 100% (2/2)
+- "bug-fix" 요청이 전체의 100% (3/3)
 
 ## 자주 반복되는 명령 순서
 
-- "ticket → ticket" 순서가 9회 반복
+- "ticket → ticket" 순서가 16회 반복
+- "status → ticket" 순서가 3회 반복
 - "ticket → run" 순서가 2회 반복
+- "run → ticket" 순서가 2회 반복
+- "ticket → status" 순서가 2회 반복
+- "ticket → feature" 순서가 2회 반복
