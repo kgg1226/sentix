@@ -71,21 +71,44 @@ sentix update               # Sync framework files
 
 ### How to use in Claude Code chat
 
-You must explicitly tell Claude to use `npx sentix run`:
+#### One-time setup — make Claude route through `sentix run` automatically
+
+Run `sentix init` once in your project root:
+
+```bash
+npm install sentix
+npx sentix init
+```
+
+This installs three things that keep Claude on the Governor pipeline without you re-typing the rule each request:
+
+| Installed by `sentix init` | What it does |
+|---|---|
+| `CLAUDE.md` / `.claude/rules/*` | Loaded at every session start — tells Claude it is already the Sentix Governor and must route code changes through `sentix run`. |
+| `.claude/settings.json` hooks | `SessionStart` injects the Governor role, `UserPromptSubmit` re-states the rule on every turn, `PreToolUse` blocks raw Write/Edit without an active ticket. |
+| `tasks/` + `.sentix/` scaffolding | Ticket index, lessons, constraints, integrity snapshot — all the state Claude reads/writes during a cycle. |
+
+After this, a fresh chat session automatically starts in Governor mode. You can still ask in plain language:
+
+```
+You: "Fix the login bug"
+Claude: (Governor routes this to) sentix run "Fix the login bug"
+→ Pipeline: PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+#### Explicit fallback
+
+If Claude drifts or you want to force the pipeline explicitly:
 
 ```
 You: "Run npx sentix run 'Make a login page' in terminal"
-Claude: (executes via Bash tool)
-→ Pipeline starts: PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-> **Important**: If you just say "Make a login page" without mentioning `sentix run`,
-> Claude will code directly without the pipeline. Always include `npx sentix run` in your request.
+#### App / Web specifics
 
-If Claude doesn't use `sentix run` automatically, you can tell it:
-```
-You: "Use sentix run to make a login page"
-```
+> **Global install is not visible to Claude Code app/web.** You must install locally (`npm install sentix`) so `npx sentix` resolves inside the project's `node_modules/.bin`.
+
+> Memory files (persistent preferences across sessions) live in `~/.claude/projects/<project>/memory/`. Sentix's `require-ticket` hook treats paths outside the project root as out-of-scope and lets them through, so memory writes are never blocked.
 
 ---
 
@@ -154,21 +177,44 @@ sentix update               # 프레임워크 파일 동기화
 
 ### Claude Code 채팅에서 사용하는 법
 
-채팅에서 `npx sentix run`을 명시적으로 포함해야 합니다:
+#### 한 번만 설정 — 채팅에서 Claude가 자동으로 `sentix run` 을 거치게 하기
+
+프로젝트 루트에서 `sentix init` 을 **한 번** 실행하면, 이후 모든 세션이 자동으로 Governor 모드로 시작합니다:
+
+```bash
+npm install sentix
+npx sentix init
+```
+
+`sentix init` 이 자동 설치하는 3가지:
+
+| 설치 항목 | 역할 |
+|---|---|
+| `CLAUDE.md` / `.claude/rules/*` | 세션 시작 시 자동 로드되어, Claude가 이미 Sentix Governor임을 인지하고 코드 변경은 반드시 `sentix run` 경로로 돌리도록 지시 |
+| `.claude/settings.json` 훅 3종 | `SessionStart` 가 Governor 역할 주입, `UserPromptSubmit` 가 매 요청마다 규칙 리마인드, `PreToolUse` 가 활성 티켓 없는 Write/Edit 차단 |
+| `tasks/` + `.sentix/` 구조 | 티켓 인덱스, 교훈, 제약, integrity snapshot — 사이클 중 Claude가 읽고 쓰는 상태 저장소 |
+
+설정 후에는 자연어로 요청해도 자동으로 파이프라인을 탑니다:
+
+```
+나: "로그인 버그 고쳐줘"
+Claude: (Governor 판단) sentix run "로그인 버그 고쳐줘"
+→ 파이프라인: PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+#### 명시적 실행 (fallback)
+
+Claude가 경로를 벗어나거나 강제로 파이프라인을 타게 하고 싶으면:
 
 ```
 나: "터미널에서 npx sentix run '로그인 페이지 만들어줘' 실행해"
-Claude: (Bash 도구로 실행)
-→ 파이프라인 시작: PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-> **중요**: "로그인 페이지 만들어줘"만 입력하면 Claude가 sentix 없이 직접 코딩합니다.
-> 반드시 `npx sentix run`을 요청에 포함하세요.
+#### 앱 / 웹 사용 시 참고
 
-예시:
-```
-나: "npx sentix run '버그 수정해줘' 터미널에서 실행해"
-```
+> **글로벌 설치는 Claude Code 앱/웹에서 보이지 않습니다.** 반드시 프로젝트에 로컬 설치(`npm install sentix`) 해야 `npx sentix` 가 `node_modules/.bin` 에서 해결됩니다.
+
+> 세션 간 기억(memory 파일)은 `~/.claude/projects/<프로젝트>/memory/` 에 저장됩니다. Sentix의 `require-ticket` 훅은 프로젝트 루트 밖 경로를 보호 범위 밖으로 간주해 통과시키므로, memory 쓰기가 막히지 않습니다.
 
 ---
 
