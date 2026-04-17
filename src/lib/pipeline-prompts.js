@@ -35,15 +35,20 @@ export function buildPlanPrompt({ request, safetyDirective, methodsDirective, le
 }
 
 /** Dev phase 프롬프트 (순차 모드) */
-export function buildDevPrompt({ request, latestTicket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
+export function buildDevPrompt({ request, latestTicket, safetyDirective, methodsDirective, learningContext, constraintsContext, patternDirective }) {
   return joinFiltered([
     '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
     'You are the DEV agent. Your job:',
     latestTicket ? `Ticket:\n${latestTicket}` : `Request: "${request}"`,
     '',
+    'CRITICAL — ticket scope discipline:',
+    '  • Before coding, extract from the ticket body: every explicit file path, function/variable name, and acceptance item.',
+    '  • Your diff MUST map 1:1 to those extracted targets. Do NOT add unrelated refactors, new CLI commands, or "while I\'m here" improvements.',
+    '  • If the ticket is ambiguous or too narrow, STOP and report "SCOPE clarification needed" — do not invent scope.',
+    '',
     '1. Follow dev methods: snapshot() → implement() → test() → verify() → refine() → report()',
-    '2. Implement the changes described in the ticket — you decide HOW',
+    '2. Implement the changes described in the ticket — you decide HOW, but WHAT/WHERE comes from the ticket verbatim',
     '3. Write or update tests',
     '4. Run: npm test — ensure all tests pass',
     '5. Self-verify: hard rules ONLY (no export deletion, no test deletion, scope compliance, <50 net deletions)',
@@ -58,19 +63,25 @@ export function buildDevPrompt({ request, latestTicket, safetyDirective, methods
     methodsDirective,
     learningContext,
     constraintsContext,
+    patternDirective,
   ]);
 }
 
 /** Dev phase 프롬프트 (swarm fallback, 단일 서브태스크) */
-export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
+export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDirective, learningContext, constraintsContext, patternDirective }) {
   return joinFiltered([
     '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
     'You are the DEV agent. Your job:',
     `Ticket:\n${ticket}`,
     '',
+    'CRITICAL — ticket scope discipline:',
+    '  • Before coding, extract from the ticket body: every explicit file path, function/variable name, and acceptance item.',
+    '  • Your diff MUST map 1:1 to those extracted targets. Do NOT add unrelated refactors or new features.',
+    '  • If the ticket is ambiguous, STOP and report "SCOPE clarification needed".',
+    '',
     '1. Follow dev methods: snapshot() → implement() → test() → verify() → refine() → report()',
-    '2. Implement the changes described in the ticket — you decide HOW',
+    '2. Implement the changes described in the ticket — you decide HOW, but WHAT/WHERE comes from the ticket verbatim',
     '3. Write or update tests',
     '4. Run: npm test — ensure all tests pass',
     '5. Self-verify: hard rules ONLY',
@@ -81,11 +92,12 @@ export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDi
     methodsDirective,
     learningContext,
     constraintsContext,
+    patternDirective,
   ]);
 }
 
 /** Dev-swarm worker (병렬) 프롬프트 */
-export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
+export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective, methodsDirective, learningContext, constraintsContext, patternDirective }) {
   return joinFiltered([
     '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
@@ -102,6 +114,7 @@ export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective
     methodsDirective,
     learningContext,
     constraintsContext,
+    patternDirective,
   ]);
 }
 

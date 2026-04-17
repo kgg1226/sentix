@@ -51,11 +51,13 @@ function renderPipelineDiagram(plan) {
 function computeSummary(state, tickets) {
   const phase = state?.current_phase || 'idle';
 
-  // 활성 티켓: plan에서 running 단계의 관련 티켓 우선, 없으면 최신 open
+  // 활성 티켓: resolved/closed는 "활성"이 아니므로 제외. 없으면 null.
   let activeTicket = null;
   if (tickets && tickets.length > 0) {
-    const open = tickets.filter((t) => t.status !== 'closed');
-    activeTicket = open[0] || tickets[0];
+    const active = tickets.filter(
+      (t) => t.status !== 'closed' && t.status !== 'resolved'
+    );
+    activeTicket = active[0] || null;
   }
 
   // 다음 액션: plan에서 첫 pending 단계
@@ -82,8 +84,9 @@ function computeSummary(state, tickets) {
       if (typeof v === 'number' && v >= 3) blockers.push(`${k} 재시도 ${v}회`);
     }
   }
+  // critical 블로커는 아직 해결되지 않은 것만 — resolved/closed 제외
   const criticalOpen = (tickets || []).filter(
-    (t) => t.severity === 'critical' && t.status !== 'closed'
+    (t) => t.severity === 'critical' && t.status !== 'closed' && t.status !== 'resolved'
   ).length;
   if (criticalOpen > 0) blockers.push(`critical 티켓 ${criticalOpen}개`);
 

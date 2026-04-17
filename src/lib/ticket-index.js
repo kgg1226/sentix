@@ -52,13 +52,13 @@ export async function addTicket(ctx, entry) {
   return entry;
 }
 
-export async function updateTicket(ctx, id, updates) {
+export async function updateTicket(ctx, id, updates, { force = false } = {}) {
   const entries = await loadIndex(ctx);
   const idx = entries.findIndex(e => e.id === id);
   if (idx === -1) return null;
 
   // Validate status transition if status is being changed
-  if (updates.status && updates.status !== entries[idx].status) {
+  if (!force && updates.status && updates.status !== entries[idx].status) {
     const allowed = VALID_TRANSITIONS[entries[idx].status] || [];
     if (!allowed.includes(updates.status)) {
       throw new Error(
