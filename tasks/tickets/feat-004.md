@@ -1,6 +1,6 @@
 # feat-004: 인터랙티브 Spec Enricher — sentix run 시 planner 전에 구조화 질문으로 요청을 풍성하게 보강
 
-- **Status:** resolved
+- **Status:** closed
 - **Complexity:** low
 - **Deploy flag:** false
 - **Security flag:** false

@@ -1,6 +1,6 @@
 # feat-007: dev-swarm + pipeline-prompts 에 patternDirective 전파 — pipeline.js의 generatePat...
 
-- **Status:** resolved
+- **Status:** closed
 - **Complexity:** low
 - **Deploy flag:** false
 - **Security flag:** false

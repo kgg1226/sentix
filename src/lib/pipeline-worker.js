@@ -106,7 +106,7 @@ export function spawnWorker(prompt, cwd, _ctx) {
     const child = spawn('claude', args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 900_000,
+      timeout: PHASE_TIMEOUT.dev ?? DEFAULT_TIMEOUT,
       env: { ...process.env, SENTIX_PIPELINE: 'true' },
     });
 

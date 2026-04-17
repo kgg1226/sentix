@@ -1,6 +1,6 @@
 # feat-002: 입력 품질 강화 — constraints.md 자동 주입 + Spec Enricher로 planner 전 요청 구조화
 
-- **Status:** resolved
+- **Status:** closed
 - **Complexity:** low
 - **Deploy flag:** false
 - **Security flag:** false
