@@ -268,7 +268,12 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
   try {
     // 1. 학습 기록은 이미 feedback-loop + lesson-promoter가 처리
     // 2. git commit은 run.js의 post-pipeline에서 처리
-    // 3. 여기서는 finalize 성공만 기록
+    // 3. dev가 보호 파일을 정식 수정했다면 integrity snapshot 갱신
+    //    (다음 세션 시작 시 integrity-guard 가 원복하지 않도록)
+    try {
+      const { snapshotIntegrity } = await import('./integrity-guard.js');
+      snapshotIntegrity(ctx.cwd);
+    } catch { /* snapshot 실패는 치명적 아님 */ }
     ctx.success('Phase finalize completed (code-based, no Claude spawn)');
   } catch (e) {
     ctx.warn(`Finalize warning: ${e.message}`);

@@ -22,6 +22,19 @@ export const AGENT_MAP = {
 const WRITE_PHASES = new Set(['dev', 'review', 'finalize']);
 
 /**
+ * Phase별 spawn 타임아웃 (ms).
+ * review 는 dev 산출물 전체를 입력으로 받아 적대적 검토를 수행하므로
+ * 기본 15분은 부족하다. 타임아웃 시 빈 출력으로 실패하면 REPLAN 낭비가 큼.
+ */
+const PHASE_TIMEOUT = {
+  plan:     900_000,   // 15분
+  dev:      900_000,   // 15분
+  review:  1_800_000,  // 30분
+  finalize: 900_000,   // 15분
+};
+const DEFAULT_TIMEOUT = 900_000;
+
+/**
  * Phase 를 동기 실행 (spawnSync).
  * @returns {{success: boolean, error: string|null, exit_code: number|null, output: object|null}}
  */
@@ -42,7 +55,7 @@ export function runPhase(name, prompt, ctx) {
     cwd: ctx.cwd,
     encoding: 'utf-8',
     stdio: 'pipe',
-    timeout: 900_000,
+    timeout: PHASE_TIMEOUT[name] ?? DEFAULT_TIMEOUT,
     env: { ...process.env, SENTIX_PIPELINE: 'true' },
   });
 

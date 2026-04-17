@@ -20,8 +20,19 @@
  * 등록: .claude/settings.json hooks.PreToolUse matcher "Write|Edit|MultiEdit"
  */
 
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve, relative } from 'node:path';
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
+import { resolve, relative, dirname } from 'node:path';
+
+// 심볼릭 링크를 따라 실제 경로를 구한다. 파일이 아직 없으면 가장 가까운
+// 실존 상위 디렉토리까지 올라가 그 realpath를 기준으로 재조립한다.
+// macOS의 /var → /private/var 같은 상황에서 상대경로 비교를 정확하게 한다.
+function safeRealpath(p) {
+  try { return realpathSync(p); } catch { /* not exist */ }
+  const parent = dirname(p);
+  if (parent === p) return p;
+  const realParent = safeRealpath(parent);
+  return realParent === parent ? p : resolve(realParent, p.slice(parent.length + 1));
+}
 
 // ── 허용 경로 패턴 (차단 없이 통과) ─────────────────
 // 이유: 티켓 없이도 안전하게 수정 가능한 영역
@@ -63,13 +74,17 @@ process.stdin.on('end', () => {
       process.exit(0);
     }
 
-    // 상대 경로 정규화
-    const cwd = process.cwd();
-    let relPath = filePath;
-    try {
-      relPath = relative(cwd, resolve(filePath));
-    } catch { /* 그대로 사용 */ }
-    relPath = relPath.replace(/\\/g, '/'); // Windows 정규화
+    // 경로 정규화 — 심볼릭 링크(/var → /private/var)를 해석해 일관 비교
+    const realCwd = safeRealpath(process.cwd());
+    const realAbs = safeRealpath(resolve(filePath));
+    let relPath = relative(realCwd, realAbs).replace(/\\/g, '/'); // Windows
+
+    // 프로젝트 루트 밖 경로는 이 훅의 관할이 아니므로 즉시 통과
+    // (예: ~/.claude/memory/*, 다른 프로젝트 경로)
+    if (relPath.startsWith('../') || relPath === '..') {
+      process.exit(0);
+    }
+    const cwd = realCwd;
 
     // 허용 패턴 매칭
     for (const pattern of ALLOW_PATTERNS) {

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created_at": "2026-04-14T08:40:48.312Z",
+  "created_at": "2026-04-17T07:52:50.337Z",
   "files": {
     ".claude/settings.json": "3e6f30caf10ee8678e39b1a13cbf513d99c66eb13063328db526cf5edc26fcbc",
     ".claude/agents/dev-fix.md": "ed24e8f74d8dcb83fbe0cc49d4ab55295473111c11864491955595486d78861a",
@@ -8,7 +8,7 @@
     ".claude/agents/planner.md": "495b945d7e4639f7c13626c98b26c1909fa973a8c69360b32ac0cb7395d4c3e7",
     ".claude/agents/pr-review.md": "a7e4b553cd60b44dec8f5c2cebe99c2174a29f8330da1fa98ee1a3e4258c9ca5",
     ".claude/agents/security.md": "66f74ac18611a87931cb749f26fba5deb6cb2f608b1cf4b3129a3e762a5be92a",
-    "scripts/hooks/require-ticket.js": "5999e038c6482d2e744f06393ef1bf1b27eae4f1739d88361e984c93c908a9b5",
+    "scripts/hooks/require-ticket.js": "01a74ef9278514a581e75899395da7bcfd1cb0b8cc77df208b55db8f42f93be2",
     "scripts/hooks/session-start.sh": "e7d59cb9019307e54448f05aac3279690a928b88aa66e503ac067ac59115ce1b",
     "scripts/hooks/user-prompt-reminder.sh": "6fb26d1a2ef96459f2c544c47eb73856593dde8ceb2f70f726a71bfb9bfd6986",
     ".sentix/rules/hard-rules.md": "ea06a21dae7fa2a6127567d44d55ca933d548b2952dce549204b9b322fc1a303"

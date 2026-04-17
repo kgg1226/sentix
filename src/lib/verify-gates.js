@@ -113,8 +113,9 @@ function getDiff(cwd) {
     totalDeleted += d;
   }
 
-  // Extract deleted lines from full diff
+  // Extract deleted AND added lines from full diff
   const deletedLines = [];
+  const addedLines = [];
   let currentFile = null;
   for (const line of diffContent.split('\n')) {
     if (line.startsWith('diff --git')) {
@@ -122,10 +123,12 @@ function getDiff(cwd) {
       currentFile = match ? match[1] : null;
     } else if (line.startsWith('-') && !line.startsWith('---') && currentFile) {
       deletedLines.push({ file: currentFile, line: line.slice(1) });
+    } else if (line.startsWith('+') && !line.startsWith('+++') && currentFile) {
+      addedLines.push({ file: currentFile, line: line.slice(1) });
     }
   }
 
-  return { files, totalAdded, totalDeleted, deletedLines };
+  return { files, totalAdded, totalDeleted, deletedLines, addedLines };
 }
 
 // ── Gate #2: SCOPE compliance ─────────────────────────
@@ -156,6 +159,31 @@ function checkScope(diff, scope) {
   return result;
 }
 
+/**
+ * export 구문에서 식별자(함수/변수/클래스 이름)를 추출한다.
+ * 예: "export function foo({a,b})" → "foo"
+ *     "export const bar = ..." → "bar"
+ *     "export default class Baz" → "default:Baz" (default 재정의도 변경으로 판정)
+ * 추출 실패 시 null.
+ */
+function extractExportId(line) {
+  const trimmed = line.trim();
+  // export default [function|class] Name
+  let m = trimmed.match(/^export\s+default\s+(?:async\s+)?(?:function\*?|class)\s*([A-Za-z_$][\w$]*)/);
+  if (m) return `default:${m[1]}`;
+  if (/^export\s+default\b/.test(trimmed)) return 'default';
+  // export (async )?function Name
+  m = trimmed.match(/^export\s+(?:async\s+)?function\*?\s+([A-Za-z_$][\w$]*)/);
+  if (m) return m[1];
+  // export class Name
+  m = trimmed.match(/^export\s+class\s+([A-Za-z_$][\w$]*)/);
+  if (m) return m[1];
+  // export (const|let|var) Name
+  m = trimmed.match(/^export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/);
+  if (m) return m[1];
+  return null;
+}
+
 function matchesScope(file, patterns) {
   for (const pattern of patterns) {
     if (pattern.endsWith('/**')) {
@@ -177,9 +205,25 @@ function checkExportDeletion(diff) {
   const result = { rule: 'no-export-deletion', passed: true, violations: [], detail: '' };
 
   const exportPattern = /^export\s+(function|const|let|var|class|default|async)/;
-  const deletedExports = diff.deletedLines.filter(
-    d => exportPattern.test(d.line.trim()) && !isTestFile(d.file)
-  );
+
+  // 같은 파일의 추가 라인에 동일한 export 식별자가 있으면 시그니처 변경으로 간주해 제외.
+  // (예: `export function foo(a)` → `export function foo(a, b)` 는 삭제가 아님)
+  const addedByFile = new Map();
+  for (const a of diff.addedLines || []) {
+    if (!exportPattern.test(a.line.trim())) continue;
+    const id = extractExportId(a.line);
+    if (!id) continue;
+    if (!addedByFile.has(a.file)) addedByFile.set(a.file, new Set());
+    addedByFile.get(a.file).add(id);
+  }
+
+  const deletedExports = diff.deletedLines.filter(d => {
+    if (!exportPattern.test(d.line.trim()) || isTestFile(d.file)) return false;
+    const id = extractExportId(d.line);
+    if (!id) return true;
+    const added = addedByFile.get(d.file);
+    return !(added && added.has(id)); // 같은 식별자가 추가 라인에 있으면 제외
+  });
 
   if (deletedExports.length > 0) {
     result.passed = false;

@@ -439,14 +439,17 @@ function parseTestOutput(output) {
     // Not JSON, parse text output
   }
 
-  // Parse Node.js built-in test runner output
-  const totalMatch = output.match(/# tests (\d+)/);
-  const passMatch = output.match(/# pass (\d+)/);
-  const failMatch = output.match(/# fail (\d+)/);
+  // Parse Node.js built-in test runner output.
+  // Node는 TAP v13 스타일로 `# tests N` 를 쓰기도 하고,
+  // 요약 라인은 `ℹ tests N` (U+2139 INFORMATION SOURCE) 포맷을 쓴다.
+  // 두 prefix 모두 수용해 마지막(=최종 요약) 숫자를 채택한다.
+  const totalMatches = [...output.matchAll(/(?:^|\n)\s*(?:#|ℹ)\s*tests\s+(\d+)/g)];
+  const passMatches  = [...output.matchAll(/(?:^|\n)\s*(?:#|ℹ)\s*pass\s+(\d+)/g)];
+  const failMatches  = [...output.matchAll(/(?:^|\n)\s*(?:#|ℹ)\s*fail\s+(\d+)/g)];
 
-  if (totalMatch) stats.total = parseInt(totalMatch[1]);
-  if (passMatch) stats.pass = parseInt(passMatch[1]);
-  if (failMatch) stats.fail = parseInt(failMatch[1]);
+  if (totalMatches.length) stats.total = parseInt(totalMatches[totalMatches.length - 1][1]);
+  if (passMatches.length)  stats.pass  = parseInt(passMatches[passMatches.length - 1][1]);
+  if (failMatches.length)  stats.fail  = parseInt(failMatches[failMatches.length - 1][1]);
 
   return stats;
 }
