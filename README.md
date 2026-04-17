@@ -390,6 +390,7 @@ Reviewer is **required to find at least 2 issues** (adversarial prompting).
 | `sentix status` | Governor dashboard |
 | `sentix doctor` | Installation diagnostics |
 | `sentix ticket create "desc"` | Bug ticket |
+| `sentix ticket close <id> [--force]` | Close a resolved ticket (or force-close any state) |
 | `sentix feature add "desc"` | Feature ticket |
 | `sentix version bump patch` | Version bump |
 | `sentix metrics` | AI success rate stats |
