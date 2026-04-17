@@ -35,7 +35,7 @@ export function buildPlanPrompt({ request, safetyDirective, methodsDirective, le
 }
 
 /** Dev phase 프롬프트 (순차 모드) */
-export function buildDevPrompt({ request, latestTicket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
+export function buildDevPrompt({ request, latestTicket, safetyDirective, methodsDirective, learningContext, constraintsContext, patternDirective }) {
   return joinFiltered([
     '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
@@ -63,11 +63,12 @@ export function buildDevPrompt({ request, latestTicket, safetyDirective, methods
     methodsDirective,
     learningContext,
     constraintsContext,
+    patternDirective,
   ]);
 }
 
 /** Dev phase 프롬프트 (swarm fallback, 단일 서브태스크) */
-export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
+export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDirective, learningContext, constraintsContext, patternDirective }) {
   return joinFiltered([
     '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
@@ -91,11 +92,12 @@ export function buildDevSwarmFallbackPrompt({ ticket, safetyDirective, methodsDi
     methodsDirective,
     learningContext,
     constraintsContext,
+    patternDirective,
   ]);
 }
 
 /** Dev-swarm worker (병렬) 프롬프트 */
-export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective, methodsDirective, learningContext, constraintsContext }) {
+export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective, methodsDirective, learningContext, constraintsContext, patternDirective }) {
   return joinFiltered([
     '', // Agent prompt already contains all necessary directives — skip CLAUDE.md read to save tokens
     safetyDirective || '',
@@ -112,6 +114,7 @@ export function buildSwarmWorkerPrompt({ index, subtask, ticket, safetyDirective
     methodsDirective,
     learningContext,
     constraintsContext,
+    patternDirective,
   ]);
 }
 

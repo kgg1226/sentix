@@ -145,7 +145,7 @@ export async function runChainedPipeline(request, cycleId, state, ctx, options =
     ctx.log('\n=== Phase 2: DEV-SWARM (parallel) ===\n');
     state.current_phase = 'dev-swarm';
     await ctx.writeJSON('tasks/governor-state.json', state);
-    devResult = await runDevSwarm(request, latestTicket, methodsDirective, learningContext, options, ctx, constraintsContext);
+    devResult = await runDevSwarm(request, latestTicket, methodsDirective, learningContext, options, ctx, constraintsContext, patternDirective);
   } else if (useMultiGen) {
     ctx.log('\n=== Phase 2: DEV (multi-gen) ===\n');
     state.current_phase = 'dev-multi-gen';
