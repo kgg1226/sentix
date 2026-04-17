@@ -4,6 +4,29 @@
 > 동일 패턴 3회 반복 → roadmap에 구조적 개선 항목으로 자동 승격.
 > 다음 planner 실행 시 이 파일이 컨텍스트로 자동 주입된다.
 
+## 2026-04-17 — 파이프라인 "성공" 종료 ≠ 티켓 해결 (cycle-2026-04-17-846)
+
+**이슈**: bug-001 critical 4개 항목 수정 요청으로 sentix run 실행 → PLAN/DEV/GATE/REVIEW/FINALIZE 모두 "completed"로 종료. 그러나 실제 산출물은 사용자 요청과 전혀 다른 patternDirective 전파 작업. 티켓 4개 항목 중 0개 이행, quality-gate.js는 변경조차 되지 않음.
+
+**근본 원인**:
+1. planner가 티켓 본문을 SPEC으로 번역하는 과정에서 스코프 왜곡
+2. dev는 planner SPEC만 보고 티켓 원문은 참조하지 않음
+3. gate/review가 "뭘 고쳤는지"는 검증하지만 "요청한 것을 고쳤는지"는 검증하지 않음
+
+**부가 발견 (메타 버그)** — bug-002~005로 별도 티켓화:
+- **bug-002**: verify-gates의 no-export-deletion이 시그니처 확장(파라미터 추가)을 '삭제'로 오탐
+- **bug-003**: quality-gate parseTestOutput이 node --test 출력 파싱 실패 → 항상 0/0 (실제 200개 실행)
+- **bug-004**: REVIEW phase spawnSync 15분 ETIMEDOUT 빈발 (3회 중 2회 타임아웃)
+- **bug-005**: dev가 티켓 본문 무시 (이 교훈의 근본 원인)
+
+**교훈**:
+1. **파이프라인 exit 0은 "절차 완료"이지 "요청 해결"이 아니다.** 매 사이클 종료 후 `git diff`로 티켓 acceptance 대비 실제 산출물을 수동 검증한다.
+2. **gate/review는 요청-산출물 일치성을 검증하지 않는다.** 티켓 본문의 파일 경로/함수명이 diff에 실제로 나타나는지 post-gate에서 확인하는 체크 추가 필요.
+3. **발견한 모든 버그는 즉시 티켓으로 기록한다** (사용자 지시: "항상 절대적으로 기록하도록"). "나중에 묶어서"는 망각의 씨앗.
+4. **Quality gate가 자기 검증 불가 상태에서는 gate를 신뢰하지 않는다.** test-regression이 0/0이면 → 파서 고장 → 수동 npm test 강제.
+
+**패턴**: "파이프라인이 돌았으니 고쳐졌겠지" → 착각. 항상 diff 내용을 티켓 acceptance와 1:1 대조.
+
 ---
 
 ## 기록 형식
