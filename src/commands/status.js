@@ -171,7 +171,7 @@ registerCommand('status', {
       ctx.log(cardLine(`${dim('total')} ${tickets.length}  ·  ${parts.join('  ')}`));
 
       const criticalOpen = tickets.filter(
-        (t) => t.severity === 'critical' && t.status !== 'closed'
+        (t) => t.severity === 'critical' && t.status !== 'closed' && t.status !== 'resolved'
       );
       if (criticalOpen.length > 0) {
         ctx.log(cardLine(red(`⚠ critical open ${criticalOpen.length}`)));
