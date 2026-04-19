@@ -193,5 +193,18 @@
     "description_hash": "a2c004c0",
     "related_cycle": null,
     "file_path": "tasks/tickets/feat-008.md"
+  },
+  {
+    "id": "bug-008",
+    "type": "bug",
+    "title": "sentix run이 Windows에서 EPERM으로 실패 — spawnSync('claude') 호출에 shell:true 누락. run...",
+    "severity": "critical",
+    "status": "closed",
+    "created_at": "2026-04-19T06:00:59.982Z",
+    "updated_at": "2026-04-19T06:02:45.736Z",
+    "pipeline_status": "pending",
+    "description_hash": "90283a0e",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/bug-008.md"
   }
 ]

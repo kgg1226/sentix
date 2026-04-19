@@ -56,6 +56,7 @@ export function runPhase(name, prompt, ctx) {
     encoding: 'utf-8',
     stdio: 'pipe',
     timeout: PHASE_TIMEOUT[name] ?? DEFAULT_TIMEOUT,
+    shell: true,
     env: { ...process.env, SENTIX_PIPELINE: 'true' },
   });
 
@@ -107,6 +108,7 @@ export function spawnWorker(prompt, cwd, _ctx) {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: PHASE_TIMEOUT.dev ?? DEFAULT_TIMEOUT,
+      shell: true,
       env: { ...process.env, SENTIX_PIPELINE: 'true' },
     });
 
