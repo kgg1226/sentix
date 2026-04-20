@@ -50,7 +50,7 @@ export function collectProtectedFiles(cwd) {
           const entries = readdirSync(fullPath, { withFileTypes: true });
           for (const entry of entries) {
             if (entry.isFile()) {
-              files.push(join(pattern, entry.name));
+              files.push(pattern + entry.name); // forward slash 유지 (path.join은 OS 구분자 사용)
             }
           }
         } catch { /* 읽기 실패 무시 */ }

@@ -54,7 +54,7 @@ registerCommand('run', {
     if (safetyResult === 'denied' || safetyResult === 'needs-word') return;
 
     // ── Preflight: Claude Code + 동시 실행 검사 ────
-    const claudeCheck = spawnSync('claude', ['--version'], { encoding: 'utf-8', stdio: 'pipe' });
+    const claudeCheck = spawnSync('claude', ['--version'], { encoding: 'utf-8', stdio: 'pipe', shell: true });
     if (claudeCheck.error) {
       renderPreflightError(ctx, 'no-claude-cli');
       return;
@@ -180,6 +180,7 @@ registerCommand('run', {
         cwd: ctx.cwd,
         stdio: 'inherit',
         timeout: 600_000,
+        shell: true,
         env: { ...process.env, SENTIX_PIPELINE: 'true' },
       });
 
@@ -246,6 +247,7 @@ registerCommand('run', {
         cwd: ctx.cwd,
         stdio: 'inherit',
         timeout: 600_000,
+        shell: true,
         env: { ...process.env, SENTIX_PIPELINE: 'true' },
       });
 
