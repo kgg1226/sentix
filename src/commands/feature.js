@@ -16,6 +16,7 @@ import {
   getImpactData,
   generateDecomposition,
 } from '../lib/feature-impact.js';
+import { runCommandRoutine, routineFail } from '../lib/command-routine.js';
 
 const { dim, bold, red, green, yellow, cyan } = colors;
 
@@ -104,17 +105,49 @@ ${complexity === 'high' ? generateDecomposition(description) : '<!-- N/A — low
 <!-- Populated by planner agent -->
 `;
 
-  await ctx.writeFile(entry.file_path, md);
-  await addTicket(ctx, entry);
-
-  // Log event
-  await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-    ts: new Date().toISOString(),
-    event: 'feature:add',
-    id,
-    complexity,
-    title,
+  const routine = await runCommandRoutine(ctx, {
+    name: 'feature:add',
+    targets: ['tasks/tickets/index.json', entry.file_path, 'tasks/pattern-log.jsonl'],
+  }, {
+    async validate() {
+      if (!id || !entry.file_path) {
+        routineFail('validate', 'feature id or file_path missing',
+          'Check nextTicketId()/createTicketEntry() output.');
+      }
+      const existing = await loadIndex(ctx);
+      if (existing.some((e) => e.id === id)) {
+        routineFail('validate', `feature id collision: ${id}`,
+          'Delete the stale entry or increment the id manually.');
+      }
+    },
+    async execute() {
+      await ctx.writeFile(entry.file_path, md);
+      await addTicket(ctx, entry);
+      await ctx.appendJSONL('tasks/pattern-log.jsonl', {
+        ts: new Date().toISOString(),
+        event: 'feature:add',
+        id,
+        complexity,
+        title,
+      });
+    },
+    async verify() {
+      if (!ctx.exists(entry.file_path)) {
+        routineFail('verify', `feature markdown not written: ${entry.file_path}`,
+          'Check filesystem permissions on tasks/tickets/.');
+      }
+      const entries = await loadIndex(ctx);
+      if (!entries.some((e) => e.id === id)) {
+        routineFail('verify', `feature ${id} missing from index after write`,
+          'Inspect tasks/tickets/index.json integrity.');
+      }
+    },
   });
+
+  if (!routine.ok) {
+    process.exitCode = 1;
+    return;
+  }
 
   ctx.log('');
   ctx.log(`  ${green('●')} ${bold('기능 티켓 생성')}  ${cyan(id)}`);

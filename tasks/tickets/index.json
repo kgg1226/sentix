@@ -219,5 +219,31 @@
     "description_hash": "fed9c6b4",
     "related_cycle": null,
     "file_path": "tasks/tickets/bug-009.md"
+  },
+  {
+    "id": "bug-010",
+    "type": "bug",
+    "title": "pipeline-worker.js의 shell:true로 인한 plan phase 실패 - spawnSync/spawn에서 shell:tr...",
+    "severity": "critical",
+    "status": "resolved",
+    "created_at": "2026-04-21T00:43:22.622Z",
+    "updated_at": "2026-04-21T00:50:00.000Z",
+    "pipeline_status": "pending",
+    "description_hash": "0fde8fd4",
+    "related_cycle": "cycle-2026-04-21-812",
+    "file_path": "tasks/tickets/bug-010.md"
+  },
+  {
+    "id": "feat-009",
+    "type": "feature",
+    "title": "상태변경 명령어(ticket create/close, version bump, feature add, resume, evolve)에 ana...",
+    "severity": "suggestion",
+    "status": "open",
+    "created_at": "2026-04-21T01:39:58.448Z",
+    "updated_at": "2026-04-21T01:39:58.448Z",
+    "pipeline_status": "pending",
+    "description_hash": "8d7e5b1e",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/feat-009.md"
   }
 ]

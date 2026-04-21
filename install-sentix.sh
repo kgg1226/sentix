@@ -8,8 +8,10 @@ set -euo pipefail
 #   또는
 #   bash install-sentix.sh [target-dir]
 
-SENTIX_VERSION="2.0.0"
 REPO_URL="https://raw.githubusercontent.com/kgg1226/sentix/main"
+
+# 버전을 원격 package.json에서 동적으로 가져옴 (하드코딩 방지)
+SENTIX_VERSION=$(curl -sL "${REPO_URL}/package.json" 2>/dev/null | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/' || echo "latest")
 
 TARGET="${1:-.}"
 TARGET="$(cd "$TARGET" && pwd)"

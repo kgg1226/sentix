@@ -35,6 +35,14 @@ const PHASE_TIMEOUT = {
 const DEFAULT_TIMEOUT = 900_000;
 
 /**
+ * Windows 에서만 shell:true 사용.
+ * bug-008: Windows 는 .cmd 런처 때문에 shell:true 가 필요하다 (EPERM 회피).
+ * bug-010: Unix 계열에서 shell:true 를 쓰면 프롬프트 내 괄호/세미콜론 등
+ *          쉘 특수문자가 해석되어 plan phase 가 exit 2 로 실패한다.
+ */
+const USE_SHELL = process.platform === 'win32';
+
+/**
  * Phase 를 동기 실행 (spawnSync).
  * @returns {{success: boolean, error: string|null, exit_code: number|null, output: object|null}}
  */
@@ -56,7 +64,7 @@ export function runPhase(name, prompt, ctx) {
     encoding: 'utf-8',
     stdio: 'pipe',
     timeout: PHASE_TIMEOUT[name] ?? DEFAULT_TIMEOUT,
-    shell: true,
+    shell: USE_SHELL,
     env: { ...process.env, SENTIX_PIPELINE: 'true' },
   });
 
@@ -108,7 +116,7 @@ export function spawnWorker(prompt, cwd, _ctx) {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: PHASE_TIMEOUT.dev ?? DEFAULT_TIMEOUT,
-      shell: true,
+      shell: USE_SHELL,
       env: { ...process.env, SENTIX_PIPELINE: 'true' },
     });
 
