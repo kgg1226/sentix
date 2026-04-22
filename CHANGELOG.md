@@ -1,5 +1,144 @@
 # Changelog
 
+## [2.4.0] — 2026-04-21
+
+### New Features
+
+- sentix ticket close subcommand (self-hosting validated)
+- propagate patternDirective through all dev paths
+- project scanner with auto-suggestions on init
+- auto-resolve pre-gate failures (test snapshot + ticket)
+- 5 pipeline optimizations — finalize codify, skip-review, auto-route, delegation, bash block
+- show per-phase and total token usage in pipeline output
+- auto-update README version on sentix update
+- add selection menu for request enrichment
+- make sentix run the default for all code changes
+- generate actionable directives from usage patterns
+- auto-analyze usage patterns from event log
+- protect protection mechanisms from LLM tampering
+- 6-layer quality system — Quality Gate, Spec Enricher, Feedback Loop, Multi-Gen, Cross-Review
+- add adversarial review protocol + cross-review with external AI models
+- add Layer 5 — run dev N times, score with Quality Gate, select best
+- add request analysis and structured questions for planner
+- auto-add Quality Gate failures to constraints.md
+- add constraints injection and input quality enhancement
+- add deterministic quality checks between dev and pr-review
+- Sentix Governor 강제 실행을 위한 Claude Code 훅 3종
+- 남은 5개 명령 카드 통일
+- list/create/debug/impact 출력을 카드로 통일
+- 시작/완료/검증 게이트 출력을 카드로 정제
+- 정제된 카드 + 막대 그래프 시각화
+- 카드 UI 유틸리티 추출 + safety status 카드 통일
+- sentix (인자 없음) 친화적 진입점
+- 정제된 진단 카드 + 건강도 시각화
+- 진화 레이어 빠른 토글 명령
+- 환경 프로필 빠른 전환 명령
+- 분산된 설정을 한 곳에서 - sentix config 명령
+- 정제된 대시보드 + 파이프라인 다이어그램
+- replan trigger + auto rule promotion + dev.refine() elegance challenge
+- CLAUDE.md 428→121줄 다이어트 + .claudeignore + 스킬 분리
+- 6 framework improvements from license-manager field feedback
+- cross-project context with auto-generated profiles
+- dev-swarm parallel execution with git worktrees
+- self-evolve with Claude subscription — no API cost
+- `feat-001`: dev 완료 후 결정론적 품질 게이트(Quality Gate) 추가 — lint, test, coverage, security 검사를 pr...
+- `feat-002`: 입력 품질 강화 — constraints.md 자동 주입 + Spec Enricher로 planner 전 요청 구조화
+- `feat-003`: 피드백 루프 — Quality Gate 실패 패턴을 constraints.md에 자동 추가하는 선순환 구조
+- `feat-004`: 인터랙티브 Spec Enricher — sentix run 시 planner 전에 구조화 질문으로 요청을 풍성하게 보강
+- `feat-005`: 다중 생성(Multi-Gen) — dev를 N번 독립 실행하여 최선의 결과를 선택하는 Layer 5
+- `feat-006`: 패턴 분석 엔진 — pattern-log.jsonl 자동 분석 → patterns.md 자동 업데이트 → 프롬프트 주입
+- `feat-007`: dev-swarm + pipeline-prompts 에 patternDirective 전파 — pipeline.js의 generatePat...
+- `feat-008`: sentix ticket close <id> 서브명령 추가 — 현재 CLI에 ticket create/list/debug 만 있고 clos...
+
+### Bug Fixes
+
+- CARD2 criticalOpen 필터에 resolved 제외 조건 추가
+- Windows EPERM on spawnSync + integrity-guard path separator
+- status filters closed+resolved; swarm worker timeout uses PHASE_TIMEOUT
+- 6 structural bugs surfaced by self-hosting attempt
+- increase recovery key to 26 chars
+- use crypto.randomBytes for recovery key generation
+- check quality layers in sentix package, not project root
+- show stderr+stdout on phase failure for debugging
+- increase agent timeout from 5min to 15min
+- add --permission-mode acceptEdits to agent spawns
+- resolve pipeline agents being blocked by own hooks
+- include scripts/hooks/ in npm publish files
+- add .gen-*.patch to prevent multi-gen temp files from commit
+- resolve 3 audit findings in L5/L6 + update README and handoff
+- resolve 4 integration bugs found during exhaustive audit
+- add constraintsContext to buildReplanPrompt
+- allow direct edits to README.md and CHANGELOG.md
+- JSDoc 주석 내 */ 토큰 충돌 수정
+- restore --provenance with Node 24 for supply chain protection
+- tamper detection + recovery key for safety word
+- safety word reset requires current word verification
+- `bug-001`: Quality Gate/Spec Enricher/Feedback Loop 통합 버그 4건 수정 — loadConstraints 미보호, d...
+- `bug-002`: verify-gates의 no-export-deletion이 시그니처 확장(파라미터 추가)을 삭제로 오판 — diff에서 export 라인...
+- `bug-003`: quality-gate parseTestOutput이 node --test 출력을 파싱 못해 항상 0/0 보고 — cycle-2026-04...
+- `bug-004`: REVIEW phase spawnSync claude 15분 ETIMEDOUT 빈발 — cycle-2026-04-17-846에서 Revie...
+- `bug-005`: dev 에이전트가 티켓 본문을 무시하고 planner 해석에만 의존 — bug-001(loadConstraints 미보호/constrain...
+- `bug-006`: require-ticket.js hook이 sentix 프로젝트 범위 밖 경로(예: ~/.claude/projects/-Users-sila...
+- `bug-007`: integrity-guard가 dev 산출물을 자동 복원 — cycle-2026-04-17-339(bug-006)에서 dev가 script...
+- `bug-008`: sentix run이 Windows에서 EPERM으로 실패 — spawnSync('claude') 호출에 shell:true 누락. run...
+- `bug-009`: status.js CARD2 criticalOpen 필터에서 resolved 티켓 미제외 버그
+- `bug-010`: pipeline-worker.js의 shell:true로 인한 plan phase 실패 - spawnSync/spawn에서 shell:tr...
+
+### Documentation
+
+- correct stale/inaccurate claims throughout
+- explain auto-routing via sentix init (EN + KR)
+- document sentix ticket close subcommand
+- update handoff for next session
+- clarify npx sentix run must be explicit in chat (4 languages)
+- clarify local vs global install requirements
+- add 'How to use in Claude Code chat' section (4 languages)
+- add English, Japanese, Chinese translations
+- define Sentix as Adaptive Guardrail for AI Coding
+- clarify sentix run vs conversation mode feature availability
+- add version badge
+- consolidate install/update/commands at top
+- complete rewrite for readability — 1038 → 332 lines
+- rewrite intro as 4-layer quality framework, not just safety belt
+- rewrite intro to be honest about what Sentix does and doesn't do
+- add Quality System section — Quality Gate, Spec Enricher, Feedback Loop, Spec Questions
+- add session handoff for quality system sprint
+- reflect P1-P23 — card UX + hooks enforcement
+- UX 명령 그룹 표에 P14 명령 반영
+- UX 명령 그룹 표 갱신
+- UX 명령 그룹 (status/config/profile/layer) 문서화
+- restructure README for clarity and reading flow
+- add per-environment update instructions to README
+- clarify two-step update process in README
+
+### Improvements
+
+- merge: resolve integrity.json conflict (accept main)
+- pipeline artifacts — version 2.3.0, bug-009 ticket, patterns update
+- resolve feat-001..006 + file feat-007 for stash WIP
+- mark bug-001..007 resolved + update handoff
+- record bug tickets + lessons from 2026-04-17 session
+- adaptive context loading based on request complexity
+- comprehensive token reduction via .claudeignore + prompt compression
+- inject diff summary instead of letting reviewer run git diff
+- massive token reduction — remove CLAUDE.md reads + agent-methods.md injection
+- fix bin/sentix.js file permissions (npm link)
+- test(lesson-promoter): add 12 tests for L4 auto-rule promotion
+- test: add missing edge case coverage for quality gate and feedback loop
+- merge: resolve conflicts with main (ec1f0a8 framework improvements)
+- 4개 lib 모듈로 분산 (621 → 255)
+- 템플릿/스택감지/훅 3개 lib 모듈로 분리 (579 → 200)
+- debug + render 로직 분리 (450 → 248)
+- 분석 로직을 lib/feature-impact.js 로 분리 (422 → 293)
+- generateProjectProfile 을 lib 로 추출 (388 → 283)
+- 카드 렌더링 lib 분리 + safety gate 추출 (376 → 281)
+- stats/render 모듈 분리 (356 → 102)
+- 렌더링을 lib/safety-render.js 로 분리 (346 → 228)
+- inline 박스/색상 코드를 ui-box 로 일괄 마이그레이션
+- merge: resolve conflicts with main (chained pipeline + hotfix mode)
+
+---
+
 ## [2.3.0] — 2026-04-19
 
 ### New Features

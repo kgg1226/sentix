@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { runGates } from '../lib/verify-gates.js';
 import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
+import { runCommandRoutine, routineFail } from '../lib/command-routine.js';
 
 const { dim, bold, red, green, yellow, cyan } = colors;
 
@@ -192,8 +193,26 @@ registerCommand('evolve', {
         const firstIssue = critical[0];
         ctx.log(`  ${yellow('●')} ${bold('Auto-fix')}  ${dim(`sentix run "${firstIssue.title}"`)}`);
         ctx.log('');
-        spawnSync('node', ['bin/sentix.js', 'run', firstIssue.title], {
-          cwd: ctx.cwd, stdio: 'inherit', timeout: 600_000,
+
+        await runCommandRoutine(ctx, {
+          name: 'evolve:auto',
+          targets: ['tasks/governor-state.json'],
+        }, {
+          async validate() {
+            if (!firstIssue.title) {
+              routineFail('validate', 'critical issue has no title',
+                'Inspect the issue emitted by evolve analysis.');
+            }
+          },
+          async execute() {
+            const result = spawnSync('node', ['bin/sentix.js', 'run', firstIssue.title], {
+              cwd: ctx.cwd, stdio: 'inherit', timeout: 600_000,
+            });
+            if (result.status !== 0 && result.status !== null) {
+              routineFail('execute', `sentix run exited with code ${result.status}`,
+                'Re-run the failed phase or inspect governor-state.json for the interruption point.');
+            }
+          },
         });
       }
     }

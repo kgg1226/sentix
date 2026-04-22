@@ -11,6 +11,7 @@ import { registerCommand } from '../registry.js';
 import { parseSemver, bumpSemver } from '../lib/semver.js';
 import { generateForVersion, prependToChangelog, detectBumpType } from '../lib/changelog.js';
 import { colors, makeBorders, cardLine, cardTitle } from '../lib/ui-box.js';
+import { runCommandRoutine, routineFail } from '../lib/command-routine.js';
 
 const { dim, bold, red, green, yellow, cyan } = colors;
 
@@ -194,34 +195,56 @@ async function bumpVersion(type, ctx, autoDetected = false) {
   // 단계별 결과 수집
   const steps = [];
 
-  // 2. Update package.json
-  pkg.version = newVersion;
-  await ctx.writeJSON('package.json', pkg);
-  steps.push({ ok: true, label: 'package.json 업데이트' });
+  const fileWriteRoutine = await runCommandRoutine(ctx, {
+    name: 'version:bump',
+    targets: ['package.json', 'INTERFACE.md', 'CHANGELOG.md'],
+  }, {
+    async validate() {
+      if (!newVersion || typeof newVersion !== 'string') {
+        routineFail('validate', 'newVersion not computed',
+          'Check bumpSemver() output before running the routine.');
+      }
+    },
+    async execute() {
+      pkg.version = newVersion;
+      await ctx.writeJSON('package.json', pkg);
+      steps.push({ ok: true, label: 'package.json 업데이트' });
 
-  // 3. Update INTERFACE.md version line
-  if (ctx.exists('INTERFACE.md')) {
-    try {
-      let iface = await ctx.readFile('INTERFACE.md');
-      iface = iface.replace(/version:\s*\S+/, `version: ${newVersion}`);
-      await ctx.writeFile('INTERFACE.md', iface);
-      steps.push({ ok: true, label: 'INTERFACE.md 업데이트' });
-    } catch {
-      steps.push({ ok: false, label: 'INTERFACE.md 업데이트 실패', level: 'warn' });
-    }
-  }
+      if (ctx.exists('INTERFACE.md')) {
+        try {
+          let iface = await ctx.readFile('INTERFACE.md');
+          iface = iface.replace(/version:\s*\S+/, `version: ${newVersion}`);
+          await ctx.writeFile('INTERFACE.md', iface);
+          steps.push({ ok: true, label: 'INTERFACE.md 업데이트' });
+        } catch {
+          steps.push({ ok: false, label: 'INTERFACE.md 업데이트 실패', level: 'warn' });
+        }
+      }
 
-  // 4. Generate changelog entry
-  try {
-    const entry = await generateForVersion(ctx, newVersion);
-    if (entry.trim()) {
-      await prependToChangelog(ctx, entry);
-      steps.push({ ok: true, label: 'CHANGELOG.md 생성' });
-    } else {
-      steps.push({ ok: true, label: 'CHANGELOG 생성할 내용 없음', level: 'skip' });
-    }
-  } catch (e) {
-    steps.push({ ok: false, label: `CHANGELOG 생성 실패: ${e.message}`, level: 'warn' });
+      try {
+        const entry = await generateForVersion(ctx, newVersion);
+        if (entry.trim()) {
+          await prependToChangelog(ctx, entry);
+          steps.push({ ok: true, label: 'CHANGELOG.md 생성' });
+        } else {
+          steps.push({ ok: true, label: 'CHANGELOG 생성할 내용 없음', level: 'skip' });
+        }
+      } catch (e) {
+        steps.push({ ok: false, label: `CHANGELOG 생성 실패: ${e.message}`, level: 'warn' });
+      }
+    },
+    async verify() {
+      const written = await ctx.readJSON('package.json');
+      if (written.version !== newVersion) {
+        routineFail('verify', `package.json version mismatch: ${written.version} !== ${newVersion}`,
+          'Inspect package.json for concurrent writes.');
+      }
+    },
+  });
+
+  if (!fileWriteRoutine.ok) {
+    process.exitCode = 1;
+    return;
   }
 
   // 5. Git commit + tag

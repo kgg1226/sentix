@@ -1,4 +1,4 @@
-# Sentix `v2.30`
+# Sentix
 
 **Adaptive Guardrail for AI Coding** — A framework that enforces boundaries when AI writes code, learns from mistakes, and improves itself over time.
 
@@ -34,7 +34,7 @@
 
 | Feature | `sentix run` | Conversation | claude.ai Web | API |
 |---|:---:|:---:|:---:|:---:|
-| 6 Hard Rules (CLAUDE.md) | ✅ | ✅ | ✅ | ✅ |
+| 6 Hard Rules (CLAUDE.md) | ✅ | ✅ | ⚠️ manual | ⚠️ manual |
 | PreToolUse Hook (Write/Edit block) | ✅ | ✅ | ❌ | ❌ |
 | Interactive Input Enrichment | ✅ | ❌ | ❌ | ❌ |
 | Quality Gate (5 checks) | ✅ | ❌ | ❌ | ❌ |
@@ -71,21 +71,44 @@ sentix update               # Sync framework files
 
 ### How to use in Claude Code chat
 
-You must explicitly tell Claude to use `npx sentix run`:
+#### One-time setup — make Claude route through `sentix run` automatically
+
+Run `sentix init` once in your project root:
+
+```bash
+npm install sentix
+npx sentix init
+```
+
+This installs three things that keep Claude on the Governor pipeline without you re-typing the rule each request:
+
+| Installed by `sentix init` | What it does |
+|---|---|
+| `CLAUDE.md` / `.claude/rules/*` | Loaded at every session start — tells Claude it is already the Sentix Governor and must route code changes through `sentix run`. |
+| `.claude/settings.json` hooks | `SessionStart` injects the Governor role, `UserPromptSubmit` re-states the rule on every turn, `PreToolUse` blocks raw Write/Edit without an active ticket. |
+| `tasks/` + `.sentix/` scaffolding | Ticket index, lessons, constraints, integrity snapshot — all the state Claude reads/writes during a cycle. |
+
+After this, a fresh chat session automatically starts in Governor mode. You can still ask in plain language:
+
+```
+You: "Fix the login bug"
+Claude: (Governor routes this to) sentix run "Fix the login bug"
+→ Pipeline: PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+#### Explicit fallback
+
+If Claude drifts or you want to force the pipeline explicitly:
 
 ```
 You: "Run npx sentix run 'Make a login page' in terminal"
-Claude: (executes via Bash tool)
-→ Pipeline starts: PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-> **Important**: If you just say "Make a login page" without mentioning `sentix run`,
-> Claude will code directly without the pipeline. Always include `npx sentix run` in your request.
+#### App / Web specifics
 
-If Claude doesn't use `sentix run` automatically, you can tell it:
-```
-You: "Use sentix run to make a login page"
-```
+> **Global install is not visible to Claude Code app/web.** You must install locally (`npm install sentix`) so `npx sentix` resolves inside the project's `node_modules/.bin`.
+
+> Memory files (persistent preferences across sessions) live in `~/.claude/projects/<project>/memory/`. Sentix's `require-ticket` hook treats paths outside the project root as out-of-scope and lets them through, so memory writes are never blocked.
 
 ---
 
@@ -117,7 +140,7 @@ You: "Use sentix run to make a login page"
 
 | 기능 | `sentix run` | 대화 모드 | claude.ai 웹 | API |
 |---|:---:|:---:|:---:|:---:|
-| 하드 룰 6개 (CLAUDE.md 지시) | ✅ | ✅ | ✅ | ✅ |
+| 하드 룰 6개 (CLAUDE.md 지시) | ✅ | ✅ | ⚠️ 수동 | ⚠️ 수동 |
 | PreToolUse 훅 (Write/Edit 차단) | ✅ | ✅ | ❌ | ❌ |
 | 인터랙티브 입력 구체화 | ✅ | ❌ | ❌ | ❌ |
 | Quality Gate (5종 검사) | ✅ | ❌ | ❌ | ❌ |
@@ -154,21 +177,44 @@ sentix update               # 프레임워크 파일 동기화
 
 ### Claude Code 채팅에서 사용하는 법
 
-채팅에서 `npx sentix run`을 명시적으로 포함해야 합니다:
+#### 한 번만 설정 — 채팅에서 Claude가 자동으로 `sentix run` 을 거치게 하기
+
+프로젝트 루트에서 `sentix init` 을 **한 번** 실행하면, 이후 모든 세션이 자동으로 Governor 모드로 시작합니다:
+
+```bash
+npm install sentix
+npx sentix init
+```
+
+`sentix init` 이 자동 설치하는 3가지:
+
+| 설치 항목 | 역할 |
+|---|---|
+| `CLAUDE.md` / `.claude/rules/*` | 세션 시작 시 자동 로드되어, Claude가 이미 Sentix Governor임을 인지하고 코드 변경은 반드시 `sentix run` 경로로 돌리도록 지시 |
+| `.claude/settings.json` 훅 3종 | `SessionStart` 가 Governor 역할 주입, `UserPromptSubmit` 가 매 요청마다 규칙 리마인드, `PreToolUse` 가 활성 티켓 없는 Write/Edit 차단 |
+| `tasks/` + `.sentix/` 구조 | 티켓 인덱스, 교훈, 제약, integrity snapshot — 사이클 중 Claude가 읽고 쓰는 상태 저장소 |
+
+설정 후에는 자연어로 요청해도 자동으로 파이프라인을 탑니다:
+
+```
+나: "로그인 버그 고쳐줘"
+Claude: (Governor 판단) sentix run "로그인 버그 고쳐줘"
+→ 파이프라인: PLAN → DEV → GATE → REVIEW → FINALIZE
+```
+
+#### 명시적 실행 (fallback)
+
+Claude가 경로를 벗어나거나 강제로 파이프라인을 타게 하고 싶으면:
 
 ```
 나: "터미널에서 npx sentix run '로그인 페이지 만들어줘' 실행해"
-Claude: (Bash 도구로 실행)
-→ 파이프라인 시작: PLAN → DEV → GATE → REVIEW → FINALIZE
 ```
 
-> **중요**: "로그인 페이지 만들어줘"만 입력하면 Claude가 sentix 없이 직접 코딩합니다.
-> 반드시 `npx sentix run`을 요청에 포함하세요.
+#### 앱 / 웹 사용 시 참고
 
-예시:
-```
-나: "npx sentix run '버그 수정해줘' 터미널에서 실행해"
-```
+> **글로벌 설치는 Claude Code 앱/웹에서 보이지 않습니다.** 반드시 프로젝트에 로컬 설치(`npm install sentix`) 해야 `npx sentix` 가 `node_modules/.bin` 에서 해결됩니다.
+
+> 세션 간 기억(memory 파일)은 `~/.claude/projects/<프로젝트>/memory/` 에 저장됩니다. Sentix의 `require-ticket` 훅은 프로젝트 루트 밖 경로를 보호 범위 밖으로 간주해 통과시키므로, memory 쓰기가 막히지 않습니다.
 
 ---
 
@@ -200,7 +246,7 @@ Claude: (Bash 도구로 실행)
 
 | 機能 | `sentix run` | 会話モード | claude.ai Web | API |
 |---|:---:|:---:|:---:|:---:|
-| ハードルール6個 (CLAUDE.md) | ✅ | ✅ | ✅ | ✅ |
+| ハードルール6個 (CLAUDE.md) | ✅ | ✅ | ⚠️ 手動 | ⚠️ 手動 |
 | PreToolUseフック (Write/Editブロック) | ✅ | ✅ | ❌ | ❌ |
 | インタラクティブ入力具体化 | ✅ | ❌ | ❌ | ❌ |
 | Quality Gate (5種検査) | ✅ | ❌ | ❌ | ❌ |
@@ -213,12 +259,14 @@ Claude: (Bash 도구로 실행)
 ### インストール / アップデート / コマンド
 
 ```bash
-# インストール
-npm install -g sentix && sentix init
-# または: npx sentix init
+# インストール (どちらか選択)
+npm install sentix          # ローカル (Claude Code アプリ/ウェブ用)
+npm install -g sentix       # グローバル (ターミナルCLI用)
+sentix init                 # または: npx sentix init
 
 # アップデート
-npm install -g sentix@latest && sentix update
+npm install sentix@latest   # ローカル更新
+sentix update               # フレームワークファイル同期
 
 # 使用方法
 sentix run "リクエスト"              # パイプライン実行
@@ -226,6 +274,8 @@ sentix run "リクエスト" --multi-gen  # 多重生成モード
 sentix run "リクエスト" --cross-review # 異種モデルレビュー
 sentix doctor                        # インストール診断
 ```
+
+> **重要**: グローバルインストール (`-g`) は Claude Code アプリ/ウェブから見えません。アプリ/ウェブを使う場合はローカルインストール (`npm install sentix`) が必須です。詳細な自動ルーティング設定は上の英語/韓国語セクションを参照してください。
 
 ### Claude Codeチャットでの使い方
 
@@ -270,7 +320,7 @@ Claude：（Bashツールで実行）
 
 | 功能 | `sentix run` | 对话模式 | claude.ai Web | API |
 |---|:---:|:---:|:---:|:---:|
-| 6条硬规则 (CLAUDE.md) | ✅ | ✅ | ✅ | ✅ |
+| 6条硬规则 (CLAUDE.md) | ✅ | ✅ | ⚠️ 手动 | ⚠️ 手动 |
 | PreToolUse钩子 (Write/Edit阻断) | ✅ | ✅ | ❌ | ❌ |
 | 交互式输入具体化 | ✅ | ❌ | ❌ | ❌ |
 | Quality Gate (5项检查) | ✅ | ❌ | ❌ | ❌ |
@@ -283,12 +333,14 @@ Claude：（Bashツールで実行）
 ### 安装 / 更新 / 命令
 
 ```bash
-# 安装
-npm install -g sentix && sentix init
-# 或者: npx sentix init
+# 安装 (二选一)
+npm install sentix          # 本地安装 (供 Claude Code 应用/网页使用)
+npm install -g sentix       # 全局安装 (供终端 CLI 使用)
+sentix init                 # 或: npx sentix init
 
 # 更新
-npm install -g sentix@latest && sentix update
+npm install sentix@latest   # 本地更新
+sentix update               # 框架文件同步
 
 # 使用
 sentix run "请求"                # 管道执行
@@ -296,6 +348,8 @@ sentix run "请求" --multi-gen    # 多重生成模式
 sentix run "请求" --cross-review # 异构模型审查
 sentix doctor                    # 安装诊断
 ```
+
+> **重要**：全局安装 (`-g`) 在 Claude Code 应用/网页中不可见。如使用应用/网页，必须本地安装 (`npm install sentix`)。自动路由详细设置请参考上方英文/韩文部分。
 
 ### 在Claude Code聊天中如何使用
 
@@ -317,21 +371,26 @@ Claude：（通过Bash工具执行）
 ```
 User Request
   ↓
-[L3 Spec Questions]  — Structured questions for vague requests
+[Spec Enricher]        — Load .sentix/constraints.md + past lessons
   ↓
-[L3 Spec Enricher]   — Project constraints + past failure patterns
+[Spec Questions]       — Structured clarifying questions for vague requests
   ↓
-planner → dev ─── or ───→ dev × 3 [L5 Multi-Gen]
+[Pattern Directive]    — Generated from tasks/pattern-log.jsonl
+  ↓
+planner → dev ── or ──→ dev-swarm (parallel worktrees)
+                └─ or ─→ dev × N  [Multi-Gen, --multi-gen [N]]
                   ↓
-          [L2 Quality Gate] — 5 deterministic checks
+          [Quality Gate]     — 5 deterministic checks
                   ↓
-          [L4 Feedback Loop] — Failure patterns → constraints auto-added
+          [verify-gates]     — Scope / export / test / net-deletion
                   ↓
-          pr-review [L6 Adversarial Prompt]
+          [Feedback Loop]    — Failures → constraints.md auto-appended
                   ↓
-          [L6 Cross-Review] — Independent review by external AI (opt-in)
+          pr-review (adversarial — reviewer must find ≥ 2 issues)
                   ↓
-          finalize → Learning record → Done
+          [Cross-Review]     — Independent review by external model (opt-in, --cross-review)
+                  ↓
+          finalize → integrity snapshot + lesson promotion → Done
 ```
 
 ---
@@ -340,12 +399,12 @@ planner → dev ─── or ───→ dev × 3 [L5 Multi-Gen]
 
 | # | Rule | Enforcement |
 |---|---|---|
-| 1 | Test snapshot required before changes | Gate check |
-| 2 | No out-of-scope file modifications | git diff analysis |
-| 3 | No export/API deletion | git diff analysis |
+| 1 | Test snapshot required before changes | Pre-execution gate (auto-creates if missing) |
+| 2 | No out-of-scope file modifications | git diff analysis (only when planner defines SCOPE) |
+| 3 | No export/API deletion | git diff analysis (signature extensions are excluded) |
 | 4 | No test deletion | git diff analysis |
 | 5 | Max 50 lines net deletion | git diff analysis |
-| 6 | **No existing feature deletion** | PreToolUse hook |
+| 6 | **No existing feature deletion** | Dev/review agent prompts (LLM-enforced, not a hard hook) |
 
 ---
 
@@ -363,6 +422,8 @@ planner → dev ─── or ───→ dev × 3 [L5 Multi-Gen]
 | Test regression | Decreased test count | AI assumes "tests probably pass" |
 
 ### Multi-Gen
+
+Runs dev N times (default 3; override with `-mg N` or `--multi-gen N`), scores each generation via the Quality Gate, and applies the highest-scoring patch.
 
 ```
 Gen 1 [Simplest]  → score 85 (issues: 1)
@@ -390,6 +451,7 @@ Reviewer is **required to find at least 2 issues** (adversarial prompting).
 | `sentix status` | Governor dashboard |
 | `sentix doctor` | Installation diagnostics |
 | `sentix ticket create "desc"` | Bug ticket |
+| `sentix ticket close <id> [--force]` | Close a resolved ticket (or force-close any state) |
 | `sentix feature add "desc"` | Feature ticket |
 | `sentix version bump patch` | Version bump |
 | `sentix metrics` | AI success rate stats |
@@ -417,7 +479,7 @@ my-project/
 │   ├── settings.json      ← Hook registration
 │   ├── agents/            ← planner, dev, pr-review agents
 │   └── rules/             ← Conditional rules
-├── scripts/hooks/         ← SessionStart, PreToolUse hooks
+├── scripts/hooks/         ← SessionStart, UserPromptSubmit, PreToolUse hooks
 ├── tasks/
 │   ├── lessons.md         ← Lessons from failures
 │   ├── patterns.md        ← Usage patterns
@@ -432,19 +494,19 @@ my-project/
 <summary><b>FAQ</b></summary>
 
 **Q: Does it change existing code?**
-A: No. Only adds new files.
+A: `sentix init` adds framework files (CLAUDE.md, `.claude/`, `.sentix/`, `scripts/hooks/`, `tasks/`) and, if a `CLAUDE.md` already exists, merges its rules. Your source tree is not modified — only the scaffolding around it.
 
 **Q: Is `sentix run` required?**
-A: In conversation mode, Claude automatically routes code changes through `sentix run`.
+A: Inside Claude Code with `sentix init` done, the installed hooks + CLAUDE.md strongly bias Claude toward routing code changes through `sentix run`. It is not a hard guarantee — if Claude still tries a direct Write/Edit, the PreToolUse hook blocks it when no active ticket exists.
 
 **Q: Without Claude Code?**
-A: claude.ai web/mobile: guidance mode (L1 only). API: full auto with tools.
+A: claude.ai web/mobile: guidance mode only (you must manually paste the hard rules and run the pipeline yourself). API: same — no hooks, no auto-enforcement.
 
 **Q: Is it free?**
-A: Sentix itself is MIT free. AI costs depend on the provider.
+A: Sentix itself is MIT-licensed and has zero external dependencies. AI costs depend on your provider (Claude/OpenAI/Ollama).
 
 **Q: Which languages?**
-A: Auto-detect: Node.js, Python, Go, Rust. Others via manual CLAUDE.md edit.
+A: The project scanner auto-recognizes `.js`, `.ts`, `.jsx`, `.tsx`, `.py`, `.go`, `.rs`, `.java`, `.rb` files. Hard rules and pipeline are language-agnostic; per-language conventions go in `CLAUDE.md`.
 
 </details>
 
@@ -453,7 +515,7 @@ A: Auto-detect: Node.js, Python, Go, Rust. Others via manual CLAUDE.md edit.
 ## Test
 
 ```bash
-npm test    # 191 tests, Node.js built-in test runner
+npm test    # 212 tests, Node.js built-in test runner (node --test)
 ```
 
 ## Contributing

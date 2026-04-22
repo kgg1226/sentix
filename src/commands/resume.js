@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { registerCommand } from '../registry.js';
 import { runGates } from '../lib/verify-gates.js';
 import { isConfigured } from '../lib/safety.js';
+import { runCommandRoutine, routineFail } from '../lib/command-routine.js';
 
 const STATE_PATH = 'tasks/governor-state.json';
 
@@ -119,18 +120,42 @@ registerCommand('resume', {
     ctx.log('Resuming pipeline...');
     ctx.log('');
 
-    // ── Update state ────────────────────────────────
-    state.status = 'in_progress';
-    state.resumed_at = new Date().toISOString();
-    await ctx.writeJSON(STATE_PATH, state);
+    // ── Update state (wrapped in routine) ───────────
+    const routine = await runCommandRoutine(ctx, {
+      name: 'resume',
+      targets: [STATE_PATH, 'tasks/pattern-log.jsonl'],
+    }, {
+      async validate() {
+        if (!state.cycle_id) {
+          routineFail('validate', 'state.cycle_id missing',
+            'Inspect tasks/governor-state.json for corruption.');
+        }
+      },
+      async execute() {
+        state.status = 'in_progress';
+        state.resumed_at = new Date().toISOString();
+        await ctx.writeJSON(STATE_PATH, state);
 
-    await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-      ts: new Date().toISOString(),
-      event: 'pipeline-resume',
-      cycle_id: state.cycle_id,
-      resume_from: resumeFrom,
-      completed_phases: donePhases.length,
+        await ctx.appendJSONL('tasks/pattern-log.jsonl', {
+          ts: new Date().toISOString(),
+          event: 'pipeline-resume',
+          cycle_id: state.cycle_id,
+          resume_from: resumeFrom,
+          completed_phases: donePhases.length,
+        });
+      },
+      async verify() {
+        const reloaded = await ctx.readJSON(STATE_PATH);
+        if (reloaded.status !== 'in_progress') {
+          routineFail('verify', `state.status did not transition to in_progress (got ${reloaded.status})`,
+            'Check for concurrent writes to governor-state.json.');
+        }
+      },
     });
+
+    if (!routine.ok) {
+      return;
+    }
 
     // ── Invoke Claude Code ──────────────────────────
     const result = spawnSync('claude', ['-p', prompt], {

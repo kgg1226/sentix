@@ -379,7 +379,7 @@ async function handleSafetyGate(request, args, ctx) {
     await ctx.appendJSONL('tasks/pattern-log.jsonl', {
       ts: new Date().toISOString(),
       event: 'safety-denied',
-      input: enrichedRequest,
+      input: request,
       pattern: dangerMatch,
     });
     return 'denied';

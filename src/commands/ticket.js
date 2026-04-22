@@ -24,6 +24,7 @@ import {
   renderTicketSummary,
   renderTicketTable,
 } from '../lib/ticket-render.js';
+import { runCommandRoutine, routineFail } from '../lib/command-routine.js';
 
 const { dim, bold, red, green, yellow, cyan } = colors;
 
@@ -102,13 +103,13 @@ async function createTicket(args, ctx) {
     description,
   });
 
-  // Generate markdown file
+  const related = await findRelatedLessons(description, ctx);
   const md = `# ${id}: ${title}
 
 - **Status:** open
 - **Severity:** ${severity}
 - **Created:** ${entry.created_at}
-- **Related lessons:** ${await findRelatedLessons(description, ctx)}
+- **Related lessons:** ${related}
 
 ## Description
 
@@ -123,17 +124,49 @@ ${description}
 <!-- Populated after fix -->
 `;
 
-  await ctx.writeFile(entry.file_path, md);
-  await addTicket(ctx, entry);
-
-  // Log event
-  await ctx.appendJSONL('tasks/pattern-log.jsonl', {
-    ts: new Date().toISOString(),
-    event: 'ticket:create',
-    id,
-    severity,
-    title,
+  const routine = await runCommandRoutine(ctx, {
+    name: 'ticket:create',
+    targets: ['tasks/tickets/index.json', entry.file_path, 'tasks/pattern-log.jsonl'],
+  }, {
+    async validate() {
+      if (!id || !entry.file_path) {
+        routineFail('validate', 'ticket id or file_path missing',
+          'Check nextTicketId()/createTicketEntry() output.');
+      }
+      const existing = await loadIndex(ctx);
+      if (existing.some((e) => e.id === id)) {
+        routineFail('validate', `ticket id collision: ${id}`,
+          'Delete the stale entry or increment the id manually.');
+      }
+    },
+    async execute() {
+      await ctx.writeFile(entry.file_path, md);
+      await addTicket(ctx, entry);
+      await ctx.appendJSONL('tasks/pattern-log.jsonl', {
+        ts: new Date().toISOString(),
+        event: 'ticket:create',
+        id,
+        severity,
+        title,
+      });
+    },
+    async verify() {
+      if (!ctx.exists(entry.file_path)) {
+        routineFail('verify', `ticket markdown not written: ${entry.file_path}`,
+          'Check filesystem permissions on tasks/tickets/.');
+      }
+      const entries = await loadIndex(ctx);
+      if (!entries.some((e) => e.id === id)) {
+        routineFail('verify', `ticket ${id} missing from index after write`,
+          'Inspect tasks/tickets/index.json integrity.');
+      }
+    },
   });
+
+  if (!routine.ok) {
+    process.exitCode = 1;
+    return;
+  }
 
   ctx.log('');
   ctx.log(`  ${green('●')} ${bold('티켓 생성')}  ${cyan(id)}`);
@@ -242,7 +275,31 @@ async function closeTicket(ticketId, args, ctx) {
     return;
   }
 
-  const updated = await updateTicket(ctx, ticketId, { status: 'closed' }, { force });
+  let updated = null;
+  const routine = await runCommandRoutine(ctx, {
+    name: 'ticket:close',
+    targets: ['tasks/tickets/index.json'],
+  }, {
+    async execute() {
+      updated = await updateTicket(ctx, ticketId, { status: 'closed' }, { force });
+    },
+    async verify() {
+      if (!updated) {
+        routineFail('verify', `updateTicket returned null for ${ticketId}`,
+          'Confirm the ticket id exists in the index.');
+      }
+      const current = await findTicket(ctx, ticketId);
+      if (!current || current.status !== 'closed') {
+        routineFail('verify', `ticket ${ticketId} not marked closed in index`,
+          'Inspect tasks/tickets/index.json for inconsistency.');
+      }
+    },
+  });
+
+  if (!routine.ok) {
+    process.exitCode = 1;
+    return;
+  }
 
   ctx.log('');
   ctx.log(`  ${green('●')} ${bold('티켓 closed')}  ${cyan(ticketId)}`);
