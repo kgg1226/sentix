@@ -1,39 +1,84 @@
-# Handoff — 이전 세션 인수인계
+# Handoff — 스프린트 2026-04-22 (Claude Academy 정합화)
 
-## 2026-04-17 세션 — self-hosting 실전 테스트 + 구조 버그 핫픽스
+> 이 세션이 중단되어도 다른 세션/CLI에서 `sentix ticket list` + 이 파일을 읽어 바로 이어갈 수 있게 설계.
 
-### 상황 요약
-- sentix run으로 bug-001 (Quality Gate/Spec Enricher/Feedback Loop 통합 버그 4건) 수정 시도 → 파이프라인 exit 0이지만 실제 산출물은 티켓과 무관한 patternDirective 전파 작업. dev 스코프 이탈.
-- 이어서 bug-006(hook 범위 초과) sentix run → 파이프라인 exit 0이지만 dev의 require-ticket.js 수정이 사라지고 1,2차 REVIEW 15분 타임아웃.
-- 2번의 pipeline 실패 과정에서 **구조적 결함 6건** 노출 → bug-002~007로 티켓화 → 핫픽스로 일괄 해결.
+---
 
-### 핫픽스 (commit b157087)
-| 티켓 | 파일 | 요약 |
-|------|------|------|
-| bug-002 | `src/lib/verify-gates.js` | 시그니처 확장(파라미터 추가)을 export 삭제로 오판하던 버그. `addedLines` 추적 + `extractExportId`로 동일 식별자 매칭 시 제외. |
-| bug-003 | `src/lib/quality-gate.js` | `parseTestOutput`이 `# tests N`만 지원. Node test runner의 `ℹ tests N` (U+2139) 요약 포맷 추가 지원, 마지막 매치 채택. |
-| bug-004 | `src/lib/pipeline-worker.js` | Phase별 타임아웃 맵. `review: 30분` (기존 일괄 15분). |
-| bug-005 | `src/lib/pipeline-prompts.js` | dev 프롬프트에 "티켓 본문에서 파일/함수/acceptance 1:1 추출, 스코프 이탈 금지, 모호하면 STOP" 명시. |
-| bug-006 | `scripts/hooks/require-ticket.js` | `safeRealpath`로 심볼릭 링크(`/var`↔`/private/var`) 정규화 후 cwd 밖이면 즉시 통과. |
-| bug-007 | `src/lib/pipeline.js` | Finalize phase에서 `snapshotIntegrity` 자동 호출 → dev 정식 산출물이 다음 세션에 원복되지 않음. |
+## 스프린트 목표
 
-### 검증
-- Tests: 191/191 pass (이전 186/191, 5 fail이던 require-ticket-hook 전체 복구)
-- 실전: `~/.claude/projects/.../memory/` 로 Write 실제 성공 확인
+**Sentix 프레임워크를 Claude Academy 17강(2026-04, Anthropic 교육 내용)의 원칙에 정합시킨다.**
+참조 문서 2종 (`Sentix_Claude_Core_Principles.md`, `Sentix_System_Prompt.md`) 의 모든 원칙을
+레포 자산·규칙·에이전트 프롬프트·init 배포 경로에 손실 없이 반영한다.
 
-### 2026-04-17 후속 작업 (이번 세션 마무리 분)
+스프린트 종료 조건:
+- 레포만 보면 전체 원칙을 추적할 수 있다 (참조 문서를 외부에 의존하지 않는다)
+- `sentix init` 한 번으로 신규 프로젝트가 모든 정합성 자산을 받는다
+- README의 기술적 주장은 100% 코드 근거를 가진다
 
-- **feat-007** 처리 완료: `patternDirective` 를 `runDevSwarm` / `buildDevPrompt` / `buildDevSwarmFallbackPrompt` / `buildSwarmWorkerPrompt` 로 모두 전파. stash@{0}의 WIP 산출물은 drop (HEAD가 기능 포함).
-- **feat-001~006** 전부 이미 HEAD에 구현되어 있음을 확인 → resolved 표시.
+---
 
-### 다음 세션 권장 작업
+## 스프린트 범위 — 5개 feature 티켓 + 4단계 Phase
 
-1. **self-hosting 재시도**: bug-005(dev 스코프) + bug-007(integrity) 수정이 실제로 작동하는지 **작은 사이클**로 확인. 예: 간단한 주석 수정 정도의 sentix run.
-2. **티켓 closed 전환**: bug-001~007 + feat-001~007 리뷰 후 resolved → closed.
-3. **sentix status UI 버그**: resolved 티켓을 "활성 티켓" 으로 표시 + "블로커 critical N개" 카운트에 포함. `src/commands/status.js` 의 필터에서 status!=='resolved'&&status!=='closed' 조건 확인 필요. (낮은 우선순위)
-4. **phase-worker 일관성**: `pipeline-worker.js`의 PHASE_TIMEOUT은 spawnSync 버전에만 적용. spawnWorker (dev-swarm 병렬) 의 900_000 하드코딩은 review 타임아웃과 무관하므로 별도 검토.
+| Phase | Ticket | 주제 | SCOPE |
+|---|---|---|---|
+| 1 | **feat-010** | README 환경별 기능 지원 표 100% 정확성 재구성 (5열, 4개 언어, Integrity 분리 등) | `README.md` |
+| 2a | **feat-011** | `docs/core-principles.md` + `docs/system-prompt-template.md` 신규 이관 | `docs/` 신규 2개 파일 |
+| 2b | **feat-012** | CLAUDE.md / FRAMEWORK.md / hard-rules.md 에 4D / handling_uncertainty / anti_patterns 블록 추가 | `CLAUDE.md`, `FRAMEWORK.md`, `.sentix/rules/hard-rules.md` |
+| 3a | **feat-013** | planner / dev / pr-review 에이전트 프롬프트에 agentic_loop + 3P + discernment 반영 | `.claude/agents/*.md` 3개 |
+| 3b | **feat-014** | `sentix init` 이 system-prompt-template 배포, `sentix doctor` 에 존재 체크 | `src/lib/init-templates.js`, `src/commands/init.js`, `src/commands/doctor.js`, `__tests__/` |
+| 4a | — | 이 handoff 최종 정리 | `tasks/handoff.md` |
+| 4b | — | 사용자 대상 변경 README 동기화 (memory 규칙) | `README.md` |
+| 4c | — | PR #29 에 모든 커밋 push + 상태 확인 | — |
 
-### 교훈 (lessons.md에도 기록됨)
-- 파이프라인 exit 0은 "절차 완료"이지 "티켓 해결"이 아님
-- 매 사이클 후 반드시 `git diff` 를 티켓 acceptance와 1:1 대조
-- 메타 버그 발견 시 즉시 티켓 생성 (사용자 지시: "항상 절대적으로 기록")
+## 의존성 그래프
+
+```
+feat-011 (docs 이관)
+   ↓
+feat-012 (CLAUDE.md/FRAMEWORK.md 블록)
+   ↓
+feat-013 (agent prompts) ─────┐
+                              ↓
+feat-014 (init 배포)          ──→  handoff.md 최종 (Phase 4a)
+feat-010 (README 5열 표) ─────┘       ↓
+                                   README 사용자 대상 동기화 (Phase 4b)
+                                      ↓
+                                   PR #29 push (Phase 4c)
+```
+
+- **feat-010** 은 독립 실행 가능 (README만 건듬) → 언제든 Phase 1로 선착수 가능
+- **feat-011 → feat-012 → feat-013** 은 의존 순서대로 진행해야 참조 일관성 유지
+- **feat-014** 는 feat-011/012가 끝난 뒤 (배포 대상이 확정돼야 배포 로직 작성)
+
+## 실행 방법
+
+각 티켓은 한 번의 `sentix run` 으로 처리하거나, 규모가 작으면 핫픽스(직접 Edit)로 처리한다.
+스프린트 특성상 문서 비중이 크므로 Phase 1·2a·2b·4a·4b 는 핫픽스 경로가 적절.
+Phase 3a·3b 는 에이전트 프롬프트와 init 로직 변경 포함 — `sentix run` 권장.
+
+하드 룰 6개는 모든 Phase 에 그대로 적용. 특히 Phase 2b 는 `CLAUDE.md/FRAMEWORK.md` 변조
+성격이므로 integrity-guard snapshot 갱신이 필요 — finalize에서 자동 처리됨 (bug-007 hotfix 결과).
+
+## 이전 세션 요약 (2026-04-17)
+
+- self-hosting 실패 → 6개 구조 버그 핫픽스 (bug-002~007)
+- feat-007 (patternDirective 전파) + feat-008 (sentix ticket close) 추가
+- PR #29 오픈: `feat/self-hosting-2026-04-17` → `main`
+- 이번 스프린트의 모든 commit은 **같은 PR #29 브랜치에 누적** (새 PR 만들지 않음)
+
+## CLI에서 스프린트 상태 조회
+
+```bash
+sentix ticket list --status open        # 열린 feat-010 ~ feat-014 확인
+sentix ticket debug feat-010            # 특정 티켓 상세
+cat tasks/handoff.md                    # 이 문서
+git log --oneline origin/main..HEAD     # PR 누적 커밋
+git status --short                      # 다음 commit 대상
+```
+
+## 중단 후 재개 프로토콜
+
+1. 새 세션 시작 시 이 파일과 `sentix ticket list --status open` 먼저 본다
+2. TodoWrite 는 세션별로 재작성 (영속 아님) — 이 handoff가 단일 출처(single source of truth)
+3. 마지막 commit 메시지와 `git diff HEAD~1 HEAD --stat` 로 직전 작업 단위 복원
+4. 다음 티켓은 표의 Phase 순서를 따른다
