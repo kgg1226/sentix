@@ -5,6 +5,21 @@
 
 ---
 
+## 설계 원칙 — Claude Academy 정합
+
+Sentix 의 5 Layer Architecture는 다음 4가지 협업 역량을 동시에 구현하기 위한 구조다 (출처: `docs/core-principles.md` §2):
+
+- **Delegation**: 인간(머지·전략) ↔ 에이전트(구현·탐색·초안) 경계를 hard rules + agent scopes 로 강제.
+- **Description**: 시스템 프롬프트 + 3P(Product/Process/Performance) + spec-enricher 로 모든 요청을 구조화.
+- **Discernment**: gate(결정론) + pr-review(회의적) + cross-review(이종 모델) 3중 판정.
+- **Diligence**: lessons / patterns / integrity-guard 로 변경 추적, 안전어로 LLM 인젝션 차단, 최종 책임은 사람.
+
+**조정된 신뢰(Calibrated Trust)**: AI는 유창함은 강하지만 구체 사실(이름·날짜·통계·시그니처)은 환각 위험이 1순위. Sentix는 이런 정밀 주장을 quality-gate 와 pr-review 가 코드 근거로 재검증한다 (`docs/core-principles.md` §11).
+
+상세: `docs/core-principles.md`, 시스템 프롬프트 템플릿: `docs/system-prompt-template.md`.
+
+---
+
 ## 5 Layer Architecture
 
 ```
