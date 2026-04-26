@@ -5,6 +5,23 @@
  * 동적 내용(tech stack 기반 등)은 함수로 export.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __initTemplatesDir = dirname(fileURLToPath(import.meta.url));
+const __sentixPkgRoot = resolve(__initTemplatesDir, '..', '..');
+
+/**
+ * docs/system-prompt-template.md 원문 — sentix 패키지의 소스 파일에서 로드.
+ * sentix init 이 프로젝트에 배포(이미 있으면 보존).
+ * module 초기화 시점에만 sync I/O 를 수행한다.
+ */
+export const SYSTEM_PROMPT_TEMPLATE_MD = readFileSync(
+  resolve(__sentixPkgRoot, 'docs', 'system-prompt-template.md'),
+  'utf-8',
+);
+
 /** 프로젝트 새 CLAUDE.md 생성 (tech stack 기반) */
 export function generateClaudeMd(techStack) {
   return `# CLAUDE.md — Sentix Governor 실행 지침
