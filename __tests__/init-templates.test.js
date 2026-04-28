@@ -74,4 +74,27 @@ describe('sentix init: docs/system-prompt-template.md deployment', () => {
     const preserved = await ctx.readFile(path);
     assert.equal(preserved, userEdited, 'user content must be preserved');
   });
+
+  it('preserves an empty existing file (edge case: presence beats content)', async () => {
+    // Fresh isolated tmp dir — must not leak from prior tests.
+    const isolated = await mkdtemp(join(tmpdir(), 'sentix-init-template-empty-'));
+    try {
+      const localCtx = createContext(isolated);
+      const path = 'docs/system-prompt-template.md';
+
+      // User created the file but left it empty (placeholder stub).
+      await mkdir(join(isolated, 'docs'), { recursive: true });
+      await writeFile(join(isolated, path), '', 'utf-8');
+
+      // Simulate init re-run — preserve must rely on existence, not content length.
+      if (!localCtx.exists(path)) {
+        await localCtx.writeFile(path, SYSTEM_PROMPT_TEMPLATE_MD);
+      }
+
+      const after = await localCtx.readFile(path);
+      assert.equal(after, '', 'empty existing file must remain untouched');
+    } finally {
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
 });
