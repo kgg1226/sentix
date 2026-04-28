@@ -90,6 +90,7 @@ This installs three things that keep Claude on the Governor pipeline without you
 | `CLAUDE.md` / `.claude/rules/*` | Loaded at every session start — tells Claude it is already the Sentix Governor and must route code changes through `sentix run`. |
 | `.claude/settings.json` hooks | `SessionStart` injects the Governor role, `UserPromptSubmit` re-states the rule on every turn, `PreToolUse` blocks raw Write/Edit without an active ticket. |
 | `tasks/` + `.sentix/` scaffolding | Ticket index, lessons, constraints, integrity snapshot — all the state Claude reads/writes during a cycle. |
+| `docs/system-prompt-template.md` | A ready-to-paste system prompt for Claude API / Desktop / Project Instructions, so external sessions (no CLAUDE.md auto-load) follow the same Governor rules. Preserved if you've already customized it. `sentix doctor` warns if missing. |
 
 After this, a fresh chat session automatically starts in Governor mode. You can still ask in plain language:
 
@@ -199,6 +200,7 @@ npx sentix init
 | `CLAUDE.md` / `.claude/rules/*` | 세션 시작 시 자동 로드되어, Claude가 이미 Sentix Governor임을 인지하고 코드 변경은 반드시 `sentix run` 경로로 돌리도록 지시 |
 | `.claude/settings.json` 훅 3종 | `SessionStart` 가 Governor 역할 주입, `UserPromptSubmit` 가 매 요청마다 규칙 리마인드, `PreToolUse` 가 활성 티켓 없는 Write/Edit 차단 |
 | `tasks/` + `.sentix/` 구조 | 티켓 인덱스, 교훈, 제약, integrity snapshot — 사이클 중 Claude가 읽고 쓰는 상태 저장소 |
+| `docs/system-prompt-template.md` | Claude API / Desktop / Project Instructions 에 그대로 붙여넣기 가능한 system prompt. CLAUDE.md 자동 로드가 안 되는 외부 세션도 같은 Governor 규칙을 따르게 한다. 이미 커스터마이즈된 파일은 보존. `sentix doctor` 가 누락 시 경고. |
 
 설정 후에는 자연어로 요청해도 자동으로 파이프라인을 탑니다:
 
