@@ -576,7 +576,12 @@ security WARNING 발견 시 → 항상 즉시 수정 요청
 
 ---
 
-# Layer 4 — Visual Perception
+# Layer 4 — Visual Perception **(Planned — not implemented)**
+
+> 본 Layer는 v2.6.0 기준 설계만 존재하며 구현되지 않았습니다.
+> .sentix/config.toml의 [layers.visual] 토글과 sentix status의
+> 라벨만 존재할 뿐, preferences 파일을 읽거나 쓰는 코드는 없습니다.
+> 향후 구현 예정.
 
 ## 문제
 

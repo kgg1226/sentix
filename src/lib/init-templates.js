@@ -194,6 +194,10 @@ enabled = true
 [layers.pattern_engine]
 enabled = true
 
+# STATUS: Planned (not implemented as of v2.6.0)
+# 이 토글은 schema 정의용이며, 활성화해도 동작 코드 없음.
+# preferences_file (tasks/visual-preferences.md)도 생성/소비 코드 없음.
+# 실구현 시점에 본 주석 제거 예정.
 [layers.visual]
 enabled = false
 

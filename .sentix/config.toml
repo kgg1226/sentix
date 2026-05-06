@@ -31,6 +31,10 @@ preemptive_threshold = 0.90     # 이 값 이상은 선제 실행
 decay_days = 30                 # 미발생 시 자동 제거 (일)
 
 # ── Layer 4: Visual Perception ───────────────────────────
+# STATUS: Planned (not implemented as of v2.6.0)
+# 이 토글은 schema 정의용이며, 활성화해도 동작 코드 없음.
+# preferences_file (tasks/visual-preferences.md)도 생성/소비 코드 없음.
+# 실구현 시점에 본 주석 제거 예정.
 [layers.visual]
 enabled = false                 # 대시보드/UI 생성 프로젝트에서 활성화
 preferences_file = "tasks/visual-preferences.md"

@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- docs: clarify L4 Visual Perception implementation status as "planned"
+- config: add comments to `.sentix/config.toml` `[layers.visual]` indicating toggle exists for schema only; no consuming code as of v2.6.0
+- status: append "(planned)" suffix to L4 label in `sentix status` output
+
+### Discovered (recorded for next sprint)
+
+- spec-enricher fails when invoked from non-TTY parent (e.g., AI-in-AI calls) → needs non-interactive mode (env var or auto-detect) — tracked as bug-012
+- SAFETY pattern `config\.toml.*(삭제|수정|변경)` produces false positives on legitimate documentation edits → policy needs intent-aware refinement — tracked as bug-013
+
 ## [2.6.0] — 2026-04-28
 
 ### New Features

@@ -380,6 +380,18 @@ Claude：（通过Bash工具执行）
 
 ---
 
+## Layer Status (v2.6.0)
+
+The 5-layer architecture's current implementation status is recorded honestly so the framework's claims match the codebase:
+
+- L1 — Governor + Agents ✅
+- L2 — Learning Pipeline ✅
+- L3 — Pattern Engine ✅
+- L4 — Visual Perception ⏳ Planned (toggle and `sentix status` label exist; no consuming code yet)
+- L5 — Self-Evolution ✅ (depth TBD — pending audit)
+
+---
+
 ## Pipeline Architecture
 
 ```
