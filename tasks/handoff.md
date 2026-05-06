@@ -1,19 +1,27 @@
-# Handoff — 스프린트 2026-04-22 (Claude Academy 정합화)
+# Handoff — 스프린트 2026-04-22 (Claude Academy 정합화) — **완료**
 
 > 이 세션이 중단되어도 다른 세션/CLI에서 `sentix ticket list` + 이 파일을 읽어 바로 이어갈 수 있게 설계.
 
 ---
 
-## 스프린트 목표
+## 스프린트 결과 — 종료
+
+| 종료 조건 | 충족 |
+|---|---|
+| 레포만 보면 전체 원칙을 추적할 수 있다 | ✅ `docs/core-principles.md` + `docs/system-prompt-template.md` 이관 |
+| `sentix init` 한 번으로 신규 프로젝트가 모든 정합성 자산을 받는다 | ✅ feat-014 — system-prompt-template 배포 + doctor 체크 |
+| README 의 기술적 주장은 100% 코드 근거를 가진다 | ✅ feat-010 — 5열 표 / Integrity 분리 / 모든 셀이 코드 근거 |
+| 추론 vs 사실 기반의 경계가 파이프라인 단계별로 명확하다 | ✅ feat-013 — planner=추론 허용 / dev·pr-review=사실 기반 only |
+
+검증: 231/231 tests pass, 모든 게이트 통과, integrity snapshot 갱신됨.
+
+---
+
+## 스프린트 목표 (원본)
 
 **Sentix 프레임워크를 Claude Academy 17강(2026-04, Anthropic 교육 내용)의 원칙에 정합시킨다.**
 참조 문서 2종 (`Sentix_Claude_Core_Principles.md`, `Sentix_System_Prompt.md`) 의 모든 원칙을
 레포 자산·규칙·에이전트 프롬프트·init 배포 경로에 손실 없이 반영한다.
-
-스프린트 종료 조건:
-- 레포만 보면 전체 원칙을 추적할 수 있다 (참조 문서를 외부에 의존하지 않는다)
-- `sentix init` 한 번으로 신규 프로젝트가 모든 정합성 자산을 받는다
-- README의 기술적 주장은 100% 코드 근거를 가진다
 
 ---
 
@@ -82,3 +90,29 @@ git status --short                      # 다음 commit 대상
 2. TodoWrite 는 세션별로 재작성 (영속 아님) — 이 handoff가 단일 출처(single source of truth)
 3. 마지막 commit 메시지와 `git diff HEAD~1 HEAD --stat` 로 직전 작업 단위 복원
 4. 다음 티켓은 표의 Phase 순서를 따른다
+
+---
+
+## 다음 스프린트 후보 — 대형 파일 리팩터링 (sentix evolve 권고)
+
+`sentix evolve` / `sentix status` 가 자동 감지한 대형 파일 6개. 하드 룰 5
+("순삭제 50줄 초과 시 리팩터링은 별도 phase 분리") 를 따라 각 파일 별로 독립 sprint
+또는 백로그 티켓으로 처리한다.
+
+| 파일 | 라인수 | 특징 |
+|---|---:|---|
+| `src/lib/pipeline.js` | ~483 | 핵심 — 분해 시 전체 영향. dev-swarm/multi-gen 분기 분리 후보 |
+| `src/commands/run.js` | ~418 | 사용자 진입점 — args 파싱 / 실행기 / UI 분리 후보 |
+| `src/lib/quality-gate.js` | ~373 | 5 checks 별 모듈화 가능 (`checks/` 디렉토리) |
+| `src/commands/doctor.js` | ~337 | 카드 별 check 함수 분해 가능 |
+| `src/lib/verify-gates.js` | ~323 | gate 별 모듈화 (scope/export/test/net) |
+| `src/commands/version.js` | ~312 | bump / changelog / tag 분리 |
+
+**권장 처리 방식**:
+- 각 파일은 별 ticket(`refactor-001` ~ `refactor-006`) 으로 분리
+- 한 ticket 당 1개 파일 — sentix run 사이클 timeout 회피
+- `--multi-gen 3` 으로 다양한 분해 안 비교 후 채택
+- 하드 룰 3 (export 보존) 위반 없이 모듈 분리 (re-export 활용)
+
+이 항목은 이번 스프린트(feat-010~014)와 분리된 별도 단위로, 다음 세션에서 새 sprint
+계획을 짜는 시점에 우선순위 결정.

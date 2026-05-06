@@ -278,6 +278,17 @@ async function checkCleanup(ctx, out) {
     } catch { /* ignore */ }
   }
 
+  // system prompt template (Claude API / Desktop / Projects 정렬용)
+  if (ctx.exists('docs/system-prompt-template.md')) {
+    out.push({ level: 'pass', label: '시스템 프롬프트 템플릿 존재' });
+  } else {
+    out.push({
+      level: 'warn',
+      label: '시스템 프롬프트 템플릿 없음',
+      fix: 'sentix init',
+    });
+  }
+
   // multi-project (선택)
   const hasInterface = ctx.exists('INTERFACE.md');
   const hasRegistry = ctx.exists('registry.md');

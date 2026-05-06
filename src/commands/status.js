@@ -211,7 +211,7 @@ registerCommand('status', {
         { name: 'Core (Governor + Agents)', key: 'layers.core', required: true },
         { name: 'Learning Pipeline',        key: 'layers.learning' },
         { name: 'Pattern Engine',           key: 'layers.pattern_engine' },
-        { name: 'Visual Perception',        key: 'layers.visual' },
+        { name: 'Visual Perception (planned)', key: 'layers.visual' },
         { name: 'Self-Evolution',           key: 'layers.evolution' },
       ];
       for (const layer of layers) {

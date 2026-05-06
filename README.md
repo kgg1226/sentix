@@ -32,17 +32,20 @@
 
 ### Feature Availability by Environment
 
-| Feature | `sentix run` | Conversation | claude.ai Web | API |
-|---|:---:|:---:|:---:|:---:|
-| 6 Hard Rules (CLAUDE.md) | ✅ | ✅ | ⚠️ manual | ⚠️ manual |
-| PreToolUse Hook (Write/Edit block) | ✅ | ✅ | ❌ | ❌ |
-| Interactive Input Enrichment | ✅ | ❌ | ❌ | ❌ |
-| Quality Gate (5 checks) | ✅ | ❌ | ❌ | ❌ |
-| Feedback Loop (auto-learning) | ✅ | ❌ | ❌ | ❌ |
-| Multi-Gen (multiple generations) | ✅ | ❌ | ❌ | ❌ |
-| Cross-Review (external model) | ✅ | ❌ | ❌ | ❌ |
-| Pattern Analysis + Directives | ✅ | ❌ | ❌ | ❌ |
-| Integrity Monitoring + Restore | ✅ | ✅ | ❌ | ❌ |
+Each cell below was verified against the current code path. `sentix run` is split by execution context (terminal TTY vs Claude Code's Bash tool) because the two differ for prompts that require stdin.
+
+| Feature | Terminal `sentix run` | `sentix run` from Claude Code Bash | Claude Code chat (sentix init done) | claude.ai Web | API |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 6 Hard Rules injected as context | ✅ via phase prompts | ✅ via phase prompts | ✅ via SessionStart hook | ⚠️ paste manually | ⚠️ paste manually |
+| PreToolUse hook blocks Write/Edit | — pass-through (state=in_progress) | — pass-through | ✅ blocks when no active ticket | ❌ no hook support | ❌ no hook support |
+| Interactive input enrichment (readline) | ✅ | ⚠️ stdin not TTY → prompts shown but answers cannot be captured | ❌ (path doesn't go through `sentix run`) | ❌ | ❌ |
+| Quality Gate (5 deterministic checks) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Feedback Loop (constraints auto-appended) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Multi-Gen (`--multi-gen [N]`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Cross-Review (`--cross-review <model>`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Pattern analysis + directives | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Integrity verify + auto-restore from git | ❌ (verify is not invoked) | ❌ | ✅ via SessionStart hook | ❌ | ❌ |
+| Integrity snapshot refresh | ✅ in finalize | ✅ in finalize | ❌ | ❌ | ❌ |
 
 ### Install / Update / Commands
 
@@ -87,6 +90,7 @@ This installs three things that keep Claude on the Governor pipeline without you
 | `CLAUDE.md` / `.claude/rules/*` | Loaded at every session start — tells Claude it is already the Sentix Governor and must route code changes through `sentix run`. |
 | `.claude/settings.json` hooks | `SessionStart` injects the Governor role, `UserPromptSubmit` re-states the rule on every turn, `PreToolUse` blocks raw Write/Edit without an active ticket. |
 | `tasks/` + `.sentix/` scaffolding | Ticket index, lessons, constraints, integrity snapshot — all the state Claude reads/writes during a cycle. |
+| `docs/system-prompt-template.md` | A ready-to-paste system prompt for Claude API / Desktop / Project Instructions, so external sessions (no CLAUDE.md auto-load) follow the same Governor rules. Preserved if you've already customized it. `sentix doctor` warns if missing. |
 
 After this, a fresh chat session automatically starts in Governor mode. You can still ask in plain language:
 
@@ -138,17 +142,20 @@ You: "Run npx sentix run 'Make a login page' in terminal"
 
 ### 환경별 기능 지원
 
-| 기능 | `sentix run` | 대화 모드 | claude.ai 웹 | API |
-|---|:---:|:---:|:---:|:---:|
-| 하드 룰 6개 (CLAUDE.md 지시) | ✅ | ✅ | ⚠️ 수동 | ⚠️ 수동 |
-| PreToolUse 훅 (Write/Edit 차단) | ✅ | ✅ | ❌ | ❌ |
-| 인터랙티브 입력 구체화 | ✅ | ❌ | ❌ | ❌ |
-| Quality Gate (5종 검사) | ✅ | ❌ | ❌ | ❌ |
-| Feedback Loop (자동 학습) | ✅ | ❌ | ❌ | ❌ |
-| Multi-Gen (다중 생성) | ✅ | ❌ | ❌ | ❌ |
-| Cross-Review (이종 모델) | ✅ | ❌ | ❌ | ❌ |
-| 패턴 분석 + 행동 지시 | ✅ | ❌ | ❌ | ❌ |
-| 무결성 감시 + 자동 복원 | ✅ | ✅ | ❌ | ❌ |
+아래 표의 모든 셀은 현재 코드 동작과 1:1 검증되었다. `sentix run` 은 stdin TTY 유무에 따라 동작이 달라지므로 **터미널 직접 실행** 과 **Claude Code 의 Bash 도구로 실행** 을 분리해 표기했다.
+
+| 기능 | 터미널 `sentix run` | Claude Code Bash 로 `sentix run` | Claude Code 대화 (sentix init 완료) | claude.ai 웹 | API |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 하드 룰 6개 컨텍스트 주입 | ✅ phase 프롬프트 경유 | ✅ phase 프롬프트 경유 | ✅ SessionStart 훅 | ⚠️ 수동 복붙 | ⚠️ 수동 복붙 |
+| PreToolUse 훅의 Write/Edit 차단 | — pass-through (state=in_progress) | — pass-through | ✅ 활성 티켓 없으면 차단 | ❌ 훅 미지원 | ❌ 훅 미지원 |
+| 인터랙티브 입력 구체화 (readline) | ✅ | ⚠️ stdin 비-TTY → 질문은 출력되나 응답 수집 불가 | ❌ (sentix run 경로 아님) | ❌ | ❌ |
+| Quality Gate (결정론적 5검사) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Feedback Loop (제약 자동 추가) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Multi-Gen (`--multi-gen [N]`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Cross-Review (`--cross-review <모델>`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| 패턴 분석 + 행동 지시 | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Integrity verify + git 자동 복원 | ❌ (verify 호출 안 함) | ❌ | ✅ SessionStart 훅 | ❌ | ❌ |
+| Integrity snapshot 갱신 | ✅ finalize 단계 | ✅ finalize 단계 | ❌ | ❌ | ❌ |
 
 ### 설치 / 업데이트 / 명령어
 
@@ -193,6 +200,7 @@ npx sentix init
 | `CLAUDE.md` / `.claude/rules/*` | 세션 시작 시 자동 로드되어, Claude가 이미 Sentix Governor임을 인지하고 코드 변경은 반드시 `sentix run` 경로로 돌리도록 지시 |
 | `.claude/settings.json` 훅 3종 | `SessionStart` 가 Governor 역할 주입, `UserPromptSubmit` 가 매 요청마다 규칙 리마인드, `PreToolUse` 가 활성 티켓 없는 Write/Edit 차단 |
 | `tasks/` + `.sentix/` 구조 | 티켓 인덱스, 교훈, 제약, integrity snapshot — 사이클 중 Claude가 읽고 쓰는 상태 저장소 |
+| `docs/system-prompt-template.md` | Claude API / Desktop / Project Instructions 에 그대로 붙여넣기 가능한 system prompt. CLAUDE.md 자동 로드가 안 되는 외부 세션도 같은 Governor 규칙을 따르게 한다. 이미 커스터마이즈된 파일은 보존. `sentix doctor` 가 누락 시 경고. |
 
 설정 후에는 자연어로 요청해도 자동으로 파이프라인을 탑니다:
 
@@ -244,17 +252,20 @@ Claude가 경로를 벗어나거나 강제로 파이프라인을 타게 하고 �
 
 ### 環境別機能サポート
 
-| 機能 | `sentix run` | 会話モード | claude.ai Web | API |
-|---|:---:|:---:|:---:|:---:|
-| ハードルール6個 (CLAUDE.md) | ✅ | ✅ | ⚠️ 手動 | ⚠️ 手動 |
-| PreToolUseフック (Write/Editブロック) | ✅ | ✅ | ❌ | ❌ |
-| インタラクティブ入力具体化 | ✅ | ❌ | ❌ | ❌ |
-| Quality Gate (5種検査) | ✅ | ❌ | ❌ | ❌ |
-| Feedback Loop (自動学習) | ✅ | ❌ | ❌ | ❌ |
-| Multi-Gen (多重生成) | ✅ | ❌ | ❌ | ❌ |
-| Cross-Review (異種モデル) | ✅ | ❌ | ❌ | ❌ |
-| パターン分析 + 行動指示 | ✅ | ❌ | ❌ | ❌ |
-| 整合性監視 + 自動復元 | ✅ | ✅ | ❌ | ❌ |
+下表のすべてのセルは現在のコード動作と 1:1 検証済み。`sentix run` は stdin の TTY 有無で動作が変わるため、**ターミナル直接実行** と **Claude Code の Bash ツールから実行** を分けて記載している。
+
+| 機能 | ターミナル `sentix run` | Claude Code Bash から `sentix run` | Claude Code チャット (sentix init 済) | claude.ai Web | API |
+|---|:---:|:---:|:---:|:---:|:---:|
+| ハードルール6個のコンテキスト注入 | ✅ phase プロンプト経由 | ✅ phase プロンプト経由 | ✅ SessionStart フック | ⚠️ 手動貼付 | ⚠️ 手動貼付 |
+| PreToolUse フックの Write/Edit ブロック | — pass-through (state=in_progress) | — pass-through | ✅ アクティブチケットなしならブロック | ❌ フック非対応 | ❌ フック非対応 |
+| インタラクティブ入力具体化 (readline) | ✅ | ⚠️ stdin が TTY でない → 質問は出るが回答取得不可 | ❌ (sentix run 経路ではない) | ❌ | ❌ |
+| Quality Gate (決定論的5検査) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Feedback Loop (制約自動追加) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Multi-Gen (`--multi-gen [N]`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Cross-Review (`--cross-review <モデル>`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| パターン分析 + 行動指示 | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Integrity verify + git からの自動復元 | ❌ (verify は呼ばれない) | ❌ | ✅ SessionStart フック | ❌ | ❌ |
+| Integrity スナップショット更新 | ✅ finalize 段階 | ✅ finalize 段階 | ❌ | ❌ | ❌ |
 
 ### インストール / アップデート / コマンド
 
@@ -318,17 +329,20 @@ Claude：（Bashツールで実行）
 
 ### 各环境功能支持
 
-| 功能 | `sentix run` | 对话模式 | claude.ai Web | API |
-|---|:---:|:---:|:---:|:---:|
-| 6条硬规则 (CLAUDE.md) | ✅ | ✅ | ⚠️ 手动 | ⚠️ 手动 |
-| PreToolUse钩子 (Write/Edit阻断) | ✅ | ✅ | ❌ | ❌ |
-| 交互式输入具体化 | ✅ | ❌ | ❌ | ❌ |
-| Quality Gate (5项检查) | ✅ | ❌ | ❌ | ❌ |
-| Feedback Loop (自动学习) | ✅ | ❌ | ❌ | ❌ |
-| Multi-Gen (多重生成) | ✅ | ❌ | ❌ | ❌ |
-| Cross-Review (异构模型) | ✅ | ❌ | ❌ | ❌ |
-| 模式分析 + 行为指令 | ✅ | ❌ | ❌ | ❌ |
-| 完整性监控 + 自动恢复 | ✅ | ✅ | ❌ | ❌ |
+下表所有单元格均与当前代码行为 1:1 验证。`sentix run` 因 stdin 是否为 TTY 而行为不同，故将 **终端直接执行** 与 **从 Claude Code 的 Bash 工具执行** 分开列出。
+
+| 功能 | 终端 `sentix run` | 从 Claude Code Bash 执行 `sentix run` | Claude Code 对话 (已完成 sentix init) | claude.ai Web | API |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 6条硬规则的上下文注入 | ✅ 经 phase 提示 | ✅ 经 phase 提示 | ✅ SessionStart 钩子 | ⚠️ 手动粘贴 | ⚠️ 手动粘贴 |
+| PreToolUse 钩子阻断 Write/Edit | — pass-through (state=in_progress) | — pass-through | ✅ 无活动票据时阻断 | ❌ 不支持钩子 | ❌ 不支持钩子 |
+| 交互式输入具体化 (readline) | ✅ | ⚠️ stdin 非 TTY → 显示问题但无法收集回答 | ❌ (不经 sentix run) | ❌ | ❌ |
+| Quality Gate (确定性5项检查) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Feedback Loop (约束自动追加) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Multi-Gen (`--multi-gen [N]`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Cross-Review (`--cross-review <模型>`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| 模式分析 + 行为指令 | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Integrity verify + 从 git 自动恢复 | ❌ (不调用 verify) | ❌ | ✅ SessionStart 钩子 | ❌ | ❌ |
+| Integrity 快照刷新 | ✅ finalize 阶段 | ✅ finalize 阶段 | ❌ | ❌ | ❌ |
 
 ### 安装 / 更新 / 命令
 
@@ -363,6 +377,18 @@ Claude：（通过Bash工具执行）
 
 > **重要**：如果只输入"做一个登录页面"，Claude会不经过sentix直接编码。
 > 请务必在请求中包含`npx sentix run`。
+
+---
+
+## Layer Status (v2.6.0)
+
+The 5-layer architecture's current implementation status is recorded honestly so the framework's claims match the codebase:
+
+- L1 — Governor + Agents ✅
+- L2 — Learning Pipeline ✅
+- L3 — Pattern Engine ✅
+- L4 — Visual Perception ⏳ Planned (toggle and `sentix status` label exist; no consuming code yet)
+- L5 — Self-Evolution ✅ (depth TBD — pending audit)
 
 ---
 

@@ -20,6 +20,7 @@ import {
   TASK_PLACEHOLDERS,
   INTERFACE_MD,
   REGISTRY_MD,
+  SYSTEM_PROMPT_TEMPLATE_MD,
 } from '../lib/init-templates.js';
 
 registerCommand('init', {
@@ -67,6 +68,14 @@ registerCommand('init', {
         await ctx.writeFile(path, content);
         ctx.success(`Created ${path}`);
       }
+    }
+
+    // ── 3c. docs/system-prompt-template.md (preserve if exists) ───
+    if (ctx.exists('docs/system-prompt-template.md')) {
+      ctx.warn('docs/system-prompt-template.md already exists — skipping');
+    } else {
+      await ctx.writeFile('docs/system-prompt-template.md', SYSTEM_PROMPT_TEMPLATE_MD);
+      ctx.success('Created docs/system-prompt-template.md');
     }
 
     // ── 4. tasks/ ───────────────────────────────────
