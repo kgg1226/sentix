@@ -4,14 +4,14 @@
 
 ## 요청 빈도
 
-- "bug-fix" 요청이 전체의 67% (8/12)
-- "feature" 요청이 전체의 25% (3/12)
+- "bug-fix" 요청이 전체의 69% (9/13)
+- "feature" 요청이 전체의 23% (3/13)
 
 ## 자주 반복되는 명령 순서
 
 - "ticket → ticket" 순서가 46회 반복
-- "ticket → run" 순서가 9회 반복
-- "run → ticket" 순서가 8회 반복
+- "ticket → run" 순서가 10회 반복
+- "run → ticket" 순서가 9회 반복
 - "status → ticket" 순서가 4회 반복
 - "feature → feature" 순서가 4회 반복
 - "ticket → status" 순서가 3회 반복
