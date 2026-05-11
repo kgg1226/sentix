@@ -32,6 +32,13 @@ const { dim, bold, cyan, yellow, green } = colors;
 export async function enrichRequestInteractively(request, ctx, options = {}) {
   if (options.skipInteractive) return request;
 
+  // bug-012: non-TTY 환경(AI-in-AI, CI, pipe 입력)에서는 readline이 EOF를 즉시 받아
+  // 빈 답변으로 무한 진행하거나 plan phase 가 0 토큰으로 종료된다.
+  // SENTIX_NONINTERACTIVE 환경변수 또는 stdin이 TTY가 아니면 prompt 단계를 건너뛴다.
+  if (process.env.SENTIX_NONINTERACTIVE || process.stdin.isTTY === false) {
+    return request;
+  }
+
   const analysis = analyzeRequest(request);
 
   // 질문이 없으면 (이미 상세한 요청) 그대로 반환
