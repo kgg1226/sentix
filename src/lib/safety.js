@@ -205,7 +205,11 @@ export const DANGEROUS_PATTERNS = [
   // ── Rule / config manipulation ──
   /하드\s*룰.*(변경|삭제|무시|수정|disable)/i,
   /(ignore|disable|bypass|skip).*(rule|hard.?rule|규칙|하드)/i,
-  /config\.toml.*(삭제|수정|변경)/i,
+  // config.toml: only flag modifications targeting safety-related sections.
+  // 행위(action) + 대상(target=safety/protection) + 의도(intent=remove/disable) 3요소.
+  // 일반 설정 수정(default_severity 변경, 문서화 등)은 false positive 였으므로 제외.
+  /config\.toml.*(safety_enabled|recovery_key_hash|\[safety\]|안전어).*?(삭제|지워|제거|false|disable|remove|off)/i,
+  /(safety_enabled|recovery_key_hash|\[safety\]|안전어).*config\.toml.*(삭제|지워|제거|false|disable|remove|off)/i,
 
   // ── Safety word tampering ──
   /safety.*(word|어).*(변경|삭제|무시|disable|remove|change)/i,
