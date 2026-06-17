@@ -19,6 +19,7 @@ import {
   generateRecoveryKey,
   hashRecoveryKey,
   loadRecoveryHash,
+  ensureSafetyGitignored,
 } from '../lib/safety.js';
 import { colors } from '../lib/ui-box.js';
 import { renderStatusCard, renderSetSuccessNotice } from '../lib/safety-render.js';
@@ -114,12 +115,9 @@ async function setCmd(word, ctx) {
   const recoveryHash = hashRecoveryKey(recoveryKey);
   await saveSafetyHash(ctx, hash, recoveryHash);
 
-  // Verify .gitignore protection
-  let gitignoreOk = false;
-  if (ctx.exists('.gitignore')) {
-    const gi = await ctx.readFile('.gitignore');
-    gitignoreOk = gi.includes('.sentix/safety.toml');
-  }
+  // .gitignore 자동 등록 — safety.toml(안전어/복구키 해시)은 PEM 키 동급, git 커밋 금지.
+  // 확인만 하지 않고, 누락 시 직접 추가하여 평문 노출 경로를 사전 차단한다.
+  const gitignoreOk = await ensureSafetyGitignored(ctx);
 
   renderSetSuccessNotice(ctx, { hash, recoveryKey, gitignoreOk });
 }

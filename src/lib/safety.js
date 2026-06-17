@@ -186,6 +186,33 @@ export function isGitignored(ctx) {
 }
 
 /**
+ * Ensure .sentix/safety.toml is registered in .gitignore (auto-register).
+ *
+ * safety.toml 에는 안전어 해시 + 복구키 해시가 들어있다 — PEM 키 동급.
+ * sentix init / sentix safety set 이 호출하여 git 커밋을 사전 차단한다.
+ * 이미 등록돼 있으면 그대로 두고, 없으면 보안 주석과 함께 추가한다.
+ * .gitignore 가 없으면 새로 만든다.
+ *
+ * @returns {Promise<boolean>} 보호되면 true (기존/신규 무관), 쓰기 실패 시 false
+ */
+export async function ensureSafetyGitignored(ctx) {
+  try {
+    let gitignore = '';
+    if (ctx.exists('.gitignore')) {
+      gitignore = await ctx.readFile('.gitignore');
+    }
+    if (gitignore.includes(SAFETY_PATH)) return true;
+
+    const sep = gitignore && !gitignore.endsWith('\n') ? '\n' : '';
+    const block = `${sep}\n# Sentix security (NEVER commit — treat like PEM keys)\n${SAFETY_PATH}\n`;
+    await ctx.writeFile('.gitignore', gitignore + block);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Patterns that trigger safety word verification.
  * These detect potential LLM injection attempts.
  */
