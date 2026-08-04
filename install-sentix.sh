@@ -164,6 +164,17 @@ fi
 echo "[5/5] Updating .gitignore..."
 
 GITIGNORE="$TARGET/.gitignore"
+
+# 보안 파일 먼저 보호 — .sentix/safety.toml 에는 안전어/복구키 해시가 들어있다.
+# PEM 키 동급, git 커밋 절대 금지 (sentix init 과 동일하게 자동 등록).
+SAFETY_IGNORE=".sentix/safety.toml"
+if [ -f "$GITIGNORE" ] && grep -qF "$SAFETY_IGNORE" "$GITIGNORE" 2>/dev/null; then
+  : # 이미 보호됨
+else
+  printf '\n# Sentix security (NEVER commit — treat like PEM keys)\n%s\n' "$SAFETY_IGNORE" >> "$GITIGNORE"
+  echo "  Protected ${SAFETY_IGNORE} (안전어/복구키 해시)"
+fi
+
 ENTRIES=(
   "tasks/.pre-fix-test-results.json"
   "tasks/pattern-log.jsonl"

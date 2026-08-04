@@ -349,5 +349,18 @@
     "description_hash": "249f804e",
     "related_cycle": null,
     "file_path": "tasks/tickets/bug-013.md"
+  },
+  {
+    "id": "bug-014",
+    "type": "bug",
+    "title": ".sentix/safety.toml gitignore 자동 등록 — 안전어/복구키 해시가 git에 올라가지 않도록 install-senti...",
+    "severity": "warning",
+    "status": "open",
+    "created_at": "2026-06-17T04:04:41.252Z",
+    "updated_at": "2026-06-17T04:04:41.252Z",
+    "pipeline_status": "pending",
+    "description_hash": "50455979",
+    "related_cycle": null,
+    "file_path": "tasks/tickets/bug-014.md"
   }
 ]
